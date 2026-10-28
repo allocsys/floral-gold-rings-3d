@@ -1,13 +1,14 @@
 import { DEFAULTS, buildRing, toSTL } from './geometry.js';
 for (const k of Object.keys(DEFAULTS)) {
-  const sh = buildRing(k, DEFAULTS[k]);
+  const t0 = Date.now();
+  const sh = buildRing(k, DEFAULTS[k], 'draft');
   let nt = 0;
   for (const s of sh) {
-    if (![...s.pos.slice(0, 3000)].every(Number.isFinite)) throw new Error(k + ': NaN');
+    for (let i = 0; i < s.pos.length; i++) if (!Number.isFinite(s.pos[i])) throw new Error(`${k}: non-finite coordinate`);
     if (!(s.volume > 0)) throw new Error(`${k}: non-positive volume ${s.volume}`);
+    if (s.col && s.col.length !== s.pos.length) throw new Error(`${k}: colour array size mismatch`);
     nt += s.idx.length / 3;
   }
-  const stl = toSTL(sh);
-  if (stl.byteLength !== 84 + nt * 50) throw new Error(k + ': bad STL size');
-  console.log(k, 'ok', sh.length, 'shells', nt, 'tris', sh.reduce((a, s) => a + s.volume, 0).toFixed(1), 'mm3');
+  if (toSTL(sh).byteLength !== 84 + nt * 50) throw new Error(`${k}: bad STL size`);
+  console.log(k, 'ok', sh.length, 'shells', nt, 'tris', Date.now() - t0, 'ms');
 }

@@ -11,13 +11,14 @@ Parametric STL models of a floral-engraved gold ring set: two bands and a solita
 Units are millimetres. Open in MatrixGold/Rhino (import STL), Blender, or any slicer.
 
 ## Notes
-- The floral vine/flower engraving is a simplified approximation, not a faithful reproduction of the reference photo.
+- Engraving: raised vine, leaves, five-petal flowers and buds on a recessed background, with a plain rim. It is parametric and close to, but not identical to, the reference photo. In the viewer the recess is shown dark (oxidised); in the STL it is geometry only.
+- The solitaire has a faceted 8-fold brilliant, basket, gallery rail and curved claw prongs.
 - These are meshes, not NURBS. Use them as scale/reference geometry and rebuild in Matrix for production.
 
-## Regenerate
+## Regenerate STLs
 ```
-pip install numpy
-python generate_rings.py
+node tools/export_stl.mjs   # writes full-detail STLs to models/ (single source of truth: site/geometry.js)
+node site/test.mjs          # smoke test
 ```
 
 ## Interactive viewer

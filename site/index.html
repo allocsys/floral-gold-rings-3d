@@ -53,26 +53,29 @@ const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 300);
 camera.position.set(6, 16, 34);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true; controls.autoRotate = true; controls.autoRotateSpeed = 1.5;
-const gold = new THREE.MeshStandardMaterial({ color: 0xe0b030, metalness: 1, roughness: 0.22 });
-const gem = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0.02, clearcoat: 1, ior: 2.4, envMapIntensity: 2.5, flatShading: true });
+const gold = new THREE.MeshStandardMaterial({ color: 0xe0b030, metalness: 1, roughness: 0.2 });
+const engraved = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 1, roughness: 0.26 }); // gold relief, dark oxidised recess
+const gem = new THREE.MeshPhysicalMaterial({ color: 0xf4f8ff, metalness: 0.1, roughness: 0, clearcoat: 1, ior: 2.4, reflectivity: 1, envMapIntensity: 4 });
 const group = new THREE.Group(); scene.add(group);
 
 let kind = 'solitaire';
 const state = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { ...v }]));
-let shells = [], dirty = true;
+let shells = [], dirty = 'fine', fineTimer = 0;
+const queue = (q) => { dirty = q; };
 
-function rebuild() {
+function rebuild(quality) {
   for (const m of [...group.children]) { m.geometry.dispose(); group.remove(m); }
-  shells = buildRing(kind, state[kind]);
+  shells = buildRing(kind, state[kind], quality);
   for (const s of shells) {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(s.pos, 3));
     g.setIndex(new THREE.BufferAttribute(s.idx, 1));
+    if (s.col) g.setAttribute('color', new THREE.BufferAttribute(s.col, 3));
     g.computeVertexNormals();
-    group.add(new THREE.Mesh(g, s.kind === 'stone' ? gem : gold));
+    group.add(new THREE.Mesh(g, s.kind === 'stone' ? gem : s.col ? engraved : gold));
   }
   const p = state[kind];
-  document.getElementById('info').textContent = `Ø ${p.ID} mm inner · ${shells.length} shells · units mm`;
+  document.getElementById('info').textContent = `Ø ${p.ID} mm inner · ${quality === 'draft' ? 'draft preview while dragging' : 'full detail'} · mm`;
 }
 
 const tabs = document.getElementById('tabs'), sliders = document.getElementById('sliders');
@@ -80,23 +83,23 @@ function renderUI() {
   tabs.innerHTML = ''; sliders.innerHTML = '';
   for (const k of Object.keys(DEFAULTS)) {
     const b = document.createElement('button'); b.textContent = LABELS[k]; b.className = k === kind ? 'on' : '';
-    b.onclick = () => { kind = k; renderUI(); dirty = true; }; tabs.appendChild(b);
+    b.onclick = () => { kind = k; renderUI(); queue('fine'); }; tabs.appendChild(b);
   }
   for (const [key, label, min, max, step, only] of CONTROLS) {
     if (only && only !== kind) continue;
     const row = document.createElement('div'); row.className = 'row';
     row.innerHTML = `<label>${label}</label><input type="range" min="${min}" max="${max}" step="${step}" value="${state[kind][key]}"><output>${state[kind][key]}</output>`;
     const inp = row.querySelector('input'), out = row.querySelector('output');
-    inp.oninput = () => { state[kind][key] = +inp.value; out.textContent = inp.value; dirty = true; };
+    inp.oninput = () => { state[kind][key] = +inp.value; out.textContent = inp.value; queue('draft'); clearTimeout(fineTimer); fineTimer = setTimeout(() => queue('fine'), 350); };
     sliders.appendChild(row);
   }
 }
-document.getElementById('reset').onclick = () => { state[kind] = { ...DEFAULTS[kind] }; renderUI(); dirty = true; };
+document.getElementById('reset').onclick = () => { state[kind] = { ...DEFAULTS[kind] }; renderUI(); queue('fine'); };
 const spin = document.getElementById('spin');
 spin.onclick = () => { controls.autoRotate = !controls.autoRotate; spin.textContent = 'Spin: ' + (controls.autoRotate ? 'on' : 'off'); };
 document.getElementById('dl').onclick = () => {
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([toSTL(shells)], { type: 'model/stl' }));
+  a.href = URL.createObjectURL(new Blob([toSTL(buildRing(kind, state[kind], 'fine'))], { type: 'model/stl' }));
   a.download = `ring_${kind}.stl`; a.click(); URL.revokeObjectURL(a.href);
 };
 const ui = document.getElementById('ui'), tog = document.getElementById('tog');
@@ -105,6 +108,6 @@ tog.onclick = () => setCollapsed(!ui.classList.contains('collapsed'));
 setCollapsed(innerWidth < 720); // start collapsed on phones so the ring is fully visible
 function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize(); renderUI();
-renderer.setAnimationLoop(() => { if (dirty) { dirty = false; rebuild(); } controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(() => { if (dirty) { const q = dirty; dirty = false; rebuild(q); } controls.update(); renderer.render(scene, camera); });
 </script>
 </body></html>
