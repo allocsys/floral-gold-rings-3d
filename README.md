@@ -26,3 +26,6 @@ python generate_rings.py
 - **Local:** `cd site && python3 -m http.server` then open http://localhost:8000
 - **GitHub Pages:** Settings → Pages → Source: *GitHub Actions*. The workflow in `.github/workflows/pages.yml` tests and deploys on every push to `site/`.
 - **Cloudflare Pages:** connect this repo, framework *None*, build command empty, output directory `site`. Or `npx wrangler pages deploy site`.
+
+## Reference
+![Reference photo](reference/reference.jpg)
