@@ -46,16 +46,18 @@ import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL } from './geometry.js';
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
 const scene = new THREE.Scene();
 scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+scene.background = new THREE.Color(0x4a3b30); // warm brown, like the reference box
+const key = new THREE.DirectionalLight(0xfff1dc, 2.2); key.position.set(-10, 20, 14); scene.add(key);
 const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 300);
 camera.position.set(6, 16, 34);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true; controls.autoRotate = true; controls.autoRotateSpeed = 1.5;
-const gold = new THREE.MeshStandardMaterial({ color: 0xe0b030, metalness: 1, roughness: 0.2 });
-const engraved = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 1, roughness: 0.26 }); // gold relief, dark oxidised recess
-const gem = new THREE.MeshPhysicalMaterial({ color: 0xf4f8ff, metalness: 0.1, roughness: 0, clearcoat: 1, ior: 2.4, reflectivity: 1, envMapIntensity: 4 });
+const gold = new THREE.MeshStandardMaterial({ color: 0xe6b84a, metalness: 1, roughness: 0.28 });
+const engraved = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 1, roughness: 0.34 }); // gold relief, dark oxidised recess
+const gem = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0, transmission: 1, thickness: 3, ior: 2.4, specularIntensity: 1, envMapIntensity: 3.5, side: THREE.DoubleSide, attenuationColor: 0xf2f6ff, attenuationDistance: 12 });
 const group = new THREE.Group(); scene.add(group);
 
 let kind = 'solitaire';

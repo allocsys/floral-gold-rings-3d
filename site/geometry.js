@@ -1,8 +1,8 @@
 // Parametric ring geometry (mm). No dependencies: runs in the browser and in Node.
 export const DEFAULTS = {
-  band1:     { ID: 19, w: 4.5, t: 1.5, n: 8,  fr: 1.15, va: 0.6,  gd: 0.16 },
-  band2:     { ID: 17, w: 4.0, t: 1.4, n: 7,  fr: 1.05, va: 0.5,  gd: 0.16 },
-  solitaire: { ID: 17, w: 2.4, t: 1.3, n: 12, fr: 0.62, va: 0.28, gd: 0.12, stone: 5.2, prongs: 6 },
+  band1:     { ID: 19, w: 4.5, t: 1.5, n: 8,  fr: 1.35, va: 0.6, gd: 0.18 },
+  band2:     { ID: 17, w: 4.0, t: 1.4, n: 7,  fr: 1.2,  va: 0.6, gd: 0.18 },
+  solitaire: { ID: 17, w: 2.6, t: 1.3, n: 11, fr: 0.72, va: 0.6, gd: 0.13, stone: 5.2, prongs: 4 },
 };
 export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire' };
 export const CONTROLS = [
@@ -11,7 +11,7 @@ export const CONTROLS = [
   ['t', 'Thickness', 0.8, 3, 0.05],
   ['n', 'Flowers around', 3, 20, 1],
   ['fr', 'Flower size', 0.3, 1.8, 0.05],
-  ['va', 'Vine wave', 0, 1.0, 0.05],
+  ['va', 'Scroll size', 0, 1.0, 0.05],
   ['gd', 'Engraving depth', 0, 0.35, 0.01],
   ['stone', 'Stone diameter', 3, 8, 0.1, 'solitaire'],
   ['prongs', 'Prongs', 4, 8, 1, 'solitaire'],
@@ -23,50 +23,80 @@ const clip = (x) => Math.min(1, Math.max(0, x));
 const sm = (d, e) => { const t = clip(0.5 + d / (2 * e)); return t * t * (3 - 2 * t); }; // soft edge, d>0 inside
 
 // linear colours: polished gold relief, near-black oxidised recess
-const GOLD = [0.75, 0.43, 0.03], DARK = [0.018, 0.011, 0.004];
+const GOLD = [0.80, 0.50, 0.07], DARK = [0.17, 0.095, 0.022]; // bright satin relief / antique-gold recess
 
 // ---------- engraved pattern (unrolled band, x along circumference, z across) ----------
+const sdSeg = (px, pz, ax, az, bx, bz) => {
+  const vx = bx - ax, vz = bz - az, t = clip(((px - ax) * vx + (pz - az) * vz) / (vx * vx + vz * vz || 1));
+  return Math.hypot(px - ax - t * vx, pz - az - t * vz);
+};
 function leafMask(x, z, cx, cz, ang, len, wid, e) {
   const c = Math.cos(ang), s = Math.sin(ang), dx = x - cx, dz = z - cz;
   const lx = dx * c + dz * s, ly = -dx * s + dz * c, t = lx / len;
   if (t < -0.05 || t > 1.05) return [0, 0];
   const tt = clip(t);
   const hw = wid * Math.pow(Math.max(0, Math.sin(Math.PI * Math.pow(tt, 0.8))), 0.9);
-  const rib = t > 0.14 && t < 0.86 ? sm(0.032 - Math.abs(ly), e * 0.5) : 0;
+  const rib = t > 0.14 && t < 0.86 ? sm(0.03 - Math.abs(ly), e * 0.5) : 0;
   return [sm(hw - Math.abs(ly), e), rib];
 }
-// returns 1 = raised gold, 0 = recessed dark
-export function relief(x, z, q) {
-  const { per, hw, fr, va, vw, L, wd, e } = q, k = TAU / per;
-  let m = 0, c = 0;
-  // scrolling vine
-  const zc = va * Math.sin(k * x), sl = va * k * Math.cos(k * x);
-  m = sm(vw - Math.abs(z - zc) / Math.sqrt(1 + sl * sl), e);
-  // five-petal flower: petals, centre ring and petal veins
-  const rho = Math.hypot(x, z);
-  if (rho < fr * 1.05 + e) {
-    const phi = Math.atan2(z, x);
-    const pet = fr * (0.42 + 0.58 * Math.pow(0.5 + 0.5 * Math.cos(5 * phi), 0.6));
-    m = Math.max(m, sm(pet - rho, e));
-    const a = mod(phi + Math.PI / 5, TAU / 5) - Math.PI / 5;
-    c = Math.max(c, sm(0.028 - rho * Math.abs(a), e * 0.5) * sm(0.86 * fr - rho, e) * sm(rho - 0.3 * fr, e));
-    c = Math.max(c, sm(0.03 - Math.abs(rho - 0.2 * fr), e * 0.5));
+function flowerMask(x, z, cx, cz, fr, e) {
+  const dx = x - cx, dz = z - cz, rho = Math.hypot(dx, dz);
+  if (rho > fr * 1.1 + e) return [0, 0];
+  const phi = Math.atan2(dz, dx);
+  const pet = fr * (0.42 + 0.58 * Math.pow(0.5 + 0.5 * Math.cos(5 * phi), 0.6));
+  const a = mod(phi + Math.PI / 5, TAU / 5) - Math.PI / 5;
+  const c = Math.max(
+    sm(0.045 * fr - rho * Math.abs(a), e * 0.5) * sm(0.86 * fr - rho, e) * sm(rho - 0.3 * fr, e),
+    sm(0.05 * fr - Math.abs(rho - 0.2 * fr), e * 0.5));
+  return [sm(pet - rho, e), c];
+}
+function curlMask(x, z, C, e) {
+  // arched stem (quadratic bezier, tangent into the spiral) back to the flower
+  let m = 0, d = 1e9, px = C.Ex, pz = C.Ez;
+  for (let i = 1; i <= 10; i++) {
+    const t = i / 10, u = 1 - t, qx = u * u * C.Ex + 2 * u * t * C.Mx + t * t * C.Fx, qz = u * u * C.Ez + 2 * u * t * C.Mz + t * t * C.Fz;
+    d = Math.min(d, sdSeg(x, z, px, pz, qx, qz)); px = qx; pz = qz;
   }
-  // four leaves alternating along the vine
-  const LV = [[0.20, 1.0], [0.30, -1.0], [-0.20, Math.PI - 1.0], [-0.30, -(Math.PI - 1.0)]];
-  for (const [fx, ang] of LV) {
-    const xl = fx * per;
-    if (Math.abs(x - xl) > L + 0.05) continue;
-    const [b, r] = leafMask(x, z, xl, va * Math.sin(k * xl), ang, L, wd, e);
-    m = Math.max(m, b); c = Math.max(c, r);
+  m = sm(C.sw - d, e);
+  const dx = x - C.cx, dz = z - C.cz, rho = Math.hypot(dx, dz);
+  if (rho < C.rout + C.tw * 2 + e) {
+    const psi = mod(C.sgn * (Math.atan2(dz, dx) - C.th0), TAU);
+    for (let th = psi; th <= C.TH; th += TAU) {
+      const f = th / C.TH;
+      m = Math.max(m, sm(C.tw * (1.15 - 0.7 * f) - Math.abs(rho - (C.rin + (C.rout - C.rin) * f)), e));
+    }
+    m = Math.max(m, sm(C.tw * 1.6 - Math.hypot(x - C.bx, z - C.bz), e)); // bulb at the inner end
   }
-  // tiny buds between flowers
+  return m;
+}
+// per-tile geometry; rebuilt per column because the solitaire's half-width tapers
+export function makeQ(p, per, hw, e) {
+  const rout = hw * (0.12 + 0.26 * p.va), rin = rout * 0.16, TH = 1.7 * TAU, tw = 0.05 * hw + 0.035;
+  const fr = p.fr, curls = [];
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    const d = Math.hypot(x - sx * per / 2, z - sz * 0.5 * hw);
-    m = Math.max(m, sm(0.14 - d, e));
+    const cx = sx * 0.3 * per, cz = sz * 0.47 * hw, sgn = sz > 0 ? -sx : sx;
+    const aT = Math.atan2(-cz, -cx), al = aT - sgn * Math.PI / 2, th0 = al - sgn * TH;
+    const Ex = cx + rout * Math.cos(al), Ez = cz + rout * Math.sin(al);
+    const tx = -sgn * Math.sin(al), tz = sgn * Math.cos(al);            // heading at the spiral's outer end
+    const d = Math.hypot(cx, cz), Fx = (cx / d) * 0.7 * fr, Fz = (cz / d) * 0.7 * fr, l = Math.hypot(Fx - Ex, Fz - Ez);
+    curls.push({ cx, cz, sgn, th0, TH, rin, rout, tw, sw: 0.85 * tw, Ex, Ez, Fx, Fz, Mx: Ex + tx * 0.55 * l, Mz: Ez + tz * 0.55 * l,
+      bx: cx + rin * Math.cos(th0), bz: cz + rin * Math.sin(th0) });
   }
-  // plain raised rim with a fine recessed pin-stripe inside it
-  const az = Math.abs(z);
+  return { per, hw, fr, curls, L: 0.3 * per, wd: 0.12 * hw, e };
+}
+// returns 1 = raised satin gold, 0 = recessed antique gold
+export function relief(x, z, q) {
+  const { per, hw, fr, curls, L, wd, e } = q;
+  let m = 0, c = 0;
+  const fl = flowerMask(x, z, 0, 0, fr, e); m = fl[0]; c = fl[1];
+  for (const sx of [-1, 1]) {                                    // small flowers + a leaf on each tile joint
+    const xj = sx * per / 2, f2 = flowerMask(x, z, xj, 0, 0.42 * fr, e);
+    m = Math.max(m, f2[0]); c = Math.max(c, f2[1]);
+    const l = leafMask(x, z, xj - sx * 0.36 * fr, 0, sx > 0 ? Math.PI : 0, L, wd, e);
+    m = Math.max(m, l[0]); c = Math.max(c, l[1]);
+  }
+  for (const C of curls) m = Math.max(m, curlMask(x, z, C, e));  // scrolls
+  const az = Math.abs(z);                                          // plain rim + pin-stripe
   m = Math.max(m, sm(az - (hw - 0.3), e));
   c = Math.max(c, sm(0.03 - Math.abs(az - (hw - 0.42)), e * 0.5));
   return clip(m - c);
@@ -87,22 +117,23 @@ function band(p, solitaire, quality) {
   const NT = Math.max(240, Math.ceil(TAU * Ro / step));
   const Mo = Math.max(24, Math.ceil((solitaire ? p.w * 1.3 : p.w) / step)), Mi = 8, Mt = Mo + Mi;
   const P = new Float32Array(NT * Mt * 3), C = new Float32Array(NT * Mt * 3);
-  const e = 1.5 * step;
+  const e = Math.max(1.5 * step, 0.07);
   for (let i = 0; i < NT; i++) {
     const th = (i / NT) * TAU;
     const d = Math.abs(mod(th - Math.PI / 2 + Math.PI, TAU) - Math.PI); // angle from top
     const shoulder = solitaire ? clip((d - 0.38) / 0.25) * clip((2.2 - d) / 0.25) : 1;
     const hwid = solitaire ? (p.w / 2) * (1 + 0.28 * (1 + Math.cos(d)) / 2) : p.w / 2;
     const ds = mod((th - Math.PI / 2) * Ro + per / 2, per) - per / 2;
-    const q = { per, hw: hwid, fr: p.fr, va: p.va, vw: 0.036 * p.w + 0.03, L: 0.62 * hwid, wd: 0.2 * hwid, e };
+    const q = makeQ(p, per, hwid, e);
     const ct = Math.cos(th), st = Math.sin(th);
     for (let j = 0; j < Mo; j++) {
       const zn = -1 + (2 * j) / (Mo - 1), z = zn * hwid;
       const r = 1 + (relief(ds, z, q) - 1) * shoulder;
-      const R = Ro + 0.12 * (1 - zn * zn) - p.gd * (1 - r);
+      const nz = Math.sin(ds * 91.7 + z * 57.3 + i * 0.37) * 43758.5453, g = nz - Math.floor(nz); // fine grain in the recess
+      const R = Ro + 0.22 * (1 - zn * zn) - p.gd * (1 - r) + (1 - r) * 0.014 * (g - 0.5);
       const o = (i * Mt + j) * 3;
       P[o] = R * ct; P[o + 1] = R * st; P[o + 2] = z;
-      for (let k = 0; k < 3; k++) C[o + k] = DARK[k] + (GOLD[k] - DARK[k]) * r;
+      for (let k = 0; k < 3; k++) C[o + k] = (DARK[k] * (0.8 + 0.4 * g)) * (1 - r) + GOLD[k] * r;
     }
     for (let j = 0; j < Mi; j++) {
       const zn = 1 - (2 * j) / (Mi - 1), R = Ri - 0.08 * (1 - zn * zn);
@@ -111,7 +142,7 @@ function band(p, solitaire, quality) {
       C[o] = GOLD[0]; C[o + 1] = GOLD[1]; C[o + 2] = GOLD[2];
     }
   }
-  return { shell: { ...torus(P, NT, Mt), col: C }, top: Ro + 0.12 };
+  return { shell: { ...torus(P, NT, Mt), col: C }, top: Ro + 0.22 };
 }
 function revolve(prof, n = 48) {
   const M = prof.length, P = new Float32Array(n * M * 3);
