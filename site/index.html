@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Floral Gold Rings – 3D viewer</title>
+<style>
+  :root{--bg:#f4f1ea;--fg:#1d1b16;--panel:rgba(255,255,255,.88);--accent:#b8860b}
+  @media (prefers-color-scheme:dark){:root{--bg:#16140f;--fg:#f1ece0;--panel:rgba(30,27,20,.88)}}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px system-ui,sans-serif;overflow:hidden}
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+  #ui{position:fixed;left:0;right:0;bottom:0;max-height:55vh;overflow:auto;background:var(--panel);backdrop-filter:blur(8px);padding:10px 14px calc(10px + env(safe-area-inset-bottom));border-radius:16px 16px 0 0;box-sizing:border-box}
+  @media(min-width:720px){#ui{left:auto;top:0;right:0;bottom:0;width:320px;max-height:none;border-radius:0}}
+  .tabs{display:flex;gap:6px;margin-bottom:8px}
+  .tabs button,.act button{flex:1;padding:8px 4px;border:1px solid var(--accent);background:transparent;color:var(--fg);border-radius:8px;font:inherit}
+  .tabs button.on{background:var(--accent);color:#fff}
+  .row{display:grid;grid-template-columns:110px 1fr 44px;gap:8px;align-items:center;margin:4px 0}
+  .row output{text-align:right;font-variant-numeric:tabular-nums}
+  .act{display:flex;gap:6px;margin-top:10px}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  #info{opacity:.7;font-size:12px;margin-top:6px}
+</style></head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div class="tabs" id="tabs"></div>
+  <div id="sliders"></div>
+  <div class="act"><button id="reset">Reset</button><button id="spin">Spin: on</button><button id="dl">Download STL</button></div>
+  <div id="info"></div>
+</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL } from './geometry.js';
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+const scene = new THREE.Scene();
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 300);
+camera.position.set(6, 16, 34);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.autoRotate = true; controls.autoRotateSpeed = 1.5;
+const gold = new THREE.MeshStandardMaterial({ color: 0xe0b030, metalness: 1, roughness: 0.22 });
+const gem = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0.02, clearcoat: 1, ior: 2.4, envMapIntensity: 2.5, flatShading: true });
+const group = new THREE.Group(); scene.add(group);
+
+let kind = 'solitaire';
+const state = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { ...v }]));
+let shells = [], dirty = true;
+
+function rebuild() {
+  for (const m of [...group.children]) { m.geometry.dispose(); group.remove(m); }
+  shells = buildRing(kind, state[kind]);
+  for (const s of shells) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(s.pos, 3));
+    g.setIndex(new THREE.BufferAttribute(s.idx, 1));
+    g.computeVertexNormals();
+    group.add(new THREE.Mesh(g, s.kind === 'stone' ? gem : gold));
+  }
+  const p = state[kind];
+  document.getElementById('info').textContent = `Ø ${p.ID} mm inner · ${shells.length} shells · units mm`;
+}
+
+const tabs = document.getElementById('tabs'), sliders = document.getElementById('sliders');
+function renderUI() {
+  tabs.innerHTML = ''; sliders.innerHTML = '';
+  for (const k of Object.keys(DEFAULTS)) {
+    const b = document.createElement('button'); b.textContent = LABELS[k]; b.className = k === kind ? 'on' : '';
+    b.onclick = () => { kind = k; renderUI(); dirty = true; }; tabs.appendChild(b);
+  }
+  for (const [key, label, min, max, step, only] of CONTROLS) {
+    if (only && only !== kind) continue;
+    const row = document.createElement('div'); row.className = 'row';
+    row.innerHTML = `<label>${label}</label><input type="range" min="${min}" max="${max}" step="${step}" value="${state[kind][key]}"><output>${state[kind][key]}</output>`;
+    const inp = row.querySelector('input'), out = row.querySelector('output');
+    inp.oninput = () => { state[kind][key] = +inp.value; out.textContent = inp.value; dirty = true; };
+    sliders.appendChild(row);
+  }
+}
+document.getElementById('reset').onclick = () => { state[kind] = { ...DEFAULTS[kind] }; renderUI(); dirty = true; };
+const spin = document.getElementById('spin');
+spin.onclick = () => { controls.autoRotate = !controls.autoRotate; spin.textContent = 'Spin: ' + (controls.autoRotate ? 'on' : 'off'); };
+document.getElementById('dl').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([toSTL(shells)], { type: 'model/stl' }));
+  a.download = `ring_${kind}.stl`; a.click(); URL.revokeObjectURL(a.href);
+};
+function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize(); renderUI();
+renderer.setAnimationLoop(() => { if (dirty) { dirty = false; rebuild(); } controls.update(); renderer.render(scene, camera); });
+</script>
+</body></html>

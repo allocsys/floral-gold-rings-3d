@@ -19,3 +19,10 @@ Units are millimetres. Open in MatrixGold/Rhino (import STL), Blender, or any sl
 pip install numpy
 python generate_rings.py
 ```
+
+## Interactive viewer
+`site/` is a static page (three.js, no build step): pick a ring, drag sliders (diameter, width, thickness, flowers, engraving depth, stone size, prongs), orbit it, and **Download STL** of the current settings.
+
+- **Local:** `cd site && python3 -m http.server` then open http://localhost:8000
+- **GitHub Pages:** Settings → Pages → Source: *GitHub Actions*. The workflow in `.github/workflows/pages.yml` tests and deploys on every push to `site/`.
+- **Cloudflare Pages:** connect this repo, framework *None*, build command empty, output directory `site`. Or `npx wrangler pages deploy site`.
