@@ -18,14 +18,23 @@
   .act{display:flex;gap:6px;margin-top:10px}
   input[type=range]{width:100%;accent-color:var(--accent)}
   #info{opacity:.7;font-size:12px;margin-top:6px}
+  .hd{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+  .hd .tabs{flex:1;margin:0}
+  #tog{flex:0 0 auto;width:38px;padding:8px 0;border:1px solid var(--accent);background:transparent;color:var(--fg);border-radius:8px;font:inherit}
+  #ui.collapsed{overflow:hidden}
+  #ui.collapsed .hd{margin-bottom:0}
+  #ui.collapsed #body{display:none}
+  @media(min-width:720px){#ui.collapsed{bottom:auto;border-radius:0 0 0 16px}}
 </style></head>
 <body>
 <canvas id="c"></canvas>
 <div id="ui">
-  <div class="tabs" id="tabs"></div>
-  <div id="sliders"></div>
-  <div class="act"><button id="reset">Reset</button><button id="spin">Spin: on</button><button id="dl">Download STL</button></div>
-  <div id="info"></div>
+  <div class="hd"><div class="tabs" id="tabs"></div><button id="tog" aria-label="Toggle settings" aria-expanded="true">▾</button></div>
+  <div id="body">
+    <div id="sliders"></div>
+    <div class="act"><button id="reset">Reset</button><button id="spin">Spin: on</button><button id="dl">Download STL</button></div>
+    <div id="info"></div>
+  </div>
 </div>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
@@ -90,6 +99,10 @@ document.getElementById('dl').onclick = () => {
   a.href = URL.createObjectURL(new Blob([toSTL(shells)], { type: 'model/stl' }));
   a.download = `ring_${kind}.stl`; a.click(); URL.revokeObjectURL(a.href);
 };
+const ui = document.getElementById('ui'), tog = document.getElementById('tog');
+function setCollapsed(c) { ui.classList.toggle('collapsed', c); tog.textContent = c ? '▴' : '▾'; tog.setAttribute('aria-expanded', String(!c)); }
+tog.onclick = () => setCollapsed(!ui.classList.contains('collapsed'));
+setCollapsed(innerWidth < 720); // start collapsed on phones so the ring is fully visible
 function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize(); renderUI();
 renderer.setAnimationLoop(() => { if (dirty) { dirty = false; rebuild(); } controls.update(); renderer.render(scene, camera); });
