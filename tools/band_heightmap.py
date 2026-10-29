@@ -48,7 +48,7 @@ m = np.where(ends > 0, opened, m).astype(np.uint8)
 l, n = ndi.label(m); sz = ndi.sum(m, l, range(1, n+1))
 for i, s in enumerate(sz):
     if s < 250: m[l == i+1] = 0
-m = (cv2.GaussianBlur(m.astype(np.float32), (0,0), 1.3) > .5).astype(np.uint8)
+m = (cv2.GaussianBlur(m.astype(np.float32), (0,0), 2.2) > .5).astype(np.uint8)
 
 # beads (x, y, r) in window coordinates, placed by hand from the reference; flower centres separate
 BEADS = [(95,38,22),(330,43,24),(365,165,22),(228,240,18),(510,238,26),(598,118,21),(890,115,22),
@@ -57,16 +57,47 @@ BEADS = [(95,38,22),(330,43,24),(365,165,22),(228,240,18),(510,238,26),(598,118,
 CENTRES = [(147,133,24),(746,128,26),(1341,133,24)]
 
 d = cv2.distanceTransform(m, cv2.DIST_L2, 5)
+sm = lambda a: a*a*(3-2*a)
+E = 12.0                                   # shoulder width (px): steep rounded wall, then a broad top
 loc = cv2.GaussianBlur(cv2.dilate(d, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31,31))), (0,0), 5)
-x = np.clip(d / np.clip(loc, 6, 26), 0, 1)
-h = cv2.GaussianBlur(np.sqrt(1 - (1-x)**2), (0,0), 1.6)
-hs = cv2.GaussianBlur(np.where(m > 0, .25 + .75*h, 0).astype(np.float32), (0,0), 1.0)
+xe = np.clip(d / E, 0, 1)
+xc = np.clip(d / np.clip(loc, 6, 26), 0, 1)
+crown = np.sqrt(1 - (1-xc)**2)             # gentle overall crown so wide shapes are not dead flat
+h = 0.72*sm(xe) + 0.28*crown
+h = cv2.GaussianBlur(h.astype(np.float32), (0,0), 1.2)
+# leaf / scroll veins: shallow grooves from the dark lines inside the gold (not in flowers, whose petal gaps are carved already)
+inner = cv2.erode(m, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9,9)))
+vein = ((bh > 40) & (inner > 0) & (zone < .5)).astype(np.uint8)
+vein = cv2.morphologyEx(vein, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2,2)))
+l, n = ndi.label(vein); sz = ndi.sum(vein, l, range(1, n+1))
+for i, sz_ in enumerate(sz):
+    if sz_ < 70: vein[l == i+1] = 0
+groove = cv2.GaussianBlur(vein.astype(np.float32), (0,0), 1.6)
+h = h * (1 - 0.30*np.clip(groove*2, 0, 1))
+hs = np.where(m > 0, 0.28 + 0.72*h, 0).astype(np.float32)
+hs = cv2.GaussianBlur(hs, (0,0), 0.8)
+# stipple: small bright dots sitting in the recess (too small to survive the gold mask)
+raw = (score > 104).astype(np.uint8)
+free = raw & (1 - cv2.dilate(m, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9,9))))
+l, n = ndi.label(free)
+DOTS = []
+for i in range(1, n+1):
+    ys, xs = np.nonzero(l == i); a = len(xs)
+    if 25 <= a <= 220:
+        bw, bhh = xs.max()-xs.min()+1, ys.max()-ys.min()+1
+        if max(bw, bhh) / max(1, min(bw, bhh)) < 1.8:
+            DOTS.append((xs.mean(), ys.mean(), np.sqrt(a/np.pi)*1.1))
 yy, xx = np.mgrid[0:H, 0:W]
 for lst, top in ((BEADS, 1.0), (CENTRES, .95)):
     for bx, by, r in lst:
         rr = np.sqrt((xx-bx)**2 + (yy-by)**2)
         dome = np.where(rr < r, .3 + (top-.3)*np.sqrt(np.clip(1-(rr/r)**2, 0, 1)), 0)
         hs = np.where(rr < r, np.maximum(hs, dome), hs)
+for bx, by, r in DOTS:
+    rr = np.sqrt((xx-bx)**2 + (yy-by)**2)
+    dome = np.where(rr < r, .14 + .40*np.sqrt(np.clip(1-(rr/r)**2, 0, 1)), 0)
+    hs = np.where(rr < r, np.maximum(hs, dome), hs)
+print('stipple dots', len(DOTS))
 hs = hs.astype(np.float32)
 
 os.makedirs(os.path.join(ROOT, 'maps'), exist_ok=True)
