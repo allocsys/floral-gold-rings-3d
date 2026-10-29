@@ -1,8 +1,8 @@
 // Parametric ring geometry (mm). No dependencies: runs in the browser and in Node.
 export const DEFAULTS = {
-  band1:     { ID: 19, w: 4.5, t: 1.5, n: 8,  fr: 1.35, va: 0.6, gd: 0.18 },
-  band2:     { ID: 17, w: 4.0, t: 1.4, n: 7,  fr: 1.2,  va: 0.6, gd: 0.18 },
-  solitaire: { ID: 17, w: 2.6, t: 1.3, n: 11, fr: 0.72, va: 0.6, gd: 0.13, stone: 5.2, prongs: 6 },
+  band1:     { ID: 19, w: 4.5, t: 1.5, n: 4,  fr: 1.35, va: 0.6, gd: 0.18 },
+  band2:     { ID: 17, w: 4.0, t: 1.4, n: 4,  fr: 1.2,  va: 0.6, gd: 0.18 },
+  solitaire: { ID: 17, w: 2.6, t: 1.3, n: 4, fr: 0.72, va: 0.6, gd: 0.13, stone: 5.2, prongs: 6 },
 };
 export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire' };
 export const CONTROLS = [
@@ -91,37 +91,37 @@ function strokeMask(x, z, S, e) {
   return sm(S.w0 + (S.w1 - S.w0) * bt - best, e);
 }
 
-// per-tile geometry (rebuilt per column: the solitaire's half-width tapers). Motif lives on x>0 and is repeated rotated 180deg for x<0.
+// Pattern traced from the reference photo (unwrapped band): one repeat = big flower, bud flower, long diagonal vine with leaves,
+// ring bud, tall leaves ending in a big spiral, and on the other side a crossing vine + long leaf pair with a small bud.
+// Motif coordinates are mm for a 4 mm band (hw=2) and a 15.6 mm repeat; X is stretched to the actual repeat, shapes scale with hw.
 export function makeQ(p, per, hw, e) {
-  const kx = (per / 2) / 1.95, U = (X, Z) => [X * kx, Z * hw], sc = 0.2 + 0.2 * p.va;
-  const strokes = [], flw = [], leaves = [], wv = 0.065 * hw + 0.05;
-  // vine A: up and over, ending in a clockwise curl
-  const r0 = sc * hw, CA = [1.4 * kx, -0.5 * hw + r0];
-  const stemA = catmull([U(0.4, 0.02), U(0.78, -0.3), U(1.08, -0.5), [CA[0], CA[1] - r0]]);
-  strokes.push(mkStroke(stemA.concat(spiral(CA[0], CA[1], r0, 0.3 * r0, 1.3, 1, -Math.PI / 2)), wv, 0.5 * wv));
-  // vine B: down and across, ending in a counter-clockwise curl
-  const r1 = 0.75 * r0, CB = [1.5 * kx, 0.64 * hw - r1];
-  const stemB = catmull([U(0.4, 0.1), U(0.8, 0.34), U(1.15, 0.6), [CB[0], CB[1] + r1]]);
-  strokes.push(mkStroke(stemB.concat(spiral(CB[0], CB[1], r1, 0.3 * r1, 1.3, -1, Math.PI / 2)), wv, 0.5 * wv));
-  // small flowers sitting on the vines
-  flw.push([0.95 * kx, -0.42 * hw, 0.16 * hw], [1.05 * kx, 0.5 * hw, 0.16 * hw]);
-  // leaves: [cx, cz, angle, len, halfwidth, curvature]
-  leaves.push([0.7 * kx, -0.24 * hw, -1.5, 0.5 * hw, 0.12 * hw, 0.2], [1.25 * kx, -0.5 * hw, -0.35, 0.5 * hw, 0.12 * hw, -0.2],
-              [0.7 * kx, 0.26 * hw, 1.5, 0.5 * hw, 0.12 * hw, -0.2]);
-  return { per, hw, fr: p.fr, e, strokes, flw, leaves, jr: 0.38 * p.fr };
+  const kx = per / 15.6, s = hw / 2, U = (X, Z) => [X * kx, Z * s], strokes = [], leaves = [], flw = [], rings = [];
+  const st = (pts, w0, w1, extra = []) => strokes.push(mkStroke(catmull(pts.map(q => U(q[0], q[1]))).concat(extra), 1.35 * w0 * s, 1.2 * w1 * s));
+  st([[0.7, 1.4], [1.9, 1.05], [3.0, 0.3], [4.1, -0.6], [5.1, -1.2]], 0.3, 0.12);                       // long diagonal vine
+  const r0 = 1.3 * s * (0.75 + 0.4 * p.va), C = U(7.1, 0.15);
+  st([[5.6, -1.0], [6.4, -1.3], [C[0] / kx, (C[1] - r0) / s]], 0.2, 0.2, spiral(C[0], C[1], r0, 0.22 * r0, 1.4, 1, -Math.PI / 2)); // stem into big spiral
+  st([[4.9, 0.95], [5.1, 0.4], [5.4, -0.1]], 0.1, 0.1);                                                  // ring-bud stem
+  st([[-5.3, 1.6], [-4.4, 0.9], [-3.5, 0.0], [-2.8, -0.7]], 0.25, 0.1);                                  // crossing vine
+  // leaves: X, Z, angle, length, half-width, curvature
+  for (const [X, Z, ang, len, w, cv] of [[3.0, 0.3, -0.85, 1.3, 0.3, 0.15], [4.1, -0.6, 0.7, 1.3, 0.3, -0.15], [1.9, 1.05, 0.45, 1.1, 0.26, -0.15],
+      [5.8, 1.6, -1.45, 3.0, 0.36, 0.12], [6.3, 1.6, -1.15, 2.3, 0.3, -0.1], [-4.7, -1.6, 0.91, 4.0, 0.38, 0.1], [-4.4, 1.55, -1.5, 1.0, 0.2, 0.1], [-1.9, 1.3, -0.5, 1.4, 0.3, 0.15], [-1.9, -1.3, 0.5, 1.4, 0.3, -0.15], [0.9, 1.5, 0.15, 1.2, 0.25, -0.1]])
+    leaves.push([X * kx, Z * s, ang, 1.1 * len * s, 1.35 * w * s, cv]);
+  flw.push([2.1 * kx, -0.95 * s, 0.55 * s]);                                                             // bud flower
+  rings.push([4.9 * kx, 1.2 * s, 0.3 * s], [-2.2 * kx, 0.2 * s, 0.25 * s], [1.4 * kx, -1.0 * s, 0.14 * s, 1], [-1.6 * kx, -1.1 * s, 0.12 * s, 1]); // ring buds + berries
+  return { per, hw, fr: p.fr, e, strokes, leaves, flw, rings, kx };
 }
 // returns 1 = raised gold, 0 = recessed antique gold
 export function relief(x, z, q) {
-  const { hw, e } = q;
-  const f0 = flowerMask(x, z, 0, 0, q.fr, e); let m = f0[0], c = f0[1];
-  for (const sg of [1, -1]) {
-    const X = sg * x, Z = sg * z;
-    if (X < -0.05 * hw) continue;
-    for (const S of q.strokes) m = Math.max(m, strokeMask(X, Z, S, e));
-    for (const F of q.flw) { const f = flowerMask(X, Z, F[0], F[1], F[2], e); m = Math.max(m, f[0]); c = Math.max(c, f[1]); }
-    for (const L of q.leaves) { const l = leafMask(X, Z, L[0], L[1], L[2], L[3], L[4], e, L[5]); m = Math.max(m, l[0]); c = Math.max(c, l[1]); }
-    const j = flowerMask(Z, X, 0, q.per / 2, q.jr, e);                  // joint flower, mirror-symmetric across the seam
-    m = Math.max(m, j[0]); c = Math.max(c, j[1]);
+  const { hw, e, per, kx } = q;
+  let m = 0, c = 0;
+  for (const off of [0, per, -per]) {
+    const X = x - off;
+    if (X < -9 * kx || X > 9 * kx) continue;
+    if (off === 0) { const f0 = flowerMask(X, z, 0, 0, q.fr, e); m = f0[0]; c = f0[1]; }
+    for (const S of q.strokes) m = Math.max(m, strokeMask(X, z, S, e));
+    for (const F of q.flw) { const f = flowerMask(X, z, F[0], F[1], F[2], e); m = Math.max(m, f[0]); c = Math.max(c, f[1]); }
+    for (const L of q.leaves) { const l = leafMask(X, z, L[0], L[1], L[2], L[3], L[4], e, L[5]); m = Math.max(m, l[0]); c = Math.max(c, l[1]); }
+    for (const R of q.rings) { const d = Math.hypot(X - R[0], z - R[1]); m = Math.max(m, sm(R[2] - d, e)); if (!R[3]) c = Math.max(c, sm(0.45 * R[2] - d, e)); }
   }
   m *= sm(hw - 0.42 - Math.abs(z), e);                                   // keep clear of the polished rim
   return clip(m - c);
