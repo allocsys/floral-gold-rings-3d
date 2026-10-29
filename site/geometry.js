@@ -2,7 +2,7 @@
 export const DEFAULTS = {
   band1:     { ID: 19, w: 4.5, t: 1.5, n: 8,  fr: 1.35, va: 0.6, gd: 0.18 },
   band2:     { ID: 17, w: 4.0, t: 1.4, n: 7,  fr: 1.2,  va: 0.6, gd: 0.18 },
-  solitaire: { ID: 17, w: 2.6, t: 1.3, n: 11, fr: 0.72, va: 0.6, gd: 0.13, stone: 5.2, prongs: 4 },
+  solitaire: { ID: 17, w: 2.6, t: 1.3, n: 11, fr: 0.72, va: 0.6, gd: 0.13, stone: 5.2, prongs: 6 },
 };
 export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire' };
 export const CONTROLS = [
@@ -11,7 +11,7 @@ export const CONTROLS = [
   ['t', 'Thickness', 0.8, 3, 0.05],
   ['n', 'Flowers around', 3, 20, 1],
   ['fr', 'Flower size', 0.3, 1.8, 0.05],
-  ['va', 'Scroll size', 0, 1.0, 0.05],
+  ['va', 'Vine wave', 0, 1.0, 0.05],
   ['gd', 'Engraving depth', 0, 0.35, 0.01],
   ['stone', 'Stone diameter', 3, 8, 0.1, 'solitaire'],
   ['prongs', 'Prongs', 4, 8, 1, 'solitaire'],
@@ -71,33 +71,28 @@ function curlMask(x, z, C, e) {
 }
 // per-tile geometry; rebuilt per column because the solitaire's half-width tapers
 export function makeQ(p, per, hw, e) {
-  const rout = hw * (0.12 + 0.26 * p.va), rin = rout * 0.16, TH = 1.7 * TAU, tw = 0.05 * hw + 0.035;
-  const fr = p.fr, curls = [];
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    const cx = sx * 0.3 * per, cz = sz * 0.47 * hw, sgn = sz > 0 ? -sx : sx;
-    const aT = Math.atan2(-cz, -cx), al = aT - sgn * Math.PI / 2, th0 = al - sgn * TH;
-    const Ex = cx + rout * Math.cos(al), Ez = cz + rout * Math.sin(al);
-    const tx = -sgn * Math.sin(al), tz = sgn * Math.cos(al);            // heading at the spiral's outer end
-    const d = Math.hypot(cx, cz), Fx = (cx / d) * 0.7 * fr, Fz = (cz / d) * 0.7 * fr, l = Math.hypot(Fx - Ex, Fz - Ez);
-    curls.push({ cx, cz, sgn, th0, TH, rin, rout, tw, sw: 0.85 * tw, Ex, Ez, Fx, Fz, Mx: Ex + tx * 0.55 * l, Mz: Ez + tz * 0.55 * l,
-      bx: cx + rin * Math.cos(th0), bz: cz + rin * Math.sin(th0) });
-  }
-  return { per, hw, fr, curls, L: 0.3 * per, wd: 0.12 * hw, e };
+  return { per, hw, fr: p.fr, a: (0.12 + 0.42 * p.va) * hw, ws: 0.05 * hw + 0.06, e };
 }
-// returns 1 = raised satin gold, 0 = recessed antique gold
+// returns 1 = raised satin gold, 0 = recessed antique gold.
+// One tile = a sine vine through a big flower (centre) and small flowers (tile joints), paired leaves at each crest, berry clusters opposite.
 export function relief(x, z, q) {
-  const { per, hw, fr, curls, L, wd, e } = q;
-  let m = 0, c = 0;
-  const fl = flowerMask(x, z, 0, 0, fr, e); m = fl[0]; c = fl[1];
-  for (const sx of [-1, 1]) {                                    // small flowers + a leaf on each tile joint
-    const xj = sx * per / 2, f2 = flowerMask(x, z, xj, 0, 0.42 * fr, e);
+  const { per, hw, fr, a, ws, e } = q;
+  const k = TAU / per, sl = a * k * Math.cos(k * x);
+  let m = sm(ws - Math.abs(z - a * Math.sin(k * x)) / Math.sqrt(1 + sl * sl), e), c = 0;
+  const fl = flowerMask(x, z, 0, 0, fr, e); m = Math.max(m, fl[0]); c = fl[1];
+  const L = 0.2 * per, wd = 0.17 * L, rb = 0.07 * hw + 0.07;
+  for (const s of [-1, 1]) {
+    const f2 = flowerMask(x, z, s * per / 2, 0, 0.42 * fr, e);          // small flower on the tile joint
     m = Math.max(m, f2[0]); c = Math.max(c, f2[1]);
-    const l = leafMask(x, z, xj - sx * 0.36 * fr, 0, sx > 0 ? Math.PI : 0, L, wd, e);
-    m = Math.max(m, l[0]); c = Math.max(c, l[1]);
+    const xc = s * per / 4, zc = s * a;                                  // vine crest
+    for (const [ang, len] of [[s * 0.45, L], [s * (Math.PI - 0.45), 0.85 * L]]) {
+      const l = leafMask(x, z, xc, zc, ang, len, wd, e);
+      m = Math.max(m, l[0]); c = Math.max(c, l[1]);
+    }
+    for (const [dx, dz, r] of [[0, -0.62 * hw, rb], [0.12 * per, -0.48 * hw, 0.75 * rb], [-0.12 * per, -0.48 * hw, 0.75 * rb]])
+      m = Math.max(m, sm(r - Math.hypot(x - xc - dx, z - s * dz), e));    // berries
   }
-  for (const C of curls) m = Math.max(m, curlMask(x, z, C, e));  // scrolls
-  const az = Math.abs(z);                                          // plain rim + pin-stripe
-  m = Math.max(m, sm(az - (hw - 0.3), e));
+  const az = Math.abs(z);                                                // pin-stripe next to the polished rim
   c = Math.max(c, sm(0.03 - Math.abs(az - (hw - 0.42)), e * 0.5));
   return clip(m - c);
 }
@@ -111,11 +106,14 @@ function torus(P, N, M) {
   }
   return { pos: P, idx };
 }
+const DOME = 0.26;
 function band(p, solitaire, quality) {
-  const step = quality === 'draft' ? 0.12 : 0.045;
+  const step = quality === 'draft' ? 0.12 : 0.055;
   const Ri = p.ID / 2, Ro = Ri + p.t, per = TAU * Ro / p.n;
   const NT = Math.max(240, Math.ceil(TAU * Ro / step));
-  const Mo = Math.max(24, Math.ceil((solitaire ? p.w * 1.3 : p.w) / step)), Mi = 8, Mt = Mo + Mi;
+  const rf = 0.32, Kf = quality === 'draft' ? 4 : 8, Wn = 5, Mi = 10;
+  const Mo = Math.max(24, Math.ceil(((solitaire ? p.w * 1.3 : p.w) - 2 * rf) / step));
+  const S = 2 * Kf + Wn, Mt = Mo + Mi + 2 * S;
   const P = new Float32Array(NT * Mt * 3), C = new Float32Array(NT * Mt * 3);
   const e = Math.max(1.5 * step, 0.07);
   for (let i = 0; i < NT; i++) {
@@ -126,23 +124,30 @@ function band(p, solitaire, quality) {
     const ds = mod((th - Math.PI / 2) * Ro + per / 2, per) - per / 2;
     const q = makeQ(p, per, hwid, e);
     const ct = Math.cos(th), st = Math.sin(th);
+    let o = i * Mt * 3;
+    const put = (R, z, c0, c1, c2) => { P[o] = R * ct; P[o + 1] = R * st; P[o + 2] = z; C[o] = c0; C[o + 1] = c1; C[o + 2] = c2; o += 3; };
+    const zt = (hwid - rf) / hwid, Rt = Ro + DOME * (1 - zt * zt), Rie = Ri - 0.08 * (1 - zt * zt);
+    // outer face with engraving
     for (let j = 0; j < Mo; j++) {
-      const zn = -1 + (2 * j) / (Mo - 1), z = zn * hwid;
+      const zn = (-1 + (2 * j) / (Mo - 1)) * zt, z = zn * hwid;
       const r = 1 + (relief(ds, z, q) - 1) * shoulder;
       const nz = Math.sin(ds * 91.7 + z * 57.3 + i * 0.37) * 43758.5453, g = nz - Math.floor(nz); // fine grain in the recess
-      const R = Ro + 0.22 * (1 - zn * zn) - p.gd * (1 - r) + (1 - r) * 0.014 * (g - 0.5);
-      const o = (i * Mt + j) * 3;
-      P[o] = R * ct; P[o + 1] = R * st; P[o + 2] = z;
-      for (let k = 0; k < 3; k++) C[o + k] = (DARK[k] * (0.8 + 0.4 * g)) * (1 - r) + GOLD[k] * r;
+      const R = Ro + DOME * (1 - zn * zn) - p.gd * (1 - r) + (1 - r) * 0.014 * (g - 0.5);
+      put(R, z, DARK[0] * (0.8 + 0.4 * g) * (1 - r) + GOLD[0] * r, DARK[1] * (0.8 + 0.4 * g) * (1 - r) + GOLD[1] * r, DARK[2] * (0.8 + 0.4 * g) * (1 - r) + GOLD[2] * r);
     }
+    // rounded edge: outer fillet, wall, inner fillet (+z side), inner bore, then the -z side back
+    const edge = [];
+    for (let k = 1; k <= Kf; k++) { const a = (k / Kf) * Math.PI / 2; edge.push([hwid - rf + rf * Math.sin(a), Rt - rf * (1 - Math.cos(a))]); }
+    for (let j = 1; j <= Wn; j++) edge.push([hwid, (Rt - rf) + (Rie + rf - (Rt - rf)) * (j / (Wn + 1))]);
+    for (let k = 0; k < Kf; k++) { const a = (k / Kf) * Math.PI / 2; edge.push([hwid - rf + rf * Math.cos(a), Rie + rf - rf * Math.sin(a)]); }
+    for (const [z, R] of edge) put(R, z, GOLD[0], GOLD[1], GOLD[2]);
     for (let j = 0; j < Mi; j++) {
-      const zn = 1 - (2 * j) / (Mi - 1), R = Ri - 0.08 * (1 - zn * zn);
-      const o = (i * Mt + Mo + j) * 3;
-      P[o] = R * ct; P[o + 1] = R * st; P[o + 2] = zn * hwid;
-      C[o] = GOLD[0]; C[o + 1] = GOLD[1]; C[o + 2] = GOLD[2];
+      const zn = zt * (1 - (2 * j) / (Mi - 1)), R = Ri - 0.08 * (1 - zn * zn);
+      put(R, zn * hwid, GOLD[0], GOLD[1], GOLD[2]);
     }
+    for (let k = S - 1; k >= 0; k--) put(edge[k][1], -edge[k][0], GOLD[0], GOLD[1], GOLD[2]);
   }
-  return { shell: { ...torus(P, NT, Mt), col: C }, top: Ro + 0.22 };
+  return { shell: { ...torus(P, NT, Mt), col: C }, top: Ro + DOME };
 }
 function revolve(prof, n = 48) {
   const M = prof.length, P = new Float32Array(n * M * 3);
