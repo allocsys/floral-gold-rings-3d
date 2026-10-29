@@ -33,12 +33,18 @@ m = np.where(zone > .5, small, big).astype(np.uint8)
 
 g8 = cv2.cvtColor(c, cv2.COLOR_BGR2GRAY).astype(np.float32)
 bh = cv2.morphologyEx(cv2.GaussianBlur(g8, (0,0), 1.2), cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (13,13)))
-slit = ((bh > 38) & (zone > .5)).astype(np.uint8)
+slit = ((bh > 52) & (zone > .5)).astype(np.uint8)
 slit = cv2.morphologyEx(slit, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2,2)))
 l, n = ndi.label(slit); sz = ndi.sum(slit, l, range(1, n+1))
 for i, s in enumerate(sz):
-    if s < 60: slit[l == i+1] = 0
+    if s < 90: slit[l == i+1] = 0
 m[slit > 0] = 0
+H_, W_ = m.shape
+for cx, cy, r in ((147,133,24),(746,128,26),(1341,133,24)):
+    cv2.circle(m, (cx, cy), r+5, 1, -1)
+ends = np.zeros_like(m); ends[:, :60] = 1; ends[:, -60:] = 1
+opened = cv2.morphologyEx(m, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11,11)))
+m = np.where(ends > 0, opened, m).astype(np.uint8)
 l, n = ndi.label(m); sz = ndi.sum(m, l, range(1, n+1))
 for i, s in enumerate(sz):
     if s < 250: m[l == i+1] = 0
@@ -76,3 +82,9 @@ col = np.where(hs[..., None] > .05, col, np.array([18,30,45])/255.*(.6 + .4*dif[
 cv2.imwrite(os.path.join(ROOT, 'maps/band_preview.png'),
             np.vstack([c, cv2.applyColorMap((hs*255).astype(np.uint8), cv2.COLORMAP_VIRIDIS), (np.clip(col,0,1)*255).astype(np.uint8)]))
 print('ok', hs.shape)
+
+# --- seamless repeating unit: big flower centre -> small flower centre, mirrored (big flower at both ends) ---
+A = hs[:, 147:747]
+period = np.hstack([A, A[:, ::-1][:, 1:]])
+cv2.imwrite(os.path.join(ROOT, 'maps/band_period.png'), (period*65535).astype(np.uint16))
+print('period', period.shape)
