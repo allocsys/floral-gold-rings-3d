@@ -23,11 +23,11 @@ for n,i in enumerate(ids):
     newlab[sel]=i
 # dome clearance + gaps between petals (wider close to the dome, like the wedge gaps in the reference)
 for k in range(3):
-    fx,fy=X(599,k),Y(128); cv2.circle(newlab,(int(fx),int(fy)),int((26+4)*S),0,-1)
+    fx,fy=X(599,k),Y(128); cv2.circle(newlab,(int(fx),int(fy)),int((26+2.2)*S),0,-1)
 lnb=lines(newlab); lnb=cv2.dilate(lnb.astype(np.uint8),ell(1.4*S))>0
 near=np.zeros((H2,W2),np.uint8)
 for k in range(3): cv2.circle(near,(int(X(599,k)),int(Y(128))),int(95*S),1,-1)
-lnw=cv2.dilate(lines(newlab).astype(np.uint8),ell(3.4*S))>0
+lnw=cv2.dilate(lines(newlab).astype(np.uint8),ell(2.6*S))>0
 newlab[lnb|(lnw&(near>0))]=0
 lab=newlab
 sm=lambda a:a*a*(3-2*a)
@@ -63,7 +63,7 @@ for i,o in enumerate(ndi.find_objects(lab),1):
     cen=any(np.hypot(cmx-X(599,k),cmy-Y(128))<200*S for k in range(3)) and ((i-1)%15) in (7,8,9,10,11,12,13)
     if cen: CPET.append((i,cmx,cmy))
     petal=((i-1)%15)<14 and i<=45                      # marker ids: 15 per tile, last one is the scroll
-    sdf=g(sdf,(2.0 if cen else 3.6 if petal else 3.0)*S)                                   # smooth contour (no jaggies, no ribbing)
+    sdf=g(sdf,(1.4 if cen else 3.6 if petal else 3.0)*S)                                   # smooth contour (no jaggies, no ribbing)
     d=np.maximum(sdf,0)/S                              # inward distance in 1x px
     loc=g(cv2.dilate(d,ell(31*S)),5*S)
     xe=np.clip(d/12,0,1); xc=np.clip(d/np.clip(loc,6,26),0,1)
@@ -81,12 +81,14 @@ for (i,cmx,cmy) in CPET:
     inr=reg[py,px]
     if not inr.any(): continue
     t0=ts[np.argmax(inr)]; t1=ts[len(inr)-1-np.argmax(inr[::-1])]
-    a0=t0+6*S; a1=t0+0.62*(t1-t0)             # tapered groove from near the base to ~62% of petal length
-    for t in np.arange(a0,a1,S*0.5):
-        u=(t-a0)/(a1-a0); w=(1.8*(1-u)+0.5)*S/2
-        cv2.circle(rib,(int(fx+ux*t),int(fy+uy*t)),max(1,int(round(w))),1,-1)
+    for da,f0,f1,wk in ((0,6,.62,1.0),(0.17,9,.42,.6),(-0.17,9,.42,.6)):   # centre vein + two fine side veins
+        a0=t0+f0*S; a1=t0+f1*(t1-t0)
+        vx,vy=np.cos(ang+da),np.sin(ang+da)
+        for t in np.arange(a0,a1,S*0.5):
+            u=(t-a0)/(a1-a0); w=(1.8*(1-u)+0.5)*wk*S/2
+            cv2.circle(rib,(int(fx+vx*t),int(fy+vy*t)),max(1,int(round(w))),1,-1)
 rib=np.clip(g(rib,1.6*S)*2.2,0,1)
-HS*=(1-0.13*rib)
+HS*=(1-0.15*rib)
 HS=g(HS,0.7*S/2)
 
 def dome(hs,bx,by,r,base,top,pw=.5):
