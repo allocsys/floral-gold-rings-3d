@@ -22,7 +22,7 @@ Y=lambda y: y*S+(S-1)/2
 
 Lab=cv2.cvtColor(T2,cv2.COLOR_BGR2LAB).astype(np.float32)[...,0]
 sd=np.sqrt(np.maximum(g(Lab*Lab,3*S)-g(Lab,3*S)**2,0))
-score=g(Lab,2.5*S)-0.6*sd
+score=g(Lab,2.5*S)-0.6*sd   # (kept for old outline / debug)
 
 def build(close_k,hole_max):
     m=(score>104).astype(np.uint8)
@@ -41,6 +41,34 @@ for k in range(3):
         cv2.ellipse(zone,(int(X(fx,k)),int(Y(130))),(125*S,150*S),0,0,360,1,-1)
 zone=g(zone,12*S)
 m=np.where(zone>.5,small,big).astype(np.uint8)
+
+# ---- precise outline (v7): topology-safe base mask (light blur, small close) + local half-max edge refinement
+def base_mask(sig=1.2,close_k=5,hole=60,speck=40):
+    sc=g(Lab,sig*S)-0.6*sd
+    b=(sc>104).astype(np.uint8)
+    b=cv2.morphologyEx(b,cv2.MORPH_CLOSE,ell(close_k*S))
+    b=cv2.morphologyEx(b,cv2.MORPH_OPEN,ell(3*S))
+    l,n=ndi.label(b); sz=ndi.sum(b,l,range(1,n+1))
+    for i,s_ in enumerate(sz):
+        if s_<speck*S*S: b[l==i+1]=0
+    inv=1-b; l,n=ndi.label(inv); sz=ndi.sum(inv,l,range(1,n+1))
+    for i,s_ in enumerate(sz):
+        if s_<hole*S*S: b[l==i+1]=1
+    return b
+def refine_edges(b,sig=0.8,R=6,B=5):
+    # inside the +-B px band around the base boundary, put the edge at the half-way level between the
+    # local gold plateau (max L inside, radius R) and the local recess level (min L outside)
+    Lf=g(Lab,sig*S); r=int(R*S)
+    hi=g(cv2.dilate(np.where(b>0,Lf,0).astype(np.float32),ell(2*r+1)),2*S)
+    lo=g(cv2.erode(np.where(b>0,255,Lf).astype(np.float32),ell(2*r+1)),2*S)
+    d=cv2.distanceTransform(b,cv2.DIST_L2,5)-cv2.distanceTransform(1-b,cv2.DIST_L2,5)
+    new=np.where(np.abs(d)<B*S,Lf>0.5*(hi+lo),b>0).astype(np.uint8)
+    l,n=ndi.label(new); sz=ndi.sum(new,l,range(1,n+1))
+    for i,s_ in enumerate(sz):
+        if s_<40*S*S: new[l==i+1]=0
+    return new
+if not os.environ.get('OLD_OUTLINE'):
+    m=refine_edges(base_mask())
 
 g8=cv2.cvtColor(T2,cv2.COLOR_BGR2GRAY).astype(np.float32)
 bh=cv2.morphologyEx(g(g8,1.2*S),cv2.MORPH_BLACKHAT,ell(13*S))
