@@ -23,21 +23,24 @@ const clip = (x) => Math.min(1, Math.max(0, x));
 const sm = (d, e) => { const t = clip(0.5 + d / (2 * e)); return t * t * (3 - 2 * t); }; // soft edge, d>0 inside
 
 // linear colours: polished gold relief, near-black oxidised recess
-const GOLD = [0.80, 0.50, 0.07], DARK = [0.17, 0.095, 0.022]; // bright satin relief / antique-gold recess
+const GOLD = [0.80, 0.50, 0.07], DARK = [0.075, 0.04, 0.009]; // bright satin relief / antique-gold recess
 
 // ---------- engraved pattern (unrolled band, x along circumference, z across) ----------
 const sdSeg = (px, pz, ax, az, bx, bz) => {
   const vx = bx - ax, vz = bz - az, t = clip(((px - ax) * vx + (pz - az) * vz) / (vx * vx + vz * vz || 1));
   return Math.hypot(px - ax - t * vx, pz - az - t * vz);
 };
-function leafMask(x, z, cx, cz, ang, len, wid, e) {
+// leaf: pointed, bent by `curv`, engraved midrib + outline. returns [mask, dark]
+function leafMask(x, z, cx, cz, ang, len, wid, e, curv = 0) {
   const c = Math.cos(ang), s = Math.sin(ang), dx = x - cx, dz = z - cz;
-  const lx = dx * c + dz * s, ly = -dx * s + dz * c, t = lx / len;
+  const lx = dx * c + dz * s, t = lx / len;
   if (t < -0.05 || t > 1.05) return [0, 0];
-  const tt = clip(t);
+  const tt = clip(t), ly = -dx * s + dz * c - curv * len * tt * tt;
   const hw = wid * Math.pow(Math.max(0, Math.sin(Math.PI * Math.pow(tt, 0.8))), 0.9);
-  const rib = t > 0.14 && t < 0.86 ? sm(0.03 - Math.abs(ly), e * 0.5) : 0;
-  return [sm(hw - Math.abs(ly), e), rib];
+  const m = sm(hw - Math.abs(ly), e);
+  const rib = t > 0.12 && t < 0.88 ? sm(0.028 - Math.abs(ly), e * 0.5) : 0;
+  const edge = t > 0.04 && t < 0.97 ? sm(0.03 - Math.abs(hw - Math.abs(ly) - 0.06), e * 0.5) * (hw > 0.12 ? 1 : 0) : 0;
+  return [m, Math.max(rib, edge) * m];
 }
 function flowerMask(x, z, cx, cz, fr, e) {
   const dx = x - cx, dz = z - cz, rho = Math.hypot(dx, dz);
@@ -45,55 +48,37 @@ function flowerMask(x, z, cx, cz, fr, e) {
   const phi = Math.atan2(dz, dx);
   const pet = fr * (0.42 + 0.58 * Math.pow(0.5 + 0.5 * Math.cos(5 * phi), 0.6));
   const a = mod(phi + Math.PI / 5, TAU / 5) - Math.PI / 5;
+  const m = sm(pet - rho, e);
   const c = Math.max(
-    sm(0.045 * fr - rho * Math.abs(a), e * 0.5) * sm(0.86 * fr - rho, e) * sm(rho - 0.3 * fr, e),
-    sm(0.05 * fr - Math.abs(rho - 0.2 * fr), e * 0.5));
-  return [sm(pet - rho, e), c];
+    sm(0.045 * fr - rho * Math.abs(a), e * 0.5) * sm(0.86 * fr - rho, e) * sm(rho - 0.3 * fr, e),   // petal creases
+    sm(0.05 * fr - Math.abs(rho - 0.2 * fr), e * 0.5));                                             // centre ring
+  return [m, c];
 }
-function curlMask(x, z, C, e) {
-  // arched stem (quadratic bezier, tangent into the spiral) back to the flower
-  let m = 0, d = 1e9, px = C.Ex, pz = C.Ez;
-  for (let i = 1; i <= 10; i++) {
-    const t = i / 10, u = 1 - t, qx = u * u * C.Ex + 2 * u * t * C.Mx + t * t * C.Fx, qz = u * u * C.Ez + 2 * u * t * C.Mz + t * t * C.Fz;
-    d = Math.min(d, sdSeg(x, z, px, pz, qx, qz)); px = qx; pz = qz;
-  }
-  m = sm(C.sw - d, e);
-  const dx = x - C.cx, dz = z - C.cz, rho = Math.hypot(dx, dz);
-  if (rho < C.rout + C.tw * 2 + e) {
-    const psi = mod(C.sgn * (Math.atan2(dz, dx) - C.th0), TAU);
-    for (let th = psi; th <= C.TH; th += TAU) {
-      const f = th / C.TH;
-      m = Math.max(m, sm(C.tw * (1.15 - 0.7 * f) - Math.abs(rho - (C.rin + (C.rout - C.rin) * f)), e));
-    }
-    m = Math.max(m, sm(C.tw * 1.6 - Math.hypot(x - C.bx, z - C.bz), e)); // bulb at the inner end
-  }
-  return m;
-}
+
 // per-tile geometry; rebuilt per column because the solitaire's half-width tapers
 export function makeQ(p, per, hw, e) {
-  return { per, hw, fr: p.fr, a: (0.12 + 0.42 * p.va) * hw, ws: 0.05 * hw + 0.06, e };
+  return { per, hw, fr: p.fr, a: (0.14 + 0.42 * p.va) * hw, ws: 0.09 * hw + 0.09, e };
 }
 // returns 1 = raised satin gold, 0 = recessed antique gold.
-// One tile = a sine vine through a big flower (centre) and small flowers (tile joints), paired leaves at each crest, berry clusters opposite.
+// One tile = bold sine vine through a big flower (centre) and small flowers (joints); big curved leaf pairs at each crest, inner leaves, berries.
 export function relief(x, z, q) {
   const { per, hw, fr, a, ws, e } = q;
   const k = TAU / per, sl = a * k * Math.cos(k * x);
   let m = sm(ws - Math.abs(z - a * Math.sin(k * x)) / Math.sqrt(1 + sl * sl), e), c = 0;
   const fl = flowerMask(x, z, 0, 0, fr, e); m = Math.max(m, fl[0]); c = fl[1];
-  const L = 0.2 * per, wd = 0.17 * L, rb = 0.07 * hw + 0.07;
+  const L = Math.min(0.24 * per, 1.05 * hw), wd = 0.17 * L, rb = 0.05 * hw + 0.06;
+  const leaf = (cx, cz, ang, len, w, cv) => { const l = leafMask(x, z, cx, cz, ang, len, w, e, cv); m = Math.max(m, l[0]); c = Math.max(c, l[1]); };
   for (const s of [-1, 1]) {
-    const f2 = flowerMask(x, z, s * per / 2, 0, 0.42 * fr, e);          // small flower on the tile joint
+    // joint flower, turned so it is mirror-symmetric across the tile seam
+    const f2 = flowerMask(z, x, 0, s * per / 2, 0.5 * fr, e);
     m = Math.max(m, f2[0]); c = Math.max(c, f2[1]);
-    const xc = s * per / 4, zc = s * a;                                  // vine crest
-    for (const [ang, len] of [[s * 0.45, L], [s * (Math.PI - 0.45), 0.85 * L]]) {
-      const l = leafMask(x, z, xc, zc, ang, len, wd, e);
-      m = Math.max(m, l[0]); c = Math.max(c, l[1]);
-    }
-    for (const [dx, dz, r] of [[0, -0.62 * hw, rb], [0.12 * per, -0.48 * hw, 0.75 * rb], [-0.12 * per, -0.48 * hw, 0.75 * rb]])
+    const xc = s * per / 4;
+    leaf(xc, s * a, s * 0.35, L, wd, s * 0.2);                           // leaf pair at each vine crest
+    leaf(xc, s * a, s * (Math.PI - 0.35), 0.85 * L, wd, -s * 0.2);
+    for (const [dx, dz, r] of [[0, -0.7 * hw, rb], [0.1 * per, -0.58 * hw, 0.8 * rb], [-0.1 * per, -0.58 * hw, 0.8 * rb]])
       m = Math.max(m, sm(r - Math.hypot(x - xc - dx, z - s * dz), e));    // berries
   }
-  const az = Math.abs(z);                                                // pin-stripe next to the polished rim
-  c = Math.max(c, sm(0.03 - Math.abs(az - (hw - 0.42)), e * 0.5));
+  m *= sm(hw - 0.42 - Math.abs(z), e);                                   // keep clear of the polished rim
   return clip(m - c);
 }
 
