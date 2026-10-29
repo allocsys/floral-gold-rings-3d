@@ -55,28 +55,73 @@ function flowerMask(x, z, cx, cz, fr, e) {
   return [m, c];
 }
 
-// per-tile geometry; rebuilt per column because the solitaire's half-width tapers
-export function makeQ(p, per, hw, e) {
-  return { per, hw, fr: p.fr, a: (0.14 + 0.42 * p.va) * hw, ws: 0.09 * hw + 0.09, e };
+// ---- scrollwork strokes: tapered ribbons (polyline + width), spirals ----
+function catmull(P, sub = 7) {
+  const out = [], n = P.length;
+  for (let i = 0; i < n - 1; i++) for (let s = 0; s < sub; s++) {
+    const t = s / sub, p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(n - 1, i + 2)];
+    out.push([0, 1].map(k => 0.5 * (2 * p1[k] + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t * t + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t ** 3)));
+  }
+  out.push(P[n - 1].slice());
+  return out;
 }
-// returns 1 = raised satin gold, 0 = recessed antique gold.
-// One tile = bold sine vine through a big flower (centre) and small flowers (joints); big curved leaf pairs at each crest, inner leaves, berries.
+function spiral(cx, cz, r0, r1, turns, dir, phi0, N = 48) {
+  const out = [];
+  for (let i = 1; i <= N; i++) { const f = i / N, ph = phi0 + dir * f * turns * TAU, r = r0 + (r1 - r0) * f; out.push([cx + r * Math.cos(ph), cz + r * Math.sin(ph)]); }
+  return out;
+}
+function mkStroke(P, w0, w1) {
+  const cum = [0]; let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+  for (let i = 0; i < P.length; i++) {
+    if (i) cum.push(cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+    x0 = Math.min(x0, P[i][0]); x1 = Math.max(x1, P[i][0]); z0 = Math.min(z0, P[i][1]); z1 = Math.max(z1, P[i][1]);
+  }
+  const w = Math.max(w0, w1);
+  return { P, cum, L: cum[P.length - 1] || 1, w0, w1, x0: x0 - w - 0.2, x1: x1 + w + 0.2, z0: z0 - w - 0.2, z1: z1 + w + 0.2 };
+}
+function strokeMask(x, z, S, e) {
+  if (x < S.x0 || x > S.x1 || z < S.z0 || z > S.z1) return 0;
+  const P = S.P; let best = 1e9, bt = 0;
+  for (let i = 0; i < P.length - 1; i++) {
+    const ax = P[i][0], az = P[i][1], vx = P[i + 1][0] - ax, vz = P[i + 1][1] - az;
+    const l2 = vx * vx + vz * vz || 1e-9, u = clip(((x - ax) * vx + (z - az) * vz) / l2);
+    const d = Math.hypot(x - ax - u * vx, z - az - u * vz);
+    if (d < best) { best = d; bt = (S.cum[i] + u * Math.sqrt(l2)) / S.L; }
+  }
+  return sm(S.w0 + (S.w1 - S.w0) * bt - best, e);
+}
+
+// per-tile geometry (rebuilt per column: the solitaire's half-width tapers). Motif lives on x>0 and is repeated rotated 180deg for x<0.
+export function makeQ(p, per, hw, e) {
+  const kx = (per / 2) / 1.95, U = (X, Z) => [X * kx, Z * hw], sc = 0.2 + 0.2 * p.va;
+  const strokes = [], flw = [], leaves = [], wv = 0.065 * hw + 0.05;
+  // vine A: up and over, ending in a clockwise curl
+  const r0 = sc * hw, CA = [1.4 * kx, -0.5 * hw + r0];
+  const stemA = catmull([U(0.4, 0.02), U(0.78, -0.3), U(1.08, -0.5), [CA[0], CA[1] - r0]]);
+  strokes.push(mkStroke(stemA.concat(spiral(CA[0], CA[1], r0, 0.3 * r0, 1.3, 1, -Math.PI / 2)), wv, 0.5 * wv));
+  // vine B: down and across, ending in a counter-clockwise curl
+  const r1 = 0.75 * r0, CB = [1.5 * kx, 0.64 * hw - r1];
+  const stemB = catmull([U(0.4, 0.1), U(0.8, 0.34), U(1.15, 0.6), [CB[0], CB[1] + r1]]);
+  strokes.push(mkStroke(stemB.concat(spiral(CB[0], CB[1], r1, 0.3 * r1, 1.3, -1, Math.PI / 2)), wv, 0.5 * wv));
+  // small flowers sitting on the vines
+  flw.push([0.95 * kx, -0.42 * hw, 0.16 * hw], [1.05 * kx, 0.5 * hw, 0.16 * hw]);
+  // leaves: [cx, cz, angle, len, halfwidth, curvature]
+  leaves.push([0.7 * kx, -0.24 * hw, -1.5, 0.5 * hw, 0.12 * hw, 0.2], [1.25 * kx, -0.5 * hw, -0.35, 0.5 * hw, 0.12 * hw, -0.2],
+              [0.7 * kx, 0.26 * hw, 1.5, 0.5 * hw, 0.12 * hw, -0.2]);
+  return { per, hw, fr: p.fr, e, strokes, flw, leaves, jr: 0.38 * p.fr };
+}
+// returns 1 = raised gold, 0 = recessed antique gold
 export function relief(x, z, q) {
-  const { per, hw, fr, a, ws, e } = q;
-  const k = TAU / per, sl = a * k * Math.cos(k * x);
-  let m = sm(ws - Math.abs(z - a * Math.sin(k * x)) / Math.sqrt(1 + sl * sl), e), c = 0;
-  const fl = flowerMask(x, z, 0, 0, fr, e); m = Math.max(m, fl[0]); c = fl[1];
-  const L = Math.min(0.24 * per, 1.05 * hw), wd = 0.17 * L, rb = 0.05 * hw + 0.06;
-  const leaf = (cx, cz, ang, len, w, cv) => { const l = leafMask(x, z, cx, cz, ang, len, w, e, cv); m = Math.max(m, l[0]); c = Math.max(c, l[1]); };
-  for (const s of [-1, 1]) {
-    // joint flower, turned so it is mirror-symmetric across the tile seam
-    const f2 = flowerMask(z, x, 0, s * per / 2, 0.5 * fr, e);
-    m = Math.max(m, f2[0]); c = Math.max(c, f2[1]);
-    const xc = s * per / 4;
-    leaf(xc, s * a, s * 0.35, L, wd, s * 0.2);                           // leaf pair at each vine crest
-    leaf(xc, s * a, s * (Math.PI - 0.35), 0.85 * L, wd, -s * 0.2);
-    for (const [dx, dz, r] of [[0, -0.7 * hw, rb], [0.1 * per, -0.58 * hw, 0.8 * rb], [-0.1 * per, -0.58 * hw, 0.8 * rb]])
-      m = Math.max(m, sm(r - Math.hypot(x - xc - dx, z - s * dz), e));    // berries
+  const { hw, e } = q;
+  const f0 = flowerMask(x, z, 0, 0, q.fr, e); let m = f0[0], c = f0[1];
+  for (const sg of [1, -1]) {
+    const X = sg * x, Z = sg * z;
+    if (X < -0.05 * hw) continue;
+    for (const S of q.strokes) m = Math.max(m, strokeMask(X, Z, S, e));
+    for (const F of q.flw) { const f = flowerMask(X, Z, F[0], F[1], F[2], e); m = Math.max(m, f[0]); c = Math.max(c, f[1]); }
+    for (const L of q.leaves) { const l = leafMask(X, Z, L[0], L[1], L[2], L[3], L[4], e, L[5]); m = Math.max(m, l[0]); c = Math.max(c, l[1]); }
+    const j = flowerMask(Z, X, 0, q.per / 2, q.jr, e);                  // joint flower, mirror-symmetric across the seam
+    m = Math.max(m, j[0]); c = Math.max(c, j[1]);
   }
   m *= sm(hw - 0.42 - Math.abs(z), e);                                   // keep clear of the polished rim
   return clip(m - c);
