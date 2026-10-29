@@ -10,3 +10,8 @@ TODO: user approval, then replace maps/band_period.png, wire into band() in geom
 NOTE: maps/band_period.png and maps/band_preview.png are now v3 (approved by user 2026-10-29). maps/band_height.png is still the old v2 window map (not used by anything); tools/band_heightmap.py is the old v2 generator.
 stage6 (2026-10-29): stage5 generalised to BOTH flowers (side + centre); output band_period_v5.png = current maps/band_period.png. Run: mkdir -p /tmp/band_v3_out; python3 tools/wip_v3/stage2.py; python3 tools/wip_v3/stage6.py. Side flower: bottom pair split at axis, R/L petals keep their long tails (no hull), slit fork filled + thin groove. Previous version (centre-only polish) = commit 180c5cc.
 stage7 (2026-10-29, WIP, NOT in maps/): stage6 + centre-flower petals rebuilt as smooth parametric leaf shapes (width profile measured from ref region, gaussian-smoothed, sharp tips, tapered to dome), shallower veins (rib 0.07). Output band_period_v6.png. Run: mkdir -p /tmp/band_v3_out; python3 tools/wip_v3/stage2.py; python3 tools/wip_v3/stage7.py. maps/ still = v5. TODO: top 3 petals slightly narrower than ref; add fine radiating lines near dome.
+
+## Outline v7 (stage1)
+stage1 mask = light-blur base mask + local half-max edge refinement (+-5px band) + slit/pin-hole fill
+(dark features <8px touching the recess at <=1 place) + SDF smoothing (sigma 1.2S). `OLD_OUTLINE=1` = old mask.
+Output of stage7 with this outline is NOT yet in maps/ (maps/ = v5).

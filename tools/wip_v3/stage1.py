@@ -67,8 +67,35 @@ def refine_edges(b,sig=0.8,R=6,B=5):
     for i,s_ in enumerate(sz):
         if s_<40*S*S: new[l==i+1]=0
     return new
+def fill_slits(b,w=8,maxarea=900):
+    # dark features narrower than w px that touch the wide recess at <=1 place are slits/pin holes inside a
+    # leaf: fill them (later stages re-cut them as soft grooves). Features bridging two recess areas are
+    # real gaps between shapes and stay open.
+    inv=(1-b).astype(np.uint8)
+    far=cv2.morphologyEx(inv,cv2.MORPH_OPEN,ell(w*S))
+    far=cv2.dilate(far,ell(3))                        # recover opening shrink at the contact line
+    narrow=(inv>0)&(far==0)
+    l,n=ndi.label(narrow); out=b.copy()
+    sl=ndi.find_objects(l)
+    for i,sli in enumerate(sl):
+        y0,y1=max(sli[0].start-6*S,0),min(sli[0].stop+6*S,b.shape[0])
+        x0,x1=max(sli[1].start-6*S,0),min(sli[1].stop+6*S,b.shape[1])
+        comp=(l[y0:y1,x0:x1]==i+1).astype(np.uint8)
+        if comp.sum()>maxarea*S*S: continue
+        touch=cv2.dilate(comp,ell(5*S))&(far[y0:y1,x0:x1]>0)&(inv[y0:y1,x0:x1]>0)
+        k,_=ndi.label(touch)
+        if _<=1: out[y0:y1,x0:x1][comp>0]=1
+    return out
+def smooth_mask(b,sig=1.2):
+    d=cv2.distanceTransform(b,cv2.DIST_L2,5)-cv2.distanceTransform(1-b,cv2.DIST_L2,5)
+    out=(g(d.astype(np.float32),sig*S)>0).astype(np.uint8)
+    inv=1-out; l,n=ndi.label(inv); sz=ndi.sum(inv,l,range(1,n+1))   # pin holes left after smoothing
+    for i,s_ in enumerate(sz):
+        if s_<150*S*S: out[l==i+1]=1
+    return out
 if not os.environ.get('OLD_OUTLINE'):
     m=refine_edges(base_mask())
+    m=smooth_mask(fill_slits(m))
 
 g8=cv2.cvtColor(T2,cv2.COLOR_BGR2GRAY).astype(np.float32)
 bh=cv2.morphologyEx(g(g8,1.2*S),cv2.MORPH_BLACKHAT,ell(13*S))
