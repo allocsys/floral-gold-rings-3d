@@ -25,6 +25,6 @@ cd site && python3 -m http.server   # local viewer at http://localhost:8000
 After changing `geometry.js`, bump the `?v=` on its import in `site/index.html` (browsers cache it).
 
 ## Deploy
-GitHub Pages: `.github/workflows/pages.yml` tests and deploys `site/` on every push that touches it (Settings → Pages → Source: GitHub Actions). Cloudflare Pages also works (`wrangler.toml`, output directory `site`).
+GitHub Pages: `.github/workflows/pages.yml` tests and deploys `site/` on every push that touches it (Settings → Pages → Source: GitHub Actions).
 
 The meshes are not NURBS; use them as scale/reference geometry and rebuild in Matrix for production.
