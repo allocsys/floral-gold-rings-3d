@@ -23,7 +23,7 @@ const clip = (x) => Math.min(1, Math.max(0, x));
 const sm = (d, e) => { const t = clip(0.5 + d / (2 * e)); return t * t * (3 - 2 * t); }; // soft edge, d>0 inside
 
 // linear colours: polished gold relief, near-black oxidised recess
-const GOLD = [0.80, 0.50, 0.07], DARK = [0.075, 0.04, 0.009]; // bright satin relief / antique-gold recess
+const GOLD = [0.80, 0.50, 0.07], DARK = [0.02, 0.011, 0.003]; // bright satin relief / antique-gold recess
 
 // ---------- engraved pattern (unrolled band, x along circumference, z across) ----------
 const sdSeg = (px, pz, ax, az, bx, bz) => {
@@ -91,23 +91,31 @@ function strokeMask(x, z, S, e) {
   return sm(S.w0 + (S.w1 - S.w0) * bt - best, e);
 }
 
-// Pattern traced from the reference photo (unwrapped band): one repeat = big flower, bud flower, long diagonal vine with leaves,
-// ring bud, tall leaves ending in a big spiral, and on the other side a crossing vine + long leaf pair with a small bud.
+// Pattern after the reference: ONE continuous bold S-vine flows around the band and passes through the big flower; leaves branch off it,
+// and tendrils curl into spirals at both ends of each repeat. The motif is point-symmetric (half drawn, copy rotated 180 deg), so the seam is seamless.
 // Motif coordinates are mm for a 4 mm band (hw=2) and a 15.6 mm repeat; X is stretched to the actual repeat, shapes scale with hw.
 export function makeQ(p, per, hw, e) {
   const kx = per / 15.6, s = hw / 2, U = (X, Z) => [X * kx, Z * s], strokes = [], leaves = [], flw = [], rings = [];
-  const st = (pts, w0, w1, extra = []) => strokes.push(mkStroke(catmull(pts.map(q => U(q[0], q[1]))).concat(extra), 1.35 * w0 * s, 1.2 * w1 * s));
-  st([[0.7, 1.4], [1.9, 1.05], [3.0, 0.3], [4.1, -0.6], [5.1, -1.2]], 0.3, 0.12);                       // long diagonal vine
-  const r0 = 1.3 * s * (0.75 + 0.4 * p.va), C = U(7.1, 0.15);
-  st([[5.6, -1.0], [6.4, -1.3], [C[0] / kx, (C[1] - r0) / s]], 0.2, 0.2, spiral(C[0], C[1], r0, 0.22 * r0, 1.4, 1, -Math.PI / 2)); // stem into big spiral
-  st([[4.9, 0.95], [5.1, 0.4], [5.4, -0.1]], 0.1, 0.1);                                                  // ring-bud stem
-  st([[-5.3, 1.6], [-4.4, 0.9], [-3.5, 0.0], [-2.8, -0.7]], 0.25, 0.1);                                  // crossing vine
-  // leaves: X, Z, angle, length, half-width, curvature
-  for (const [X, Z, ang, len, w, cv] of [[3.0, 0.3, -0.85, 1.3, 0.3, 0.15], [4.1, -0.6, 0.7, 1.3, 0.3, -0.15], [1.9, 1.05, 0.45, 1.1, 0.26, -0.15],
-      [5.8, 1.6, -1.45, 3.0, 0.36, 0.12], [6.3, 1.6, -1.15, 2.3, 0.3, -0.1], [-4.7, -1.6, 0.91, 4.0, 0.38, 0.1], [-4.4, 1.55, -1.5, 1.0, 0.2, 0.1], [-1.9, 1.3, -0.5, 1.4, 0.3, 0.15], [-1.9, -1.3, 0.5, 1.4, 0.3, -0.15], [0.9, 1.5, 0.15, 1.2, 0.25, -0.1]])
-    leaves.push([X * kx, Z * s, ang, 1.1 * len * s, 1.35 * w * s, cv]);
-  flw.push([2.1 * kx, -0.95 * s, 0.55 * s]);                                                             // bud flower
-  rings.push([4.9 * kx, 1.2 * s, 0.3 * s], [-2.2 * kx, 0.2 * s, 0.25 * s], [1.4 * kx, -1.0 * s, 0.14 * s, 1], [-1.6 * kx, -1.1 * s, 0.12 * s, 1]); // ring buds + berries
+  const st = (pts, w0, w1, extra = []) => strokes.push(mkStroke(catmull(pts.map(q => U(q[0], q[1]))).concat(extra), 1.35 * w0 * s, 1.35 * w1 * s));
+  // main vine: one full sine wave per repeat, crossing the flower centre
+  const A = 0.8, vine = [];
+  for (let X = -9.6; X <= 9.61; X += 0.6) vine.push([X, -A * Math.sin(TAU * X / 15.6)]);
+  st(vine, 0.27, 0.27);
+  for (const g of [1, -1]) {                       // g=-1: the same half rotated 180 deg about the flower
+    const P = (X, Z) => [g * X, g * Z], ph = g < 0 ? Math.PI : 0;
+    // tendril: branches off the vine, curls counter-clockwise into a spiral
+    const r0 = 0.85 * s * (0.75 + 0.4 * p.va), c = P(6.75, 0.6), C = U(c[0], c[1]), a0 = -Math.PI / 2 + ph;
+    const t0 = P(5.4, -0.72), t1 = P(6.2, -0.45);
+    st([t0, t1, [C[0] / kx + r0 * Math.cos(a0) / kx, C[1] / s + r0 * Math.sin(a0) / s]], 0.2, 0.085,
+       spiral(C[0], C[1], r0, 0.3 * r0, 1.4, 1, a0));
+    // leaves: X, Z, angle, length, half-width, curvature
+    for (const [X, Z, ang, len, w, cv] of [[2.2, -0.68, -0.85, 1.25, 0.28, 0.15], [3.1, -0.82, 0.95, 1.5, 0.3, -0.15], [4.3, -0.84, -0.4, 1.3, 0.27, 0.12],
+        [5.0, 0.35, 1.9, 1.0, 0.22, 0.15]]) {
+      const b = P(X, Z); leaves.push([b[0] * kx, b[1] * s, ang + ph, 1.1 * len * s, 1.3 * w * s, cv]);
+    }
+    const f = P(4.9, 0.55); flw.push([f[0] * kx, f[1] * s, 0.42 * s]);           // little flower beside the tendril
+    const b1 = P(1.9, 0.95), b2 = P(2.5, 1.2); rings.push([b1[0] * kx, b1[1] * s, 0.13 * s, 1], [b2[0] * kx, b2[1] * s, 0.12 * s, 1]); // berries
+  }
   return { per, hw, fr: p.fr, e, strokes, leaves, flw, rings, kx };
 }
 // returns 1 = raised gold, 0 = recessed antique gold
@@ -117,8 +125,12 @@ export function relief(x, z, q) {
   for (const off of [0, per, -per]) {
     const X = x - off;
     if (X < -9 * kx || X > 9 * kx) continue;
-    if (off === 0) { const f0 = flowerMask(X, z, 0, 0, q.fr, e); m = f0[0]; c = f0[1]; }
-    for (const S of q.strokes) m = Math.max(m, strokeMask(X, z, S, e));
+    let vm = 0;
+    for (const S of q.strokes) vm = Math.max(vm, strokeMask(X, z, S, e));
+    if (off === 0) { // flower sits on top of the vine with a thin dark halo around it
+      const f0 = flowerMask(X, z, 0, 0, q.fr, e), hal = flowerMask(X, z, 0, 0, q.fr * 1.12 + 0.1, e)[0];
+      m = Math.max(m, f0[0], vm * (1 - hal)); c = f0[1];
+    } else m = Math.max(m, vm);
     for (const F of q.flw) { const f = flowerMask(X, z, F[0], F[1], F[2], e); m = Math.max(m, f[0]); c = Math.max(c, f[1]); }
     for (const L of q.leaves) { const l = leafMask(X, z, L[0], L[1], L[2], L[3], L[4], e, L[5]); m = Math.max(m, l[0]); c = Math.max(c, l[1]); }
     for (const R of q.rings) { const d = Math.hypot(X - R[0], z - R[1]); m = Math.max(m, sm(R[2] - d, e)); if (!R[3]) c = Math.max(c, sm(0.45 * R[2] - d, e)); }
@@ -162,8 +174,8 @@ function band(p, solitaire, quality) {
       const zn = (-1 + (2 * j) / (Mo - 1)) * zt, z = zn * hwid;
       const r = 1 + (relief(ds, z, q) - 1) * shoulder;
       const nz = Math.sin(ds * 91.7 + z * 57.3 + i * 0.37) * 43758.5453, g = nz - Math.floor(nz); // fine grain in the recess
-      const R = Ro + DOME * (1 - zn * zn) - p.gd * (1 - r) + (1 - r) * 0.014 * (g - 0.5);
-      put(R, z, DARK[0] * (0.8 + 0.4 * g) * (1 - r) + GOLD[0] * r, DARK[1] * (0.8 + 0.4 * g) * (1 - r) + GOLD[1] * r, DARK[2] * (0.8 + 0.4 * g) * (1 - r) + GOLD[2] * r);
+      const R = Ro + DOME * (1 - zn * zn) - p.gd * (1 - r) + (1 - r) * 0.006 * (g - 0.5);
+      put(R, z, DARK[0] * (0.9 + 0.2 * g) * (1 - r) + GOLD[0] * r, DARK[1] * (0.9 + 0.2 * g) * (1 - r) + GOLD[1] * r, DARK[2] * (0.9 + 0.2 * g) * (1 - r) + GOLD[2] * r);
     }
     // rounded edge: outer fillet, wall, inner fillet (+z side), inner bore, then the -z side back
     const edge = [];
