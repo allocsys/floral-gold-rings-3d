@@ -1,8 +1,9 @@
-# stage 5 (WIP): stage4 + centre-flower polish. Output: /tmp/band_v3_out/band_period_v4.png (NOT approved; maps/ is still v3)
+# stage 4: per-region smoothed relief, grooves, domes, symmetrize, write period + previews
 exec(open('tools/wip_v3/stage3.py').read())
-# centre-flower polish (no slit bites, pointed tips, midribs, pillowy petals)
+# stage5: centre-flower polish (no slit bites, pointed tips, midribs, pillowy petals)
 
 # --- rebuild centre petals as clean convex leaf shapes (fills the slit bites in the inner ends) ---
+TAPER_W0=3.0; TAPER_SLOPE=0.78; SMOOTH_HULL=3.0   # leaf taper toward the dome, facet rounding
 WEDGE_LEN=46; WEDGE_W0=4.2                 # 1x px: wedge length from dome edge, half-width at the dome
 CZ0=np.zeros((H2,W2),np.uint8)
 for k in range(3): cv2.circle(CZ0,(int(X(599,k)),int(Y(128))),int(215*S),1,-1)
@@ -12,7 +13,17 @@ for i in cids:
     reg=((lab==i)&(CZ0>0)).astype(np.uint8)
     if reg.sum()<150*S*S: continue
     cs,_=cv2.findContours(reg,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
-    pts=np.vstack(cs); hm=np.zeros((H2,W2),np.uint8); cv2.fillConvexPoly(hm,cv2.convexHull(pts),1); hulls[i]=hm
+    pts=np.vstack(cs); hm=np.zeros((H2,W2),np.uint8); cv2.fillConvexPoly(hm,cv2.convexHull(pts),1)
+    # taper the inner end toward the dome (leaf shape): half-width <= TAPER_W0 + TAPER_SLOPE*(distance from dome edge)
+    yy_,xx_=np.nonzero(reg); cmx,cmy=xx_.mean(),yy_.mean()
+    k=int(np.argmin([np.hypot(cmx-X(599,kk),cmy-Y(128)) for kk in range(3)])); fx,fy=X(599,k),Y(128)
+    a_=np.arctan2(cmy-fy,cmx-fx); ux,uy=np.cos(a_),np.sin(a_)
+    by0,by1=int(max(fy-215*S,0)),int(min(fy+215*S,H2)); bx0,bx1=int(max(fx-215*S,0)),int(min(fx+215*S,W2))
+    gy_,gx_=np.mgrid[by0:by1,bx0:bx1]; tt=(gx_-fx)*ux+(gy_-fy)*uy-(26*S); pp=np.abs(-(gx_-fx)*uy+(gy_-fy)*ux)
+    keep=(pp<=(TAPER_W0*S+TAPER_SLOPE*np.maximum(tt,0)))&(tt>-2*S)
+    sub=hm[by0:by1,bx0:bx1]; sub[~keep]=0
+    hm=(g(hm.astype(np.float32),SMOOTH_HULL*S)>0.46).astype(np.uint8)            # round the hull facets
+    hulls[i]=hm
 ids=list(hulls); dts=[ndi.distance_transform_edt(lab!=i) for i in ids]
 anyh=np.zeros((H2,W2),bool)
 for hm in hulls.values(): anyh|=hm>0
@@ -69,7 +80,7 @@ CZ=np.zeros((H2,W2),np.uint8)
 for k in range(3): cv2.circle(CZ,(int(X(599,k)),int(Y(128))),int(215*S),1,-1)
 sl=sl*(1-CZ)                                   # no slit carving inside the centre flower (it bit the petals)
 HS=np.zeros((H2,W2),np.float32)
-CPET=[]                                        # (label id, centroid) of centre petals
+CPET=[]                                        # (label id, tile k) of centre petals
 PADp=40*S
 for i,o in enumerate(ndi.find_objects(lab),1):
     if o is None: continue
@@ -102,13 +113,14 @@ for (i,cmx,cmy) in CPET:
     inr=reg[py,px]
     if not inr.any(): continue
     t0=ts[np.argmax(inr)]; t1=ts[len(inr)-1-np.argmax(inr[::-1])]
-    for da,f0,f1,wk in ((0,6,.62,1.0),(0.17,9,.42,.6),(-0.17,9,.42,.6)):   # centre vein + two fine side veins
+    for da,f0,f1,wk in ((0,6,.62,1.0),(0.22,14,.52,.6),(-0.22,14,.52,.6)):   # centre vein + two fine side veins
         a0=t0+f0*S; a1=t0+f1*(t1-t0)
         vx,vy=np.cos(ang+da),np.sin(ang+da)
         for t in np.arange(a0,a1,S*0.5):
             u=(t-a0)/(a1-a0); w=(1.8*(1-u)+0.5)*wk*S/2
             cv2.circle(rib,(int(fx+vx*t),int(fy+vy*t)),max(1,int(round(w))),1,-1)
-rib=np.clip(g(rib,1.6*S)*2.2,0,1)
+PMk=cv2.erode(np.isin(lab,[c[0] for c in CPET]).astype(np.uint8),ell(10*S)).astype(np.float32)   # keep veins off the petal outline
+rib=np.clip(g(rib,1.6*S)*2.2,0,1)*g(PMk,1.5*S)
 HS*=(1-0.15*rib)
 HS=g(HS,0.7*S/2)
 
