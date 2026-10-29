@@ -46,11 +46,11 @@ function flowerMask(x, z, cx, cz, fr, e) {
   const dx = x - cx, dz = z - cz, rho = Math.hypot(dx, dz);
   if (rho > fr * 1.1 + e) return [0, 0];
   const phi = Math.atan2(dz, dx);
-  const pet = fr * (0.42 + 0.58 * Math.pow(0.5 + 0.5 * Math.cos(5 * phi), 0.6));
+  const pet = fr * (0.62 + 0.38 * Math.pow(0.5 + 0.5 * Math.cos(5 * phi), 0.5));
   const a = mod(phi + Math.PI / 5, TAU / 5) - Math.PI / 5;
   const m = sm(pet - rho, e);
   const c = Math.max(
-    sm(0.045 * fr - rho * Math.abs(a), e * 0.5) * sm(0.86 * fr - rho, e) * sm(rho - 0.3 * fr, e),   // petal creases
+    sm(0.03 * fr - rho * Math.abs(a), e * 0.5) * sm(0.86 * fr - rho, e) * sm(rho - 0.3 * fr, e),   // petal creases
     sm(0.05 * fr - Math.abs(rho - 0.2 * fr), e * 0.5));                                             // centre ring
   return [m, c];
 }
@@ -80,7 +80,7 @@ function mkStroke(P, w0, w1) {
   return { P, cum, L: cum[P.length - 1] || 1, w0, w1, x0: x0 - w - 0.2, x1: x1 + w + 0.2, z0: z0 - w - 0.2, z1: z1 + w + 0.2 };
 }
 function strokeMask(x, z, S, e) {
-  if (x < S.x0 || x > S.x1 || z < S.z0 || z > S.z1) return 0;
+  if (x < S.x0 || x > S.x1 || z < S.z0 || z > S.z1) return [0, 0];
   const P = S.P; let best = 1e9, bt = 0;
   for (let i = 0; i < P.length - 1; i++) {
     const ax = P[i][0], az = P[i][1], vx = P[i + 1][0] - ax, vz = P[i + 1][1] - az;
@@ -88,35 +88,38 @@ function strokeMask(x, z, S, e) {
     const d = Math.hypot(x - ax - u * vx, z - az - u * vz);
     if (d < best) { best = d; bt = (S.cum[i] + u * Math.sqrt(l2)) / S.L; }
   }
-  return sm(S.w0 + (S.w1 - S.w0) * bt - best, e);
+  let w = S.w0 + (S.w1 - S.w0) * bt, g = 0;
+  if (S.leaf) { w = S.leaf * Math.min(1, bt / 0.12 + 0.25) * Math.pow(1 - bt, 0.8) + 0.04; }
+  const m = sm(w - best, e);
+  if (S.leaf && bt > 0.12 && bt < 0.7 && w > 0.2) g = sm(0.03 - best, e * 0.5) * m;
+  return [m, g];
 }
 
-// Pattern after the reference: ONE continuous bold S-vine flows around the band and passes through the big flower; leaves branch off it,
-// and tendrils curl into spirals at both ends of each repeat. The motif is point-symmetric (half drawn, copy rotated 180 deg), so the seam is seamless.
-// Motif coordinates are mm for a 4 mm band (hw=2) and a 15.6 mm repeat; X is stretched to the actual repeat, shapes scale with hw.
+// Pattern after the high-detail reference: per repeat TWO solid 5-petal flowers (big F1, smaller F2) joined by broad tapered leaf-ribbons that
+// cross in an S and curl into spirals (midrib groove), pointed leaves at the flowers, and raised beads in the dark recess.
+// Half the motif (F1 -> F2) is drawn, then copied rotated 180 deg about F1, so the repeat is seamless. Motif coords: mm for hw=2, repeat 15.6.
 export function makeQ(p, per, hw, e) {
   const kx = per / 15.6, s = hw / 2, U = (X, Z) => [X * kx, Z * s], strokes = [], leaves = [], flw = [], rings = [];
-  const st = (pts, w0, w1, extra = []) => strokes.push(mkStroke(catmull(pts.map(q => U(q[0], q[1]))).concat(extra), 1.35 * w0 * s, 1.35 * w1 * s));
-  // main vine: one full sine wave per repeat, crossing the flower centre
-  const A = 0.8, vine = [];
-  for (let X = -9.6; X <= 9.61; X += 0.6) vine.push([X, -A * Math.sin(TAU * X / 15.6)]);
-  st(vine, 0.27, 0.27);
-  for (const g of [1, -1]) {                       // g=-1: the same half rotated 180 deg about the flower
-    const P = (X, Z) => [g * X, g * Z], ph = g < 0 ? Math.PI : 0;
-    // tendril: branches off the vine, curls counter-clockwise into a spiral
-    const r0 = 0.85 * s * (0.75 + 0.4 * p.va), c = P(6.75, 0.6), C = U(c[0], c[1]), a0 = -Math.PI / 2 + ph;
-    const t0 = P(5.4, -0.72), t1 = P(6.2, -0.45);
-    st([t0, t1, [C[0] / kx + r0 * Math.cos(a0) / kx, C[1] / s + r0 * Math.sin(a0) / s]], 0.2, 0.085,
-       spiral(C[0], C[1], r0, 0.3 * r0, 1.4, 1, a0));
-    // leaves: X, Z, angle, length, half-width, curvature
-    for (const [X, Z, ang, len, w, cv] of [[2.2, -0.68, -0.85, 1.25, 0.28, 0.15], [3.1, -0.82, 0.95, 1.5, 0.3, -0.15], [4.3, -0.84, -0.4, 1.3, 0.27, 0.12],
-        [5.0, 0.35, 1.9, 1.0, 0.22, 0.15]]) {
-      const b = P(X, Z); leaves.push([b[0] * kx, b[1] * s, ang + ph, 1.1 * len * s, 1.3 * w * s, cv]);
+  const sc = 0.75 + 0.4 * p.va;
+  const rib = (pts, wmax, curl, g) => {            // pts: motif coords of the body; curl: [centre motif, r0 motif, a0, dir]
+    const body = pts.map(q => U(q[0], q[1])), r0 = curl[1] * s * sc, C = U(curl[0][0], curl[0][1]);
+    const sp = spiral(C[0], C[1], r0, 0.28 * r0, 1.3, curl[3], curl[2]);
+    const all = catmull(body).concat([[C[0] + r0 * Math.cos(curl[2]), C[1] + r0 * Math.sin(curl[2])]], sp).map(q => [g * q[0], g * q[1]]);
+    const S = mkStroke(all, wmax * s, wmax * s); S.leaf = wmax * s; strokes.push(S);
+  };
+  const R2 = (q) => [per / 2 / kx - q[0], -q[1]];     // rotate 180 deg about the half-way point between F1 and F2
+  for (const g of [1, -1]) {
+    const a0 = -53 * Math.PI / 180, b = [[1.2, -0.45], [2.2, -0.85], [3.3, -0.95], [3.9, -0.8], [4.46, -0.5]];
+    rib(b, 0.5, [[4.09, 0.1], 0.72, a0, 1], g);                                           // ribbon from F1: low S-sweep rising into a curl
+    // pointed leaves above it and beside F2: X, Z, angle, length, half-width, curvature
+    for (const [X, Z, ang, len, w, cv] of [[0.9, 0.85, 0.5, 1.6, 0.38, -0.15], [6.8, -0.75, -0.7, 1.2, 0.34, 0.15]]) {
+      const t = [g * X * kx, g * Z * s]; leaves.push([t[0], t[1], ang + (g < 0 ? Math.PI : 0), 1.1 * len * s, 1.3 * w * s, cv]);
     }
-    const f = P(4.9, 0.55); flw.push([f[0] * kx, f[1] * s, 0.42 * s]);           // little flower beside the tendril
-    const b1 = P(1.9, 0.95), b2 = P(2.5, 1.2); rings.push([b1[0] * kx, b1[1] * s, 0.13 * s, 1], [b2[0] * kx, b2[1] * s, 0.12 * s, 1]); // berries
+    for (const [X, Z, r] of [[5.4, 0.35, 0.12], [5.7, -0.5, 0.1], [4.9, -1.2, 0.12], [3.6, 1.4, 0.1], [2.0, -0.2, 0.1], [5.3, 1.2, 0.09], [3.0, 0.2, 0.09]])
+      rings.push([g * X * kx, g * Z * s, r * s, 1]);
   }
-  return { per, hw, fr: p.fr, e, strokes, leaves, flw, rings, kx };
+  flw.push([per / 2, 0, 0.82 * p.fr]);                                                       // F2 (periodic copy at -per/2 comes from the neighbour repeat)
+  return { per, hw, fr: p.fr * 1.05, e, strokes, leaves, flw, rings, kx };
 }
 // returns 1 = raised gold, 0 = recessed antique gold
 export function relief(x, z, q) {
@@ -126,11 +129,12 @@ export function relief(x, z, q) {
     const X = x - off;
     if (X < -9 * kx || X > 9 * kx) continue;
     let vm = 0;
-    for (const S of q.strokes) vm = Math.max(vm, strokeMask(X, z, S, e));
+    let vg = 0;
+    for (const S of q.strokes) { const r = strokeMask(X, z, S, e); vm = Math.max(vm, r[0]); vg = Math.max(vg, r[1]); }
     if (off === 0) { // flower sits on top of the vine with a thin dark halo around it
       const f0 = flowerMask(X, z, 0, 0, q.fr, e), hal = flowerMask(X, z, 0, 0, q.fr * 1.12 + 0.1, e)[0];
-      m = Math.max(m, f0[0], vm * (1 - hal)); c = f0[1];
-    } else m = Math.max(m, vm);
+      m = Math.max(m, f0[0], vm * (1 - hal)); c = Math.max(f0[1], vg * (1 - hal));
+    } else { m = Math.max(m, vm); c = Math.max(c, vg); }
     for (const F of q.flw) { const f = flowerMask(X, z, F[0], F[1], F[2], e); m = Math.max(m, f[0]); c = Math.max(c, f[1]); }
     for (const L of q.leaves) { const l = leafMask(X, z, L[0], L[1], L[2], L[3], L[4], e, L[5]); m = Math.max(m, l[0]); c = Math.max(c, l[1]); }
     for (const R of q.rings) { const d = Math.hypot(X - R[0], z - R[1]); m = Math.max(m, sm(R[2] - d, e)); if (!R[3]) c = Math.max(c, sm(0.45 * R[2] - d, e)); }
