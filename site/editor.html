@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Floral rings – flat design editor</title>
+<style>
+:root{--bg:#ece8e1;--panel:#fbf9f5;--ink:#1d1710;--mute:#6d6558;--line:#cfc8bb;--gold:#a8741a;--acc:#1b6fa8;--btn:#e3ddd2;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14100b;--panel:#201912;--ink:#f1e6d0;--mute:#a39880;--line:#3a3025;--gold:#e0ac4a;--acc:#7fd0ff;--btn:#2d2418}}
+:root[data-theme="dark"]{--bg:#14100b;--panel:#201912;--ink:#f1e6d0;--mute:#a39880;--line:#3a3025;--gold:#e0ac4a;--acc:#7fd0ff;--btn:#2d2418}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{padding:10px 12px 28px;max-width:760px;margin:0 auto}
+h1{font:600 22px/1.15 "Cormorant Garamond",Georgia,serif;margin:4px 0 2px;color:var(--gold)}
+p.sub{margin:0 0 10px;color:var(--mute);font-size:13px}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+button{font:inherit;color:var(--ink);background:var(--btn);border:1px solid var(--line);border-radius:10px;padding:9px 12px;min-height:40px}
+button.on{background:var(--gold);color:#1a1208;border-color:var(--gold);font-weight:600}
+button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.tabs button{flex:1 1 0}
+#cv{display:block;width:100%;background:#0f0a06;border-radius:8px;touch-action:none;user-select:none;-webkit-user-select:none}
+.meta{font-size:12px;color:var(--mute);margin:4px 2px}
+#panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:8px}
+#panel h2{font-size:14px;margin:0 0 6px}
+.f{display:grid;grid-template-columns:78px 1fr 44px;gap:8px;align-items:center;margin:6px 0}
+.f span.v{text-align:right;color:var(--mute);font-size:12px}
+input[type=range]{width:100%;accent-color:var(--gold);min-height:28px}
+textarea{width:100%;height:90px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;font:11px monospace}
+#toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--gold);color:#1a1208;padding:8px 14px;border-radius:20px;opacity:0;transition:opacity .2s;pointer-events:none;font-weight:600}
+#toast.show{opacity:1}
+.sel .shape{stroke:#7fd0ff;stroke-width:2px;vector-effect:non-scaling-stroke}
+</style>
+</head>
+<body>
+<h1>Flat ring designs</h1>
+<p class="sub">Each ring is unrolled flat: one repeat in the middle, its neighbours dimmed. Drag shapes to move them, drag the dots on a ribbon to bend it. Copy the design when it looks right and I’ll rebuild the 3D rings from it.</p>
+
+<div class="row tabs" id="tabs"></div>
+<svg id="cv" role="img" aria-label="Unrolled ring pattern"></svg>
+<div class="meta" id="meta"></div>
+
+<div class="row" id="adds">
+  <button data-add="flower">+ Flower</button><button data-add="leaf">+ Leaf</button><button data-add="ribbon">+ Ribbon</button><button data-add="bead">+ Bead</button>
+</div>
+<div id="panel"></div>
+<div class="row">
+  <button id="undo">Undo</button><button id="zoom">Zoom: 1×</button><button id="reset">Reset ring</button><button id="copy" class="on">Copy design</button>
+</div>
+<details><summary class="meta">Design text (if copy is blocked)</summary><textarea id="txt" readonly></textarea></details>
+<div id="toast"></div>
+
+<script>
+(function(){
+var TAU=Math.PI*2, D2R=Math.PI/180, RIM=0.42, NS='http://www.w3.org/2000/svg';
+var RINGS={
+  band1:{name:'Wide band',w:4.5,ID:19,t:1.5,n:4,fr:1.35,va:0.6},
+  band2:{name:'Band',w:4,ID:17,t:1.4,n:4,fr:1.2,va:0.6},
+  solitaire:{name:'Solitaire',w:2.6*1.14,ID:17,t:1.3,n:4,fr:0.72,va:0.6}
+};
+function geo(k){var p=RINGS[k],per=TAU*(p.ID/2+p.t)/p.n;return {p:p,per:per,hw:p.w/2};}
+function catmull(P,sub){var out=[],n=P.length;for(var i=0;i<n-1;i++)for(var s=0;s<sub;s++){var t=s/sub,p0=P[Math.max(0,i-1)],p1=P[i],p2=P[i+1],p3=P[Math.min(n-1,i+2)],q=[];
+  for(var k=0;k<2;k++)q.push(0.5*(2*p1[k]+(-p0[k]+p2[k])*t+(2*p0[k]-5*p1[k]+4*p2[k]-p3[k])*t*t+(-p0[k]+3*p1[k]-3*p2[k]+p3[k])*t*t*t));out.push(q);}
+  out.push(P[n-1].slice());return out;}
+function r2(x){return Math.round(x*1000)/1000;}
+
+/* default layout = the current 3D motif, written out as editable shapes */
+function defaults(k){
+  var G=geo(k),p=G.p,per=G.per,kx=per/15.6,s=G.hw/2,sc=0.75+0.4*p.va,els=[];
+  var U=function(X,Z){return [X*kx,Z*s];};
+  els.push({t:'flower',x:0,z:0,r:r2(p.fr*1.05),rot:0});
+  els.push({t:'flower',x:r2(per/2),z:0,r:r2(0.82*p.fr),rot:0});
+  [1,-1].forEach(function(g){
+    var a0=-53*D2R,r0=0.72*s*sc,C=U(4.09,0.1);
+    var body=[[1.2,-0.45],[2.2,-0.85],[3.3,-0.95],[3.9,-0.8],[4.46,-0.5]].map(function(q){return U(q[0],q[1]);});
+    for(var i=0;i<=7;i++){var f=i/7,ph=a0+f*1.3*TAU,r=r0+(0.28*r0-r0)*f;body.push([C[0]+r*Math.cos(ph),C[1]+r*Math.sin(ph)]);}
+    els.push({t:'ribbon',w:r2(0.5*s),pts:body.map(function(q){return [r2(g*q[0]),r2(g*q[1])];})});
+    [[0.9,0.85,0.5,1.6,0.38,-0.15],[6.8,-0.75,-0.7,1.2,0.34,0.15]].forEach(function(L){
+      els.push({t:'leaf',x:r2(g*L[0]*kx),z:r2(g*L[1]*s),ang:r2((L[2]/D2R)+(g<0?180:0)),len:r2(1.1*L[3]*s),w:r2(1.3*L[4]*s),cv:L[5]});});
+    [[5.4,0.35,0.12],[5.7,-0.5,0.1],[4.9,-1.2,0.12],[3.6,1.4,0.1],[2.0,-0.2,0.1],[5.3,1.2,0.09],[3.0,0.2,0.09]].forEach(function(b){
+      els.push({t:'bead',x:r2(g*b[0]*kx),z:r2(g*b[1]*s),r:r2(b[2]*s)});});
+  });
+  return els;
+}
+
+var state={ring:'band2',sel:-1,zoom:1,cx:0,data:{},undo:[]};
+try{var saved=JSON.parse(localStorage.getItem('floral-flat-v1')||'null');if(saved)state.data=saved;}catch(e){}
+Object.keys(RINGS).forEach(function(k){if(!state.data[k])state.data[k]=defaults(k);});
+function save(){try{localStorage.setItem('floral-flat-v1',JSON.stringify(state.data));}catch(e){}}
+function els(){return state.data[state.ring];}
+function snap(){state.undo.push(JSON.stringify(els()));if(state.undo.length>60)state.undo.shift();}
+
+var cv=document.getElementById('cv'),panel=document.getElementById('panel');
+function el(tag,attrs,html){var e=document.createElementNS(NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);if(html)e.innerHTML=html;return e;}
+function pts2d(a){return a.map(function(q){return q[0].toFixed(3)+','+q[1].toFixed(3);}).join(' ');}
+
+function flowerPoly(f){var pts=[],N=100;for(var i=0;i<N;i++){var ph=i/N*TAU,u=0.5+0.5*Math.cos(5*(ph-f.rot*D2R)),R=f.r*(0.62+0.38*Math.pow(u,0.5));pts.push([f.x+R*Math.cos(ph),f.z+R*Math.sin(ph)]);}return pts;}
+function leafGeom(L){var a=L.ang*D2R,c=Math.cos(a),s=Math.sin(a),top=[],bot=[],rib=[],N=26;
+  for(var i=0;i<=N;i++){var t=i/N,hw=L.w*Math.pow(Math.max(0,Math.sin(Math.PI*Math.pow(t,0.8))),0.9),ly=L.cv*L.len*t*t,lx=t*L.len;
+    var P=function(o){return [L.x+lx*c-(ly+o)*s,L.z+lx*s+(ly+o)*c];};
+    top.push(P(hw));bot.push(P(-hw));if(t>0.12&&t<0.88)rib.push(P(0));}
+  return {poly:top.concat(bot.reverse()),rib:rib};}
+function ribbonGeom(R){var d=catmull(R.pts,10),cum=[0],i;for(i=1;i<d.length;i++)cum.push(cum[i-1]+Math.hypot(d[i][0]-d[i-1][0],d[i][1]-d[i-1][1]));
+  var L=cum[cum.length-1]||1,l=[],r=[],rib=[];
+  for(i=0;i<d.length;i++){var bt=cum[i]/L,w=R.w*Math.min(1,bt/0.12+0.25)*Math.pow(1-bt,0.8)+0.03,a=d[Math.max(0,i-1)],b=d[Math.min(d.length-1,i+1)],tx=b[0]-a[0],ty=b[1]-a[1],m=Math.hypot(tx,ty)||1,nx=-ty/m,ny=tx/m;
+    l.push([d[i][0]+nx*w,d[i][1]+ny*w]);r.push([d[i][0]-nx*w,d[i][1]-ny*w]);if(bt>0.12&&bt<0.7&&w>0.2)rib.push(d[i]);}
+  return {poly:l.concat(r.reverse()),rib:rib};}
+
+function drawEl(e,i,ghost){
+  var g=el('g',{'class':'el'+(i===state.sel&&!ghost?' sel':''),'data-i':i}),fill='url(#gold)',dark='#0f0a06';
+  var shape=function(tag,a){a['class']='shape';return el(tag,a);};
+  if(e.t==='flower'){
+    g.appendChild(shape('polygon',{points:pts2d(flowerPoly(e)),fill:fill,stroke:dark,'stroke-width':0.1,'stroke-linejoin':'round'}));
+    for(var k=0;k<5;k++){var a=e.rot*D2R+k*TAU/5;g.appendChild(el('line',{x1:e.x+0.3*e.r*Math.cos(a),y1:e.z+0.3*e.r*Math.sin(a),x2:e.x+0.82*e.r*Math.cos(a),y2:e.z+0.82*e.r*Math.sin(a),stroke:dark,'stroke-width':0.05,'stroke-linecap':'round'}));}
+    g.appendChild(el('circle',{cx:e.x,cy:e.z,r:0.2*e.r,fill:'none',stroke:dark,'stroke-width':0.06}));
+  }else if(e.t==='leaf'){var G=leafGeom(e);
+    g.appendChild(shape('polygon',{points:pts2d(G.poly),fill:fill,stroke:dark,'stroke-width':0.04}));
+    g.appendChild(el('polyline',{points:pts2d(G.rib),fill:'none',stroke:dark,'stroke-width':0.05,'stroke-linecap':'round'}));
+  }else if(e.t==='ribbon'){var Gr=ribbonGeom(e);
+    g.appendChild(shape('polygon',{points:pts2d(Gr.poly),fill:fill,stroke:dark,'stroke-width':0.04}));
+    g.appendChild(el('polyline',{points:pts2d(Gr.rib),fill:'none',stroke:dark,'stroke-width':0.055,'stroke-linecap':'round'}));
+  }else{g.appendChild(shape('circle',{cx:e.x,cy:e.z,r:e.r,fill:fill,stroke:dark,'stroke-width':0.03}));}
+  return g;}
+
+var ORDER={ribbon:0,leaf:1,bead:2,flower:3};
+function render(){
+  var G=geo(state.ring),per=G.per,hw=G.hw,E=els();
+  var span=per*1.5/state.zoom,x0=state.cx-span/2,H=2*hw+0.5;
+  state.cx=Math.max(-per*0.75+span/2,Math.min(per*0.75-span/2,state.cx));x0=state.cx-span/2;
+  cv.setAttribute('viewBox',x0+' '+(-hw-0.25)+' '+span+' '+H);
+  cv.innerHTML='';
+  var defs=el('defs',{},'<linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6dc92"/><stop offset=".5" stop-color="#dcaa48"/><stop offset="1" stop-color="#a8741a"/></linearGradient><clipPath id="clip"><rect x="'+(-per*2)+'" y="'+(-hw)+'" width="'+(per*4)+'" height="'+(2*hw)+'"/></clipPath>');
+  cv.appendChild(defs);
+  var scene=el('g',{transform:'scale(1,-1)'});cv.appendChild(scene);
+  var clip=el('g',{'clip-path':'url(#clip)'});scene.appendChild(clip);
+  clip.appendChild(el('rect',{x:-per*2,y:-hw,width:per*4,height:2*hw,fill:'#120c07'}));
+  var idx=E.map(function(e,i){return i;}).sort(function(a,b){return ORDER[E[a].t]-ORDER[E[b].t];});
+  [-1,1].forEach(function(o){var gg=el('g',{transform:'translate('+(o*per)+',0)',opacity:0.38,'pointer-events':'none'});idx.forEach(function(i){gg.appendChild(drawEl(E[i],i,true));});clip.appendChild(gg);});
+  var tile=el('g',{id:'tile'});idx.forEach(function(i){tile.appendChild(drawEl(E[i],i,false));});clip.appendChild(tile);
+  /* seam guides + rim */
+  [-per/2,per/2].forEach(function(x){scene.appendChild(el('line',{x1:x,y1:-hw,x2:x,y2:hw,stroke:'#7fd0ff','stroke-width':1.2,'stroke-dasharray':'4 4','vector-effect':'non-scaling-stroke',opacity:0.5,'pointer-events':'none'}));});
+  [-1,1].forEach(function(sg){scene.appendChild(el('line',{x1:-per*2,x2:per*2,y1:sg*(hw-RIM),y2:sg*(hw-RIM),stroke:'#e0ac4a','stroke-width':1,'stroke-dasharray':'3 5','vector-effect':'non-scaling-stroke',opacity:0.55,'pointer-events':'none'}));
+    scene.appendChild(el('line',{x1:-per*2,x2:per*2,y1:sg*hw,y2:sg*hw,stroke:'#e0ac4a','stroke-width':2,'vector-effect':'non-scaling-stroke','pointer-events':'none'}));});
+  /* ribbon nodes */
+  var S=E[state.sel];
+  if(S&&S.t==='ribbon'){S.pts.forEach(function(q,n){scene.appendChild(el('circle',{cx:q[0],cy:q[1],r:Math.max(0.1,span/60),fill:'#7fd0ff',stroke:'#0f0a06','stroke-width':0.03,'data-n':n}));});}
+  document.getElementById('meta').textContent=RINGS[state.ring].name+' · repeat '+per.toFixed(1)+' mm × band '+(2*hw).toFixed(1)+' mm · '+RINGS[state.ring].n+' repeats around · dashed gold = polished rim, dashed blue = repeat seam';
+  document.getElementById('zoom').textContent='Zoom: '+state.zoom+'×';
+}
+
+function fields(t){return {
+  flower:[['Size','r',0.3,1.7,0.02,''],['Rotate','rot',-36,36,1,'°']],
+  leaf:[['Length','len',0.4,3,0.05,''],['Width','w',0.1,0.8,0.01,''],['Angle','ang',-180,180,1,'°'],['Curve','cv',-0.4,0.4,0.01,'']],
+  ribbon:[['Width','w',0.12,0.9,0.01,'']],
+  bead:[['Size','r',0.05,0.4,0.01,'']]}[t];}
+function renderPanel(){
+  var S=els()[state.sel];
+  if(!S){panel.innerHTML='<h2>Nothing selected</h2><div class="meta">Tap a shape to edit it, or add one with the buttons above.</div>';return;}
+  var h='<h2>'+{flower:'Flower',leaf:'Leaf',ribbon:'Ribbon (drag the blue dots to bend)',bead:'Bead'}[S.t]+'</h2>';
+  fields(S.t).forEach(function(f){h+='<div class="f"><label for="f_'+f[1]+'">'+f[0]+'</label><input id="f_'+f[1]+'" type="range" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+S[f[1]]+'" data-k="'+f[1]+'"><span class="v">'+S[f[1]]+f[5]+'</span></div>';});
+  h+='<div class="row"><button id="dup">Duplicate</button><button id="del">Delete</button></div>';
+  panel.innerHTML=h;
+  panel.querySelectorAll('input[type=range]').forEach(function(inp){
+    inp.addEventListener('pointerdown',snap);
+    inp.addEventListener('input',function(){S[inp.dataset.k]=parseFloat(inp.value);inp.parentNode.querySelector('.v').textContent=inp.value;save();render();});});
+  document.getElementById('dup').onclick=function(){snap();var c=JSON.parse(JSON.stringify(S));if(c.pts)c.pts=c.pts.map(function(q){return [q[0]+0.4,q[1]-0.3];});else{c.x+=0.4;c.z-=0.3;}els().push(c);state.sel=els().length-1;save();render();renderPanel();};
+  document.getElementById('del').onclick=function(){snap();els().splice(state.sel,1);state.sel=-1;save();render();renderPanel();};
+}
+
+/* pointer handling: select, drag shapes, drag ribbon nodes, pan background */
+var drag=null;
+function toMM(e){var pt=cv.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;var m=document.getElementById('tile').getScreenCTM().inverse(),q=pt.matrixTransform(m);return [q.x,q.y];}
+cv.addEventListener('pointerdown',function(e){
+  var nEl=e.target.closest('[data-n]'),iEl=e.target.closest('.el'),m=toMM(e);cv.setPointerCapture(e.pointerId);
+  if(nEl){snap();drag={k:'node',n:+nEl.dataset.n,m:m};return;}
+  if(iEl){var i=+iEl.dataset.i;snap();state.sel=i;drag={k:'move',m:m};render();renderPanel();return;}
+  state.sel=-1;drag={k:'pan',px:e.clientX,cx:state.cx};render();renderPanel();});
+cv.addEventListener('pointermove',function(e){
+  if(!drag)return;var S=els()[state.sel];
+  if(drag.k==='pan'){var G=geo(state.ring),span=G.per*1.5/state.zoom,r=cv.getBoundingClientRect();state.cx=drag.cx-(e.clientX-drag.px)*span/r.width;render();return;}
+  var m=toMM(e),dx=m[0]-drag.m[0],dz=m[1]-drag.m[1];
+  if(drag.k==='node'){S.pts[drag.n][0]=r2(S.pts[drag.n][0]+dx);S.pts[drag.n][1]=r2(S.pts[drag.n][1]+dz);}
+  else if(S.pts){S.pts.forEach(function(q){q[0]=r2(q[0]+dx);q[1]=r2(q[1]+dz);});}
+  else{S.x=r2(S.x+dx);S.z=r2(S.z+dz);}
+  drag.m=m;render();});
+function endDrag(){if(drag&&drag.k!=='pan')save();drag=null;}
+cv.addEventListener('pointerup',endDrag);cv.addEventListener('pointercancel',endDrag);
+
+/* chrome */
+var tabs=document.getElementById('tabs');
+Object.keys(RINGS).forEach(function(k){var b=document.createElement('button');b.textContent=RINGS[k].name;b.dataset.k=k;b.onclick=function(){state.ring=k;state.sel=-1;state.undo=[];state.cx=0;setTabs();render();renderPanel();};tabs.appendChild(b);});
+function setTabs(){tabs.querySelectorAll('button').forEach(function(b){b.classList.toggle('on',b.dataset.k===state.ring);});}
+document.getElementById('adds').addEventListener('click',function(e){
+  var t=e.target.dataset.add;if(!t)return;snap();var G=geo(state.ring),x=state.cx,N;
+  if(t==='flower')N={t:'flower',x:x,z:0,r:r2(G.p.fr*0.7),rot:0};
+  if(t==='leaf')N={t:'leaf',x:x,z:-0.3,ang:30,len:1.4,w:0.38,cv:0.1};
+  if(t==='bead')N={t:'bead',x:x,z:0.6,r:0.12};
+  if(t==='ribbon'){var s=G.hw/2;N={t:'ribbon',w:r2(0.45*s),pts:[[x-1.2,-0.4],[x-0.4,-0.7],[x+0.4,-0.5],[x+0.9,0],[x+0.5,0.45],[x+0.1,0.2]]};}
+  els().push(N);state.sel=els().length-1;save();render();renderPanel();});
+document.getElementById('undo').onclick=function(){var s=state.undo.pop();if(!s)return toast('Nothing to undo');state.data[state.ring]=JSON.parse(s);state.sel=-1;save();render();renderPanel();};
+document.getElementById('zoom').onclick=function(){state.zoom=state.zoom===1?2:state.zoom===2?3:1;render();};
+document.getElementById('reset').onclick=function(){snap();state.data[state.ring]=defaults(state.ring);state.sel=-1;save();render();renderPanel();toast('Ring reset');};
+document.getElementById('copy').onclick=function(){
+  var out={units:'mm; x along the circumference (one repeat, seam at x=±repeat/2), z across the band (+ up); angles in degrees',rings:{}};
+  Object.keys(RINGS).forEach(function(k){var G=geo(k);out.rings[k]={name:RINGS[k].name,repeat_mm:r2(G.per),band_width_mm:r2(G.hw*2),repeats_around:RINGS[k].n,elements:state.data[k]};});
+  var txt=JSON.stringify(out);document.getElementById('txt').value=txt;
+  var done=function(){toast('Design copied');};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(done,function(){fallback(txt);});else fallback(txt);};
+function fallback(txt){var ta=document.getElementById('txt');ta.value=txt;ta.parentNode.open=true;ta.select();try{document.execCommand('copy');toast('Design copied');}catch(e){toast('Select the text below and copy');}}
+var tt;function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(function(){t.classList.remove('show');},1600);}
+
+setTabs();render();renderPanel();
+})();
+</script>
+</body>
+</html>
