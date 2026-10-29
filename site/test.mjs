@@ -6,7 +6,6 @@ for (const k of Object.keys(DEFAULTS)) {
   for (const s of sh) {
     for (let i = 0; i < s.pos.length; i++) if (!Number.isFinite(s.pos[i])) throw new Error(`${k}: non-finite coordinate`);
     if (!(s.volume > 0)) throw new Error(`${k}: non-positive volume ${s.volume}`);
-    if (s.col && s.col.length !== s.pos.length) throw new Error(`${k}: colour array size mismatch`);
     nt += s.idx.length / 3;
   }
   if (toSTL(sh).byteLength !== 84 + nt * 50) throw new Error(`${k}: bad STL size`);
