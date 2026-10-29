@@ -1,5 +1,5 @@
 // Parametric ring geometry (mm). No dependencies: runs in the browser and in Node.
-// Bands are currently plain polished (no engraving). The engraved relief will be re-added from height maps built from reference/*.png.
+// Bands are currently plain polished (no engraving). The engraved relief will be rebuilt from reference/rings_flat.png.
 export const DEFAULTS = {
   band1:     { ID: 19, w: 4.5, t: 1.5 },
   band2:     { ID: 17, w: 4.0, t: 1.4 },
