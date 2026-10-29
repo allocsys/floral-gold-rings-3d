@@ -34,7 +34,7 @@ textarea{width:100%;height:90px;background:var(--panel);color:var(--ink);border:
 </head>
 <body>
 <h1>Flat ring designs</h1>
-<p class="sub">Each ring is unrolled flat: one repeat in the middle, its neighbours dimmed. Drag shapes to move them, drag the dots on a ribbon to bend it. Copy the design when it looks right and I’ll rebuild the 3D rings from it.</p>
+<p class="sub">Each ring is unrolled flat and starts blank: one repeat in the middle, its neighbours dimmed (they show your repeat tiling around the ring). Drag shapes to move them, drag the dots on a ribbon to bend it. Copy the design when it looks right and I’ll rebuild the 3D rings from it.</p>
 
 <div class="row tabs" id="tabs"></div>
 <svg id="cv" role="img" aria-label="Unrolled ring pattern"></svg>
@@ -45,7 +45,7 @@ textarea{width:100%;height:90px;background:var(--panel);color:var(--ink);border:
 </div>
 <div id="panel"></div>
 <div class="row">
-  <button id="undo">Undo</button><button id="zoom">Zoom: 1×</button><button id="reset">Reset ring</button><button id="copy" class="on">Copy design</button>
+  <button id="undo">Undo</button><button id="zoom">Zoom: 1×</button><button id="reset">Clear ring</button><button id="copy" class="on">Copy design</button>
 </div>
 <details><summary class="meta">Design text (if copy is blocked)</summary><textarea id="txt" readonly></textarea></details>
 <div id="toast"></div>
@@ -64,29 +64,13 @@ function catmull(P,sub){var out=[],n=P.length;for(var i=0;i<n-1;i++)for(var s=0;
   out.push(P[n-1].slice());return out;}
 function r2(x){return Math.round(x*1000)/1000;}
 
-/* default layout = the current 3D motif, written out as editable shapes */
-function defaults(k){
-  var G=geo(k),p=G.p,per=G.per,kx=per/15.6,s=G.hw/2,sc=0.75+0.4*p.va,els=[];
-  var U=function(X,Z){return [X*kx,Z*s];};
-  els.push({t:'flower',x:0,z:0,r:r2(p.fr*1.05),rot:0});
-  els.push({t:'flower',x:r2(per/2),z:0,r:r2(0.82*p.fr),rot:0});
-  [1,-1].forEach(function(g){
-    var a0=-53*D2R,r0=0.72*s*sc,C=U(4.09,0.1);
-    var body=[[1.2,-0.45],[2.2,-0.85],[3.3,-0.95],[3.9,-0.8],[4.46,-0.5]].map(function(q){return U(q[0],q[1]);});
-    for(var i=0;i<=7;i++){var f=i/7,ph=a0+f*1.3*TAU,r=r0+(0.28*r0-r0)*f;body.push([C[0]+r*Math.cos(ph),C[1]+r*Math.sin(ph)]);}
-    els.push({t:'ribbon',w:r2(0.5*s),pts:body.map(function(q){return [r2(g*q[0]),r2(g*q[1])];})});
-    [[0.9,0.85,0.5,1.6,0.38,-0.15],[6.8,-0.75,-0.7,1.2,0.34,0.15]].forEach(function(L){
-      els.push({t:'leaf',x:r2(g*L[0]*kx),z:r2(g*L[1]*s),ang:r2((L[2]/D2R)+(g<0?180:0)),len:r2(1.1*L[3]*s),w:r2(1.3*L[4]*s),cv:L[5]});});
-    [[5.4,0.35,0.12],[5.7,-0.5,0.1],[4.9,-1.2,0.12],[3.6,1.4,0.1],[2.0,-0.2,0.1],[5.3,1.2,0.09],[3.0,0.2,0.09]].forEach(function(b){
-      els.push({t:'bead',x:r2(g*b[0]*kx),z:r2(g*b[1]*s),r:r2(b[2]*s)});});
-  });
-  return els;
-}
+/* start from a blank band */
+function defaults(){return [];}
 
 var state={ring:'band2',sel:-1,zoom:1,cx:0,data:{},undo:[]};
-try{var saved=JSON.parse(localStorage.getItem('floral-flat-v1')||'null');if(saved)state.data=saved;}catch(e){}
+try{var saved=JSON.parse(localStorage.getItem('floral-flat-v2')||'null');if(saved)state.data=saved;}catch(e){}
 Object.keys(RINGS).forEach(function(k){if(!state.data[k])state.data[k]=defaults(k);});
-function save(){try{localStorage.setItem('floral-flat-v1',JSON.stringify(state.data));}catch(e){}}
+function save(){try{localStorage.setItem('floral-flat-v2',JSON.stringify(state.data));}catch(e){}}
 function els(){return state.data[state.ring];}
 function snap(){state.undo.push(JSON.stringify(els()));if(state.undo.length>60)state.undo.shift();}
 
@@ -155,7 +139,7 @@ function fields(t){return {
   bead:[['Size','r',0.05,0.4,0.01,'']]}[t];}
 function renderPanel(){
   var S=els()[state.sel];
-  if(!S){panel.innerHTML='<h2>Nothing selected</h2><div class="meta">Tap a shape to edit it, or add one with the buttons above.</div>';return;}
+  if(!S){panel.innerHTML='<h2>'+(els().length?'Nothing selected':'Blank band')+'</h2><div class="meta">'+(els().length?'Tap a shape to edit it, or add one with the buttons above.':'Add a flower, leaf, ribbon or bead with the buttons above to begin.')+'</div>';return;}
   var h='<h2>'+{flower:'Flower',leaf:'Leaf',ribbon:'Ribbon (drag the blue dots to bend)',bead:'Bead'}[S.t]+'</h2>';
   fields(S.t).forEach(function(f){h+='<div class="f"><label for="f_'+f[1]+'">'+f[0]+'</label><input id="f_'+f[1]+'" type="range" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+S[f[1]]+'" data-k="'+f[1]+'"><span class="v">'+S[f[1]]+f[5]+'</span></div>';});
   h+='<div class="row"><button id="dup">Duplicate</button><button id="del">Delete</button></div>';
@@ -199,7 +183,7 @@ document.getElementById('adds').addEventListener('click',function(e){
   els().push(N);state.sel=els().length-1;save();render();renderPanel();});
 document.getElementById('undo').onclick=function(){var s=state.undo.pop();if(!s)return toast('Nothing to undo');state.data[state.ring]=JSON.parse(s);state.sel=-1;save();render();renderPanel();};
 document.getElementById('zoom').onclick=function(){state.zoom=state.zoom===1?2:state.zoom===2?3:1;render();};
-document.getElementById('reset').onclick=function(){snap();state.data[state.ring]=defaults(state.ring);state.sel=-1;save();render();renderPanel();toast('Ring reset');};
+document.getElementById('reset').onclick=function(){snap();state.data[state.ring]=defaults(state.ring);state.sel=-1;save();render();renderPanel();toast('Ring cleared');};
 document.getElementById('copy').onclick=function(){
   var out={units:'mm; x along the circumference (one repeat, seam at x=±repeat/2), z across the band (+ up); angles in degrees',rings:{}};
   Object.keys(RINGS).forEach(function(k){var G=geo(k);out.rings[k]={name:RINGS[k].name,repeat_mm:r2(G.per),band_width_mm:r2(G.hw*2),repeats_around:RINGS[k].n,elements:state.data[k]};});

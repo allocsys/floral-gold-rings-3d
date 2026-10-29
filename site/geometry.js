@@ -95,34 +95,13 @@ function strokeMask(x, z, S, e) {
   return [m, g];
 }
 
-// Pattern after the high-detail reference: per repeat TWO solid 5-petal flowers (big F1, smaller F2) joined by broad tapered leaf-ribbons that
-// cross in an S and curl into spirals (midrib groove), pointed leaves at the flowers, and raised beads in the dark recess.
-// Half the motif (F1 -> F2) is drawn, then copied rotated 180 deg about F1, so the repeat is seamless. Motif coords: mm for hw=2, repeat 15.6.
+// Engraving is currently BLANK: plain polished bands. The pattern will be rebuilt from the flat editor layout (editor.html).
 export function makeQ(p, per, hw, e) {
-  const kx = per / 15.6, s = hw / 2, U = (X, Z) => [X * kx, Z * s], strokes = [], leaves = [], flw = [], rings = [];
-  const sc = 0.75 + 0.4 * p.va;
-  const rib = (pts, wmax, curl, g) => {            // pts: motif coords of the body; curl: [centre motif, r0 motif, a0, dir]
-    const body = pts.map(q => U(q[0], q[1])), r0 = curl[1] * s * sc, C = U(curl[0][0], curl[0][1]);
-    const sp = spiral(C[0], C[1], r0, 0.28 * r0, 1.3, curl[3], curl[2]);
-    const all = catmull(body).concat([[C[0] + r0 * Math.cos(curl[2]), C[1] + r0 * Math.sin(curl[2])]], sp).map(q => [g * q[0], g * q[1]]);
-    const S = mkStroke(all, wmax * s, wmax * s); S.leaf = wmax * s; strokes.push(S);
-  };
-  const R2 = (q) => [per / 2 / kx - q[0], -q[1]];     // rotate 180 deg about the half-way point between F1 and F2
-  for (const g of [1, -1]) {
-    const a0 = -53 * Math.PI / 180, b = [[1.2, -0.45], [2.2, -0.85], [3.3, -0.95], [3.9, -0.8], [4.46, -0.5]];
-    rib(b, 0.5, [[4.09, 0.1], 0.72, a0, 1], g);                                           // ribbon from F1: low S-sweep rising into a curl
-    // pointed leaves above it and beside F2: X, Z, angle, length, half-width, curvature
-    for (const [X, Z, ang, len, w, cv] of [[0.9, 0.85, 0.5, 1.6, 0.38, -0.15], [6.8, -0.75, -0.7, 1.2, 0.34, 0.15]]) {
-      const t = [g * X * kx, g * Z * s]; leaves.push([t[0], t[1], ang + (g < 0 ? Math.PI : 0), 1.1 * len * s, 1.3 * w * s, cv]);
-    }
-    for (const [X, Z, r] of [[5.4, 0.35, 0.12], [5.7, -0.5, 0.1], [4.9, -1.2, 0.12], [3.6, 1.4, 0.1], [2.0, -0.2, 0.1], [5.3, 1.2, 0.09], [3.0, 0.2, 0.09]])
-      rings.push([g * X * kx, g * Z * s, r * s, 1]);
-  }
-  flw.push([per / 2, 0, 0.82 * p.fr]);                                                       // F2 (periodic copy at -per/2 comes from the neighbour repeat)
-  return { per, hw, fr: p.fr * 1.05, e, strokes, leaves, flw, rings, kx };
+  return { per, hw, e, empty: true, strokes: [], leaves: [], flw: [], rings: [], kx: per / 15.6, fr: p.fr };
 }
 // returns 1 = raised gold, 0 = recessed antique gold
 export function relief(x, z, q) {
+  if (q.empty) return 1; // blank band: everything stays raised polished gold
   const { hw, e, per, kx } = q;
   let m = 0, c = 0;
   for (const off of [0, per, -per]) {
