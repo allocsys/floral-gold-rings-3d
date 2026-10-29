@@ -3,6 +3,7 @@ exec(open('tools/wip_v3/stage3.py').read())
 # centre-flower polish (no slit bites, pointed tips, midribs, pillowy petals)
 
 # --- rebuild centre petals as clean convex leaf shapes (fills the slit bites in the inner ends) ---
+WEDGE_LEN=46; WEDGE_W0=4.2                 # 1x px: wedge length from dome edge, half-width at the dome
 CZ0=np.zeros((H2,W2),np.uint8)
 for k in range(3): cv2.circle(CZ0,(int(X(599,k)),int(Y(128))),int(215*S),1,-1)
 cids=[i for i in np.unique(lab[CZ0>0]) if i>0 and ((i-1)%15) in (7,8,9,10,11,12,13) and i<=45]
@@ -21,6 +22,26 @@ newlab=lab.copy()
 for n,i in enumerate(ids):
     sel=anyh&(own==n)&(hulls[i]>0)
     newlab[sel]=i
+# dark wedge gaps between neighbouring petals: widest at the dome, tapering outwards (as in the reference)
+cen_info={}
+for i in ids:
+    yy_,xx_=np.nonzero(newlab==i)
+    if len(xx_)==0: continue
+    for k in range(3):
+        fx,fy=X(599,k),Y(128)
+        if np.hypot(xx_.mean()-fx,yy_.mean()-fy)<200*S:
+            cen_info.setdefault(k,[]).append(np.arctan2(yy_.mean()-fy,xx_.mean()-fx))
+for k,angs in cen_info.items():
+    angs=np.sort(np.array(angs)); fx,fy=X(599,k),Y(128)
+    nxt=np.roll(angs,-1); nxt[-1]+=2*np.pi
+    for a,b in zip(angs,nxt):
+        gdir=(a+b)/2; half=(b-a)/2
+        if abs(((gdir+np.pi/2+np.pi)%(2*np.pi))-np.pi)<np.radians(35): continue   # top-petal gaps are already clean slits; the wedge hooked the UL/UR petals
+        r0=(26+1.0)*S; L=WEDGE_LEN*S; w0=WEDGE_W0*S
+        ux,uy=np.cos(gdir),np.sin(gdir); nx,ny=-uy,ux
+        poly=np.array([[fx+ux*r0+nx*w0,fy+uy*r0+ny*w0],[fx+ux*(r0+L)+nx*0.4*S,fy+uy*(r0+L)+ny*0.4*S],
+                       [fx+ux*(r0+L)-nx*0.4*S,fy+uy*(r0+L)-ny*0.4*S],[fx+ux*r0-nx*w0,fy+uy*r0-ny*w0]]).astype(np.int32)
+        cv2.fillPoly(newlab,[poly],0)
 # dome clearance + gaps between petals (wider close to the dome, like the wedge gaps in the reference)
 for k in range(3):
     fx,fy=X(599,k),Y(128); cv2.circle(newlab,(int(fx),int(fy)),int((26+2.2)*S),0,-1)
@@ -140,3 +161,7 @@ cv2.imwrite(Z+'v4_preview.png',np.vstack([ref_p,vir,rel]))
 for nm,(a,b) in {'A':(0,700),'B':(850,1550)}.items():
     z=np.vstack([ref_p[:,a:b],rel[:,a:b]]); cv2.imwrite(Z+f'v4_zoom_{nm}.png',cv2.resize(z,None,fx=1.8,fy=1.8,interpolation=cv2.INTER_CUBIC))
 tile=np.hstack([Hp[:,-700:],Hp[:,:700]]); cv2.imwrite(Z+'v4_seam.png',shade(tile))
+# debug overlay: relief outline (HS>0.3) on the reference, centre flower crop
+_o=T2[:,PW2:2*PW2].copy(); _m=(Hp>0.3).astype(np.uint8)
+_cs,_=cv2.findContours(_m,cv2.RETR_LIST,cv2.CHAIN_APPROX_NONE); cv2.drawContours(_o,_cs,-1,(0,255,0),1)
+cv2.imwrite(Z+'v4_overlay_centre.png',cv2.resize(_o[:,1198-330:1198+330],None,fx=1.6,fy=1.6,interpolation=cv2.INTER_CUBIC))
