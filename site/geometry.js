@@ -1,8 +1,8 @@
 // Parametric ring geometry (mm). No dependencies: runs in the browser and in Node.
-// The Band (band2) carries the engraved floral relief (relief_band.js, derived from reference/rings_flat.png), repeated REPEATS times around the ring.
+// Both bands (band1, band2) carry the engraved floral relief (relief_band.js, derived from reference/rings_flat.png), repeated REPEATS times around the ring.
 import { RELIEF_BAND } from './relief_band.js';
 export const DEFAULTS = {
-  band1:     { ID: 19, w: 4.5, t: 1.5 },
+  band1:     { ID: 19, w: 4.5, t: 1.5, relief: 0.4 },
   band2:     { ID: 17, w: 4.0, t: 1.4, relief: 0.4 },
   solitaire: { ID: 17, w: 2.6, t: 1.3, stone: 5.2, prongs: 6 },
 };
@@ -11,7 +11,7 @@ export const CONTROLS = [
   ['ID', 'Inner diameter', 14, 24, 0.1],
   ['w', 'Width', 1.5, 8, 0.1],
   ['t', 'Thickness', 0.8, 3, 0.05],
-  ['relief', 'Relief depth', 0, 0.8, 0.05, 'band2'],
+  ['relief', 'Relief depth', 0, 0.8, 0.05, ['band1', 'band2']],
   ['stone', 'Stone diameter', 3, 8, 0.1, 'solitaire'],
   ['prongs', 'Prongs', 4, 8, 1, 'solitaire'],
 ];

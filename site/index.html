@@ -41,7 +41,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL } from './geometry.js?v=relief1';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL } from './geometry.js?v=relief2';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -86,7 +86,7 @@ function renderUI() {
     b.onclick = () => { kind = k; renderUI(); queue('fine'); }; tabs.appendChild(b);
   }
   for (const [key, label, min, max, step, only] of CONTROLS) {
-    if (only && only !== kind) continue;
+    if (only && ![].concat(only).includes(kind)) continue;
     const row = document.createElement('div'); row.className = 'row';
     row.innerHTML = `<label>${label}</label><input type="range" min="${min}" max="${max}" step="${step}" value="${state[kind][key]}"><output>${state[kind][key]}</output>`;
     const inp = row.querySelector('input'), out = row.querySelector('output');
