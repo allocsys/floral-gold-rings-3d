@@ -1,8 +1,9 @@
 // Parametric ring geometry (mm). No dependencies: runs in the browser and in Node.
-// Bands are currently plain polished (no engraving). The engraved relief will be rebuilt from reference/rings_flat.png.
+// The Band (band2) carries the engraved floral relief (relief_band.js, derived from reference/rings_flat.png), repeated REPEATS times around the ring.
+import { RELIEF_BAND } from './relief_band.js';
 export const DEFAULTS = {
   band1:     { ID: 19, w: 4.5, t: 1.5 },
-  band2:     { ID: 17, w: 4.0, t: 1.4 },
+  band2:     { ID: 17, w: 4.0, t: 1.4, relief: 0.4 },
   solitaire: { ID: 17, w: 2.6, t: 1.3, stone: 5.2, prongs: 6 },
 };
 export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire' };
@@ -10,6 +11,7 @@ export const CONTROLS = [
   ['ID', 'Inner diameter', 14, 24, 0.1],
   ['w', 'Width', 1.5, 8, 0.1],
   ['t', 'Thickness', 0.8, 3, 0.05],
+  ['relief', 'Relief depth', 0, 0.8, 0.05, 'band2'],
   ['stone', 'Stone diameter', 3, 8, 0.1, 'solitaire'],
   ['prongs', 'Prongs', 4, 8, 1, 'solitaire'],
 ];
@@ -27,13 +29,44 @@ function torus(P, N, M) {
   return { pos: P, idx };
 }
 const DOME = 0.26;
+
+// ---------- relief map sampling (mip pyramid, bilinear, periodic in u) ----------
+const REPEATS = 3, FADE = 0.3; // pattern repeats around the ring; relief fades to 0 over the last FADE mm before the rounded edge
+let mips = null;
+function reliefMips() {
+  if (mips) return mips;
+  const bin = atob(RELIEF_BAND.b64), a = new Float32Array(bin.length);
+  for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i) / 255;
+  mips = [{ W: RELIEF_BAND.W, H: RELIEF_BAND.H, a }];
+  for (;;) {
+    const m = mips[mips.length - 1], W = m.W >> 1, H = m.H >> 1;
+    if (W < 8 || H < 4) break;
+    const b = new Float32Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
+      b[y * W + x] = (m.a[2 * y * m.W + 2 * x] + m.a[2 * y * m.W + 2 * x + 1] + m.a[(2 * y + 1) * m.W + 2 * x] + m.a[(2 * y + 1) * m.W + 2 * x + 1]) / 4;
+    mips.push({ W, H, a: b });
+  }
+  return mips;
+}
+function sampleRelief(L, u, v) { // u periodic in [0,1), v in [0,1]
+  const x = u * L.W - 0.5, y = Math.min(Math.max(v * L.H - 0.5, 0), L.H - 1);
+  const x0 = Math.floor(x), y0 = Math.min(Math.floor(y), L.H - 2), fx = x - x0, fy = y - y0;
+  const X0 = mod(x0, L.W), X1 = mod(x0 + 1, L.W), r0 = y0 * L.W, r1 = (y0 + 1) * L.W;
+  return (L.a[r0 + X0] * (1 - fx) + L.a[r0 + X1] * fx) * (1 - fy) + (L.a[r1 + X0] * (1 - fx) + L.a[r1 + X1] * fx) * fy;
+}
 function band(p, solitaire, quality) {
-  const step = quality === 'draft' ? 0.12 : 0.055;
+  const rel = !solitaire && p.relief > 0 ? p.relief : 0;
+  const step = quality === 'draft' ? 0.12 : rel ? 0.04 : 0.055;
   const Ri = p.ID / 2, Ro = Ri + p.t;
   const NT = Math.max(240, Math.ceil(TAU * Ro / step));
   const rf = 0.32, Kf = quality === 'draft' ? 4 : 8, Wn = 5, Mi = 10;
   const Mo = Math.max(24, Math.ceil(((solitaire ? p.w * 1.3 : p.w) - 2 * rf) / step));
   const S = 2 * Kf + Wn, Mt = Mo + Mi + 2 * S;
+  let lv = null;
+  if (rel) { // pick the mip level whose pixel size matches the mesh spacing (box prefilter, no aliasing)
+    const ms = reliefMips(), pxU = (TAU * Ro / REPEATS) / RELIEF_BAND.W, pxV = p.w / RELIEF_BAND.H;
+    lv = ms[Math.min(ms.length - 1, Math.max(0, Math.floor(Math.log2(Math.max(TAU * Ro / NT / pxU, (2 * (p.w / 2 - rf)) / (Mo - 1) / pxV)))))];
+  }
   const P = new Float32Array(NT * Mt * 3);
   for (let i = 0; i < NT; i++) {
     const th = (i / NT) * TAU;
@@ -46,7 +79,12 @@ function band(p, solitaire, quality) {
     // outer face (domed)
     for (let j = 0; j < Mo; j++) {
       const zn = (-1 + (2 * j) / (Mo - 1)) * zt;
-      put(Ro + DOME * (1 - zn * zn), zn * hwid);
+      let R = Ro + DOME * (1 - zn * zn);
+      if (lv) { // engraved relief: peaks keep the nominal radius, recesses cut down by `rel` mm, fading out at the rounded edges
+        const zf = Math.min(1, (hwid - rf - Math.abs(zn * hwid)) / FADE), fade = zf * zf * (3 - 2 * zf);
+        R -= rel * fade * (1 - sampleRelief(lv, mod((i / NT) * REPEATS, 1), (zn / zt + 1) / 2));
+      }
+      put(R, zn * hwid);
     }
     // rounded edge: outer fillet, wall, inner fillet (+z side), inner bore, then the -z side back
     const edge = [];
