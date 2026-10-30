@@ -1,3 +1,4 @@
+import os
 # stage 1: tile -> 2x, gold mask, slit carve, beads, watershed regions  (debug overlays)
 import cv2, numpy as np, os, pickle
 from scipy import ndimage as ndi
@@ -11,7 +12,8 @@ g=lambda a,s: cv2.GaussianBlur(a,(0,0),s)
 
 ref=cv2.imread(ROOT+'/reference/rings_flat.png')
 im=cv2.resize(ref[255:425,25:760],None,fx=2.2,fy=2.2,interpolation=cv2.INTER_CUBIC)
-c=im[48:308,66:1502]
+CROPX=int(os.environ.get('CROPX',0))   # extra ref rows (1x) taken at the BOTTOM; stage38+ drops the same number of dark rows at the top of the final map
+c=im[48:308+CROPX,66:1502]
 A=c[:,147:747]
 P=np.hstack([A,A[:,::-1][:,1:-1]]); PW=P.shape[1]          # one exact period (1198 cols)
 T=np.hstack([P,P,P])
