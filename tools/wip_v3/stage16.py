@@ -179,16 +179,24 @@ for _k in range(3):
     _cnt=[len(np.unique(_l[lab==q]))-(1 if 0 in np.unique(_l[lab==q]) else 0) for q in _pid]
     print('tile',_k,'petal comps (8-conn, expect 6):',_n,'per-label pieces',_cnt)
 # ---- stage14: remove thin spurs/ears at petal shoulders (opening per petal, keep largest piece) ----
+OPEN_R2=float(os.environ.get('OPEN_R2',9.0))
+SMO=float(os.environ.get('SMO',3.0))
 OPEN_R=float(os.environ.get('OPEN_R',5.5))
 for _k in range(3):
     for q in [15*_k+j for j in (9,10,11,12,13,14)]:
         m=(lab==q).astype(np.uint8)
         if not m.any(): continue
         mo=cv2.morphologyEx(m,cv2.MORPH_OPEN,ell(OPEN_R*S))
+        _fx_,_fy_=X(599,_k),Y(128); _yy_,_xx_=np.mgrid[0:H2,0:W2]
+        _ang=np.degrees(np.arctan2(np.abs(_yy_-_fy_),np.abs(_xx_-_fx_))); _rrz=np.hypot(_xx_-_fx_,_yy_-_fy_)/S
+        _zone=(_ang>=15)&(_ang<=58)&(_rrz>45)                  # shoulders between petals: stronger opening kills fin-like fill remnants (tips at ~0 deg stay)
+        mo=np.where(_zone,cv2.morphologyEx(m,cv2.MORPH_OPEN,ell(OPEN_R2*S)),mo).astype(np.uint8)
         l_,n_=ndi.label(mo)
         if n_>1:
             sz_=ndi.sum(mo,l_,range(1,n_+1)); mo=(l_==(1+int(np.argmax(sz_)))).astype(np.uint8)
         lab[(m>0)&(mo==0)]=0
+        mb=g(((lab==q)).astype(np.float32),SMO)>0.5          # stage16: round corners / drop nubs (remove-only smoothing)
+        lab[((lab==q))&(~mb)]=0
 
 sm=lambda a:a*a*(3-2*a)
 # leaf/scroll veins -> shallow grooves (not inside flower zones)
