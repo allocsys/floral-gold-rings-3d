@@ -41,7 +41,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL } from './geometry.js?v=relief23';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL } from './geometry.js?v=relief24';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -56,6 +56,7 @@ camera.position.set(6, 16, 34);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true; controls.autoRotate = true; controls.autoRotateSpeed = 1.5;
 const gold = new THREE.MeshStandardMaterial({ color: 0xe6b84a, metalness: 1, roughness: 0.28 });
+const goldVC = gold.clone(); goldVC.vertexColors = true;
 const gem = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0, transmission: 1, thickness: 3, ior: 2.4, specularIntensity: 1, envMapIntensity: 3.5, side: THREE.DoubleSide, attenuationColor: 0xf2f6ff, attenuationDistance: 12 });
 const group = new THREE.Group(); scene.add(group);
 
@@ -71,8 +72,9 @@ function rebuild(quality) {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(s.pos, 3));
     g.setIndex(new THREE.BufferAttribute(s.idx, 1));
+    if (s.col) g.setAttribute('color', new THREE.BufferAttribute(s.col, 3));
     g.computeVertexNormals();
-    group.add(new THREE.Mesh(g, s.kind === 'stone' ? gem : gold));
+    group.add(new THREE.Mesh(g, s.kind === 'stone' ? gem : s.col ? goldVC : gold));
   }
   const p = state[kind];
   document.getElementById('info').textContent = `Ø ${p.ID} mm inner · ${quality === 'draft' ? 'draft preview while dragging' : 'full detail'} · mm`;

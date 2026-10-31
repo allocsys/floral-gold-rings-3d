@@ -31,6 +31,7 @@ function torus(P, N, M) {
 const DOME = 0.26;
 
 // ---------- relief map sampling (mip pyramid, bilinear, periodic in u) ----------
+const GROUND_COL = [0.14, 0.09, 0.04], GROUND_LO = 0.08, GROUND_HI = 0.55; // viewer tint of the recessed ground (x gold) and the relief-height range it fades over
 const REPEATS = 3, FADE = 0.3; // pattern repeats around the ring; relief fades to 0 over the last FADE mm before the rounded edge
 let mips = null;
 function reliefMips() {
@@ -68,6 +69,7 @@ function band(p, solitaire, quality) {
     lv = ms[Math.min(ms.length - 1, Math.max(0, Math.floor(Math.log2(Math.max(TAU * Ro / NT / pxU, (2 * (p.w / 2 - rf)) / (Mo - 1) / pxV)))))];
   }
   const P = new Float32Array(NT * Mt * 3);
+  const C = lv ? new Float32Array(NT * Mt * 3).fill(1) : null; // viewer-only vertex colour: dark bronze ground, full gold on the raised relief
   for (let i = 0; i < NT; i++) {
     const th = (i / NT) * TAU;
     const d = Math.abs(mod(th - Math.PI / 2 + Math.PI, TAU) - Math.PI); // angle from top
@@ -82,7 +84,10 @@ function band(p, solitaire, quality) {
       let R = Ro + DOME * (1 - zn * zn);
       if (lv) { // engraved relief: peaks keep the nominal radius, recesses cut down by `rel` mm, fading out at the rounded edges
         const zf = Math.min(1, (hwid - rf - Math.abs(zn * hwid)) / FADE), fade = zf * zf * (3 - 2 * zf);
-        R -= rel * fade * (1 - sampleRelief(lv, mod((i / NT) * REPEATS, 1), (zn / zt + 1) / 2));
+        const hv = sampleRelief(lv, mod((i / NT) * REPEATS, 1), (zn / zt + 1) / 2);
+        R -= rel * fade * (1 - hv);
+        const s = Math.min(1, Math.max(0, (hv - GROUND_LO) / (GROUND_HI - GROUND_LO))), k = s * s * (3 - 2 * s), c = (i * Mt + j) * 3;
+        for (let q = 0; q < 3; q++) C[c + q] = GROUND_COL[q] + (1 - GROUND_COL[q]) * (1 - fade + fade * k);
       }
       put(R, zn * hwid);
     }
@@ -98,7 +103,8 @@ function band(p, solitaire, quality) {
     }
     for (let k = S - 1; k >= 0; k--) put(edge[k][1], -edge[k][0]);
   }
-  return { shell: torus(P, NT, Mt), top: Ro + DOME };
+  const shell = torus(P, NT, Mt); if (C) shell.col = C;
+  return { shell, top: Ro + DOME };
 }
 function revolve(prof, n = 48) {
   const M = prof.length, P = new Float32Array(n * M * 3);
