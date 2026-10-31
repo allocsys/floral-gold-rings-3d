@@ -1,0 +1,11 @@
+grid 2396x520 (S=2). MISS 52261 EXTRA 15900
+MISS dist-to-relief (0,2] px: 30544
+MISS dist-to-relief (2,4] px: 13034
+MISS dist-to-relief (4,8] px: 5482
+MISS dist-to-relief (8,16] px: 1480
+MISS dist-to-relief (16,999] px: 1721
+MISS core (open 9x9): 324 px in 4 blobs
+  blob 1 area 81 bbox x292 y231 w9 h9
+  blob 2 area 81 bbox x2097 y231 w9 h9
+  blob 3 area 81 bbox x968 y323 w9 h9
+  blob 4 area 81 bbox x1421 y323 w9 h9
