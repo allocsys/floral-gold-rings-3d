@@ -34,3 +34,17 @@ Files: `diff_band_period_v51.png`, `diff_v51_stats.txt`, `crops_ref_v50_v51.png`
 
 Method: blobs that touch the relief are reconstructed within 6 px, their ragged k-means edge is smoothed (gaussian 3), then the relief edge slope (median profile of the existing relief) is grown outward continuously (profile of distance to outside x local modulation), so there is no step at the join.
 Remaining MISS (52k) is the rim: 0-4 px from the edge is 43578 of it. Known flaws in the crops: faint crease on the top leaf-tip patch, fill edges still slightly angular.
+
+# Interior diff (idiff.py) and v52 (stage52.py), v52 NOT wired
+`CROPX=7 python3 tools/wip_v3/idiff.py [map.png]`: ref dark lines (black-tophat of Lab-L, K=21, >14) vs map grooves (black-tophat of H >0.12), inside the ref gold eroded 8 px, tolerance 4 px.
+Images: `idiff_band_period_v51.png`, `idiff_band_period_v52.png` (green both, red ref line missing in map, blue extra groove). Crops (ref | v51 | v52 hillshade): `crops_ref_v51_v52_hillshade.png`.
+
+| | v51 (wired, relief25) | v52 |
+|---|---|---|
+| ref dark-line px | 35009 | 35009 |
+| map groove px | 6734 | 25170 |
+| line recall | 0.110 | 0.864 |
+| groove precision | 0.572 | 0.887 |
+| silhouette IoU | 0.907 | 0.905 |
+
+Caveat: v52 is built from the same black-tophat detector idiff.py measures with, so recall 0.864 is partly by construction. Visual check (crops) is the real test: v52 adds the missing stem creases and petal-base wedges but the carved lines are fragmentary and lumpy, and the ref's raised bright vein ribs are not modelled.

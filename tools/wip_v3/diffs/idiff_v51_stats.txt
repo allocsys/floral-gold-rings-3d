@@ -1,0 +1,3 @@
+region 485186 px | ref dark-line px 35009 (7.2% of region) | map groove px 6734 (1.4%)
+line recall 0.110 (ref lines that have a map groove within 4 px) | groove precision 0.572 | MISSL 31147 EXTRAL 2880
+wrote /tmp/band_v3_out/idiff_band_period_v51.png
