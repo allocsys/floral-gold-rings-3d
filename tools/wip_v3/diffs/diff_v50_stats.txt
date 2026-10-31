@@ -1,0 +1,22 @@
+grid 2396x520 (S=2). MISS 76217 EXTRA 15814
+MISS dist-to-relief (0,2] px: 29761
+MISS dist-to-relief (2,4] px: 15558
+MISS dist-to-relief (4,8] px: 11598
+MISS dist-to-relief (8,16] px: 10131
+MISS dist-to-relief (16,999] px: 9169
+MISS core (open 9x9): 24446 px in 40 blobs
+  blob 24 area 1940 bbox x1994 y269 w71 h61
+  blob 23 area 1940 bbox x333 y269 w71 h61
+  blob 4 area 1795 bbox x1511 y12 w76 h50
+  blob 3 area 1795 bbox x811 y12 w76 h50
+  blob 18 area 1729 bbox x1258 y166 w78 h58
+  blob 17 area 1729 bbox x1062 y166 w78 h58
+  blob 19 area 1276 bbox x58 y219 w79 h23
+  blob 20 area 1276 bbox x2261 y219 w79 h23
+  blob 16 area 1124 bbox x2127 y154 w55 h36
+  blob 15 area 1124 bbox x216 y154 w55 h36
+  blob 14 area 932 bbox x2068 y140 w35 h39
+  blob 13 area 932 bbox x295 y140 w35 h39
+  blob 32 area 656 bbox x455 y352 w34 h26
+  blob 33 area 656 bbox x1909 y352 w34 h26
+  blob 1 area 488 bbox x1028 y9 w29 h20
