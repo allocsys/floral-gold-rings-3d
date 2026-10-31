@@ -10,8 +10,11 @@ def ell(k):
     return cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(k,k))
 g=lambda a,s: cv2.GaussianBlur(a,(0,0),s)
 
-ref=cv2.imread(ROOT+'/reference/rings_flat.png')
-im=cv2.resize(ref[255:425,25:760],None,fx=2.2,fy=2.2,interpolation=cv2.INTER_CUBIC)
+ref=cv2.imread(ROOT+'/reference/band_face.png')
+im=cv2.resize(ref[37:207,6:741],None,fx=2.2,fy=2.2,interpolation=cv2.INTER_CUBIC)
+# new ref (reference/band_face.png): affine-aligned (ECC, shift ~3.4x0.6 ref px + 0.3% scale/1deg shear) into the frame the old ring crop had, so all hand-tuned coordinates stay valid
+_WA=np.array([[1.00325,0.01918,-7.56803],[0.00187,1.00146,-1.42234]])
+im=cv2.warpAffine(im,_WA,(im.shape[1],im.shape[0]),flags=cv2.INTER_CUBIC|cv2.WARP_INVERSE_MAP,borderMode=cv2.BORDER_REPLICATE)
 CROPX=int(os.environ.get('CROPX',0))   # extra ref rows (1x) taken at the BOTTOM; stage38+ drops the same number of dark rows at the top of the final map
 c=im[48:308+CROPX,66:1502]
 A=c[:,147:747]
