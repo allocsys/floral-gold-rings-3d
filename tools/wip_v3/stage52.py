@@ -6,7 +6,7 @@ import sys, os, cv2, numpy as np
 from scipy import ndimage as ndi
 Z = '/tmp/band_v3_out/'; CROPX = int(os.environ.get('CROPX', 7)); S = 2; PW2 = 2396
 inp = sys.argv[1] if len(sys.argv) > 1 else Z + 'band_period_v51.png'
-K, TL, SPAN, RIM, DEPTH, MINPX = 21, 14, 30, 6, float(os.environ.get('DEPTH', 0.30)), 40
+K, TL, SPAN, RIM, DEPTH, MINPX = int(os.environ.get('K',21)), float(os.environ.get('TL',10)), float(os.environ.get('SPAN',30)), 6, float(os.environ.get('DEPTH', 0.35)), int(os.environ.get('MINPX',30))  # D16 defaults TL10 MINPX30 DEPTH.35 (D10-D15 used TL14 MINPX40 DEPTH.30)
 T2 = cv2.imread(Z + 'T2.png'); ref = T2[CROPX*S:CROPX*S+520, PW2:2*PW2]
 H = (cv2.imread(inp, -1).astype(np.float32) / 65535)[:520]
 lab = cv2.cvtColor(cv2.GaussianBlur(ref, (0, 0), 1.5), cv2.COLOR_BGR2LAB).astype(np.float32)
@@ -21,6 +21,6 @@ lab_, n = ndi.label(line, np.ones((3, 3)))
 sz = ndi.sum(line, lab_, range(1, n + 1)); line &= np.isin(lab_, 1 + np.where(sz >= MINPX)[0])
 s = np.clip((bh - TL) / SPAN, 0, 1) * line
 s = cv2.GaussianBlur(s.astype(np.float32), (0, 0), 1.2); s = np.clip(s * 1.6, 0, 1)
-H2 = np.where(reg, np.maximum(H - DEPTH * s, 0.0), H)
+H2 = np.where(reg, np.maximum(H - DEPTH * s, np.minimum(H, 0.32)), H)  # D16: grooves never cut below the silhouette threshold (.3)
 print('line px %d in %d comps (kept >=%d px); carved px %d; mean depth %.3f' % (line.sum(), (sz >= MINPX).sum(), MINPX, int((H2 < H - 1e-4).sum()), float((H - H2)[H2 < H - 1e-4].mean())))
 cv2.imwrite(Z + 'band_period_v52.png', np.round(np.clip(H2, 0, 1) * 65535).astype(np.uint16)); print('wrote v52')
