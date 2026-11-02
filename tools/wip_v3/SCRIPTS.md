@@ -31,3 +31,8 @@ bash tools/wip_v3/commit.sh "D21: ..." && GH_TOKEN=... bash tools/wip_v3/push.sh
 - The stages hardcode `/tmp/band_v3_out` and `exec()` each other via `tools/wip_v3/stageN.py`, so `chain.sh` runs from a shadow root at `$BAND_OUT/_root` (symlinks + sed-patched copy of `tools/wip_v3`); repo files are never modified.
 - Reproducibility: rebuild is byte-identical to the committed v58 on cv2 4.13.0 / numpy 2.4.4 (verified 2026-11-02); on cv2 5.0.0 / numpy 2.5.3 it is not, but metrics are within noise. Always use `compare.py` (same-environment baseline), never numbers recorded in older notes.
 - Metric scripts: `diff.py` IoU/silhouette, `idiff.py` groove recall/precision, `tdiff.py` ridge + plateau/clipping, `cdiff.py` cushion slope + crown profile, `rdiff.py` slit-rim raggedness (silhouette; 'rag' 1.00 = smooth). `err.py` is INVALID, do not use.
+
+## D24 additions
+- `sharp.py [map] [outdir]`: sharp-edge probe (rim profile vs ref L, |grad|/|lap| percentiles, interior hotspots, `sharp_vis_a/b.png`). Not in compare.py yet.
+- `live_shot.py OUT.png TAB`: real 3D screenshot of the site (needs `python3 -m http.server 8765` in `site/` and `npm i three@0.160.0` in /tmp/viewer). Now injects `__ctl/__cam` itself; `DSF=2 CLIP=x,y,w,h` for zoomed crops.
+- Findings (v59): rim walls are the sharp edges. Site map 1198x260, relief .4 mm, mesh .04 mm: median wall .086 mm = 2.1 cells, 47% of rim px <2 cells, median angle 73 deg / p99 84 -> staircase hatching. Ghost bumps: 1.7% of ground px H>.05 (12 patches >30px at H>.2). Solitaire has no relief.
