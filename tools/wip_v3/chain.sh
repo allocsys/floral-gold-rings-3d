@@ -10,6 +10,16 @@
 # Output: $BAND_OUT/chain_final.png (16-bit 520x2396). Intermediates: c54, c56, c55a, c52 (.png).
 # Final line says whether chain_final.png is byte-identical to maps/band_period.png.
 set -eo pipefail
+# BG=1 bash chain.sh   -> run detached (survives the tool call), log in $BAND_OUT/chain.log
+# bash chain.sh status -> show the log tail and whether it is still running / finished
+_OUT="${BAND_OUT:-/tmp/band_v3_out}"
+if [ "$1" = status ]; then
+  tail -4 "$_OUT/chain.log" 2>/dev/null || true; pgrep -f "_root/tools/wip_v3/stage" >/dev/null && echo "RUNNING" || echo "not running"; exit 0
+fi
+if [ -n "$BG" ] && [ -z "$_CHAIN_CHILD" ]; then
+  mkdir -p "$_OUT"; _CHAIN_CHILD=1 setsid nohup bash "${BASH_SOURCE[0]}" > "$_OUT/chain.log" 2>&1 < /dev/null &
+  echo "started in background, log $_OUT/chain.log (check: bash tools/wip_v3/chain.sh status)"; exit 0
+fi
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT="${BAND_OUT:-/tmp/band_v3_out}"
 ROOT="$OUT/_root"     # shadow repo root: symlinks to the real repo, except tools/wip_v3 = patched copy
@@ -47,6 +57,6 @@ if cmp -s "$OUT/chain_final.png" "$REPO/maps/band_period.png"; then
   echo "chain_final.png is BYTE-IDENTICAL to maps/band_period.png"
 else
   echo "chain_final.png DIFFERS from maps/band_period.png."
-  echo "  Expected if you changed a stage. If you did NOT, it is library-version drift (verified 2026-11-02: cv2 5.0.0/numpy 2.5.3"
-  echo "  rebuilt v58 with all metrics within noise but not byte-identical) - compare with: measure.sh maps/band_period.png vs measure.sh $OUT/chain_final.png"
+  echo "  Expected if you changed a stage. If not, it is library drift (byte-identical on cv2 4.13/numpy 2.4.4; not on cv2 5.0/numpy 2.5)."
+  echo "  Judge it with: python3 tools/wip_v3/compare.py   (A = committed map, B = this build, same environment)"
 fi
