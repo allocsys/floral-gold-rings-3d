@@ -1,5 +1,5 @@
 #!/bin/bash
-# Rebuild the band height map (current chain = v59) from scratch.
+# Rebuild the band height map (current chain = v60) from scratch.
 #   bash tools/wip_v3/chain.sh            # full rebuild (~1.5 min for stages 1..51), then the late chain
 #   LATE=1 bash tools/wip_v3/chain.sh     # reuse existing stage1..51 outputs, rerun only 54 -> 56 -> 55 -> 52 -> 55 -> 57
 # Env:
@@ -50,7 +50,8 @@ run stage56 "$OUT/c54.png"             band_period_v56.png c56.png
 RIB=0 KNEE=.70 COMP=.6 run stage55 "$OUT/c56.png"  band_period_v55.png c55a.png
 run stage52 "$OUT/c55a.png"            band_period_v52.png c52.png
 RIB=.22 COMP=1          run stage55 "$OUT/c52.png"  band_period_v55.png c55b.png
-run stage57 "$OUT/c55b.png"            band_period_v57.png chain_final.png
+run stage57 "$OUT/c55b.png"            band_period_v57.png c57.png
+run stage58 "$OUT/c57.png"             band_period_v58x.png chain_final.png
 
 echo "wrote $OUT/chain_final.png"
 python3 -c "import cv2,numpy,scipy,skimage;print('libs: cv2',cv2.__version__,'numpy',numpy.__version__,'scipy',scipy.__version__,'skimage',skimage.__version__)"

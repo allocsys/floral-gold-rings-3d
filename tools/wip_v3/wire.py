@@ -22,6 +22,8 @@ def b64_of(png):
     H = cv2.imread(png, -1)
     assert H is not None and H.dtype == np.uint16 and H.shape == (520, 2396), f'{png}: expected 16-bit 520x2396, got {None if H is None else (H.dtype, H.shape)}'
     s = cv2.resize(H.astype(np.float32) / 65535, (1198, 260), interpolation=cv2.INTER_AREA)
+    if os.environ.get('MESH') != '0':  # D25 default ON: slope-limited mesh-side map (meshmap.py; CONE env = slope cap per site px; MESH=0 = plain downsample); maps/band_period.png stays ref-truth
+        sys.path.insert(0, os.path.dirname(__file__)); import meshmap; s = meshmap.widen(s)
     return base64.b64encode(np.round(s * 255).astype(np.uint8).tobytes()).decode()
 
 
