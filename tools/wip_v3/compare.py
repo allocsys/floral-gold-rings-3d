@@ -36,12 +36,14 @@ M = {
  'narrow RMSE':     ('cdiff', r'halfwidth 24-40 px[^\n]*?RMSE ([\d.]+)', 0, .01),
  'narrow lead':     ('cdiff', r'halfwidth 24-40 px[^\n]*?lead ([+-][\d.]+)', None, None),
  'wide RMSE':       ('cdiff', r'halfwidth 40-70 px[^\n]*?RMSE ([\d.]+)', 0, .01),
+ 'slit rag (map)': ('rdiff', r'map\s+slits\s+\d+ \| area\s+\d+ \| rag mean [\d.]+ \(area-wtd ([\d.]+)\)', 0, .02),
+ 'slit rim err px': ('rdiff', r'on ref slit rim ([\d.]+) px', 0, .3),
  'wide lead':       ('cdiff', r'halfwidth 40-70 px[^\n]*?lead ([+-][\d.]+)', None, None),
 }
 
 def measure(path):
     txt = {}
-    for t in ('diff', 'idiff', 'tdiff', 'cdiff'):
+    for t in ('diff', 'idiff', 'tdiff', 'cdiff', 'rdiff'):
         r = subprocess.run([sys.executable, f'tools/wip_v3/{t}.py', path, OUT], cwd=REPO, env=ENV,
                            capture_output=True, text=True)
         txt[t] = r.stdout + r.stderr

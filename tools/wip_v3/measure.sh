@@ -5,6 +5,7 @@
 # diff.py  : silhouette IoU, groove (line) recall/precision, clipping, plateau, H stats
 # idiff.py : same family, inner-line diff
 # tdiff.py : ridge recall/precision (writes tdiff_<map>.png)
+# rdiff.py : slit-rim raggedness + rim position vs ref (silhouette only)
 # cdiff.py : cushion slope corr(L,H), R2, width-normalised crown profile RMSE/lead
 set -eo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -14,7 +15,7 @@ export CROPX="${CROPX:-7}"
 [ -f "$OUT/T2.png" ] || { echo "missing $OUT/T2.png - run tools/wip_v3/chain.sh first"; exit 1; }
 [ -f "$MAP" ] || { echo "missing map $MAP"; exit 1; }
 cd "$REPO"
-for t in diff idiff tdiff cdiff; do
+for t in diff idiff tdiff cdiff rdiff; do
   echo "===== $t.py $MAP"
   python3 tools/wip_v3/$t.py "$MAP" "$OUT"
 done
