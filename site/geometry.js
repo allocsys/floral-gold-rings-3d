@@ -31,7 +31,7 @@ function torus(P, N, M) {
 const DOME = 0.26;
 
 // ---------- relief map sampling (mip pyramid, bilinear, periodic in u) ----------
-const GROUND_COL = [0.14, 0.09, 0.04], GROUND_LO = 0.08, GROUND_HI = 0.55; // viewer tint of the recessed ground (x gold) and the relief-height range it fades over
+const GROUND_COL = [0.06, 0.038, 0.016], GROUND_LO = 0.08, GROUND_HI = 0.55; // viewer tint of the recessed ground (x gold) and the relief-height range it fades over
 const REPEATS = 3, FADE = 0.3; // pattern repeats around the ring; relief fades to 0 over the last FADE mm before the rounded edge
 let mips = null;
 function reliefMips() {
