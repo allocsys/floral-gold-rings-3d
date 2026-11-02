@@ -13,7 +13,7 @@ bash tools/wip_v3/chain.sh status        # repeat until "not running" (~4 min fo
 | script | what it does |
 |---|---|
 | `setup.sh` | Installs missing libs, sets git identity, starts the full build detached. `NOBUILD=1` skips the build. |
-| `chain.sh` | Rebuilds the current map (v58): stage1,2,49,50,51 -> 54 -> 56 -> 55 (RIB=0 KNEE=.70 COMP=.6) -> 52 -> 55 (RIB=.22 COMP=1) -> `$BAND_OUT/chain_final.png`. `LATE=1` reruns only the late chain (seconds). `BG=1` runs detached (a plain `&` is killed when the tool call ends); `chain.sh status` shows log tail + running state. Stage params in the env (`ALPHA=1.5 bash chain.sh`) are passed through. |
+| `chain.sh` | Rebuilds the current map (v59): stage1,2,49,50,51 -> 54 -> 56 -> 55 (RIB=0 KNEE=.70 COMP=.6) -> 52 -> 55 (RIB=.22 COMP=1) -> 57 (terrace fix) -> `$BAND_OUT/chain_final.png`. `LATE=1` reruns only the late chain (seconds). `BG=1` runs detached (a plain `&` is killed when the tool call ends); `chain.sh status` shows log tail + running state. Stage params in the env (`ALPHA=1.5 bash chain.sh`) are passed through. |
 | `compare.py [A] [B]` | **Main check.** Metrics of A (default committed `maps/band_period.png`) vs B (default `chain_final.png`) side by side with deltas and `<<` regression flags (exit 1 if any). Library drift cancels because both maps are measured in the same sandbox. `--one MAP` for a single map. |
 | `measure.sh [map]` | Raw output of diff/idiff/tdiff/cdiff for one map (needs `$BAND_OUT/T2.png` from stage1). |
 | `wire.py MAP.png` | Copies MAP to `maps/band_period.png`, regenerates the b64 in `site/relief_band.js`, bumps `?v=reliefN`, runs `node site/test.mjs`. `--check` verifies b64 == map; `--no-test` skips node. Does not commit. |
