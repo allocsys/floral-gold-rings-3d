@@ -41,7 +41,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep } from './geometry.js?v=relief58';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep, reliefTex } from './geometry.js?v=relief59';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -72,9 +72,33 @@ const ULTRA_OK = _uq === '1' ? true : _uq === 'mid' ? false : _uq === '0' ? fals
 const MID_OK = !ULTRA_OK && _uq !== '0';
 if (MID_OK) setUltraStep(0.03);
 const queue = (q) => { clearTimeout(ultraTimer); dirty = q; };
+// D54 (b2): ?nm=1 (default OFF) = per-pixel shading normals from the full-res map on the band outer face. The fragment shader adds (map slope at 1 texel - map slope at the mesh step) x fade to the mesh normal, so only detail the mesh cannot carry is added. Band only (Solitaire u is non-linear).
+const NM = new URLSearchParams(location.search).get('nm') === '1';
+let nmTexture = null;
+function makeNM(s) {
+  if (!nmTexture) {
+    const t = reliefTex();
+    nmTexture = new THREE.DataTexture(t.data, t.W, t.H, THREE.RedFormat, THREE.UnsignedByteType);
+    nmTexture.unpackAlignment = 1; nmTexture.wrapS = THREE.RepeatWrapping; nmTexture.wrapT = THREE.ClampToEdgeWrapping;
+    nmTexture.magFilter = nmTexture.minFilter = THREE.LinearFilter; nmTexture.generateMipmaps = false; nmTexture.needsUpdate = true;
+    nmTexture.userData = { W: t.W, H: t.H };
+  }
+  const m = goldVC.clone(); m.userData.nm = true; m.customProgramCacheKey = () => 'nm1';
+  const U = { uNMap: { value: nmTexture }, uTW: { value: nmTexture.userData.W }, uTH: { value: nmTexture.userData.H }, uRel: { value: s.nm.rel }, uSu: { value: s.nm.su }, uSv: { value: s.nm.sv }, uHalf: { value: s.nm.sv / 2 }, uStep: { value: s.nm.step }, uRep: { value: 3 } };
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec3 uvf; varying float vNF; varying vec3 vNP; varying vec3 vNT; varying vec3 vNB;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvNF = uvf.z; vNP = position; vNT = normalize(normalMatrix * vec3(-position.y, position.x, 0.0)); vNB = normalize(normalMatrix * vec3(0.0, 0.0, 1.0));');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vNF; varying vec3 vNP; varying vec3 vNT; varying vec3 vNB;\nuniform sampler2D uNMap; uniform float uTW, uTH, uRel, uSu, uSv, uHalf, uStep, uRep;\nfloat nmH(vec2 p) { return texture2D(uNMap, p).r; }')
+      .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nif (vNF > 0.002) {\n  float nu = fract(atan(vNP.y, vNP.x) * uRep / 6.2831853);\n  float nv = clamp(vNP.z / uHalf * 0.5 + 0.5, 0.0, 1.0);\n  vec2 np = vec2(nu, nv);\n  vec2 e = vec2(1.0 / uTW, 0.0), f = vec2(0.0, 1.0 / uTH);\n  float gtF = (nmH(np + e) - nmH(np - e)) * 0.5 * uTW / uSu;\n  float gbF = (nmH(np + f) - nmH(np - f)) * 0.5 * uTH / uSv;\n  vec2 ec = vec2(uStep / uSu, 0.0), fc = vec2(0.0, uStep / uSv);\n  float gtC = (nmH(np + ec) - nmH(np - ec)) * 0.5 / uStep;\n  float gbC = (nmH(np + fc) - nmH(np - fc)) * 0.5 / uStep;\n  vec2 nd = uRel * vNF * vec2(gtF - gtC, gbF - gbC);\n  normal = normalize(normal - nd.x * normalize(vNT) - nd.y * normalize(vNB));\n}');
+  };
+  return m;
+}
 
 function rebuild(quality) {
-  for (const m of [...group.children]) { m.geometry.dispose(); group.remove(m); }
+  for (const m of [...group.children]) { m.geometry.dispose(); if (m.material.userData.nm) m.material.dispose(); group.remove(m); }
   shells = buildRing(kind, state[kind], quality);
   for (const s of shells) {
     const g = new THREE.BufferGeometry();
@@ -98,7 +122,7 @@ function rebuild(quality) {
         nA.set(nB);
       }
     }
-    group.add(new THREE.Mesh(g, s.kind === 'stone' ? gem : s.kind === 'seat' ? seat : s.col ? goldVC : gold));
+    group.add(new THREE.Mesh(g, s.kind === 'stone' ? gem : s.kind === 'seat' ? seat : s.col ? (NM && s.nm && quality !== 'draft' ? makeNM(s) : goldVC) : gold));
   }
   const p = state[kind];
   document.getElementById('info').textContent = `Ø ${p.ID} mm inner · ${quality === 'draft' ? 'draft preview while dragging' : quality === 'ultra' ? 'ultra detail' : 'full detail'} · mm`;
