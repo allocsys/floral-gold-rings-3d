@@ -41,7 +41,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL } from './geometry.js?v=relief56';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep } from './geometry.js?v=relief57';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -67,7 +67,10 @@ let shells = [], dirty = 'fine', fineTimer = 0;
 let ultraTimer = 0;
 // D46: 'ultra' = 1.2-1.7M tris per ring; touch devices and <=4 GB machines stay on 'fine' (380-515k tris). ?ultra=1 / ?ultra=0 overrides.
 const _uq = new URLSearchParams(location.search).get('ultra');
-const ULTRA_OK = _uq === '1' ? true : _uq === '0' ? false : !(matchMedia('(pointer: coarse)').matches || (navigator.deviceMemory && navigator.deviceMemory <= 4));
+const ULTRA_OK = _uq === '1' ? true : _uq === 'mid' ? false : _uq === '0' ? false : !(matchMedia('(pointer: coarse)').matches || (navigator.deviceMemory && navigator.deviceMemory <= 4));
+// D52: touch / low-memory devices refine to a mid ultra step (.03 mm, ~1.8x the 'fine' tris) instead of staying on .04. ?ultra=0 disables, ?ultra=mid forces it.
+const MID_OK = !ULTRA_OK && _uq !== '0';
+if (MID_OK) setUltraStep(0.03);
 const queue = (q) => { clearTimeout(ultraTimer); dirty = q; };
 
 function rebuild(quality) {
@@ -131,6 +134,6 @@ setCollapsed(innerWidth < 720); // start collapsed on phones so the ring is full
 function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize(); renderUI();
 // relief bands refine to 'ultra' (.02 mm step) once the view has been idle for 700 ms
-renderer.setAnimationLoop(() => { if (dirty) { const q = dirty; dirty = false; rebuild(q); if (q === 'fine' && ULTRA_OK) ultraTimer = setTimeout(() => queue('ultra'), 700); } controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(() => { if (dirty) { const q = dirty; dirty = false; rebuild(q); if (q === 'fine' && (ULTRA_OK || MID_OK)) ultraTimer = setTimeout(() => queue('ultra'), 700); } controls.update(); renderer.render(scene, camera); });
 </script>
 </body></html>
