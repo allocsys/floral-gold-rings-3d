@@ -1,17 +1,18 @@
 // Parametric ring geometry (mm). No dependencies: runs in the browser and in Node.
 // Both bands (band1, band2) carry the engraved floral relief (relief_band.js, derived from reference/rings_flat.png), repeated REPEATS times around the ring.
 import { RELIEF_BAND } from './relief_band.js';
+import { RELIEF_SOL } from './relief_sol.js';
 export const DEFAULTS = {
   band1:     { ID: 19, w: 4.5, t: 1.5, relief: 0.4 },
   band2:     { ID: 17, w: 4.0, t: 1.4, relief: 0.4 },
-  solitaire: { ID: 17, w: 2.6, t: 1.3, stone: 5.2, prongs: 6 },
+  solitaire: { ID: 17, w: 2.6, t: 1.3, relief: 0.3, stone: 5.2, prongs: 6 },
 };
 export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire' };
 export const CONTROLS = [
   ['ID', 'Inner diameter', 14, 24, 0.1],
   ['w', 'Width', 1.5, 8, 0.1],
   ['t', 'Thickness', 0.8, 3, 0.05],
-  ['relief', 'Relief depth', 0, 0.8, 0.05, ['band1', 'band2']],
+  ['relief', 'Relief depth', 0, 0.8, 0.05, ['band1', 'band2', 'solitaire']],
   ['stone', 'Stone diameter', 3, 8, 0.1, 'solitaire'],
   ['prongs', 'Prongs', 4, 8, 1, 'solitaire'],
 ];
@@ -37,21 +38,21 @@ const DOME = 0.26;
 const GROUND_COL = [0.06, 0.038, 0.016], GROUND_LO = 0.08, GROUND_HI = 0.55; // viewer tint of the recessed ground (x gold) and the relief-height range it fades over
 const ULTRA_STEP = 0.02; // mesh step (mm) of the 'ultra' quality for relief bands
 const REPEATS = 3, FADE = 0.3; // pattern repeats around the ring; relief fades to 0 over the last FADE mm before the rounded edge
-let mips = null;
-function reliefMips() {
-  if (mips) return mips;
-  const bin = atob(RELIEF_BAND.b64), a = new Float32Array(bin.length);
+const mipCache = new Map();
+function reliefMips(R = RELIEF_BAND) {
+  if (mipCache.has(R)) return mipCache.get(R);
+  const bin = atob(R.b64), a = new Float32Array(bin.length);
   for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i) / 255;
-  mips = [{ W: RELIEF_BAND.W, H: RELIEF_BAND.H, a }];
+  const mips = [{ W: R.W, H: R.H, a, mir: R === RELIEF_SOL }]; // mir: u runs 0..1 once (stone .. bottom) and reflects at both ends instead of wrapping
   for (;;) {
     const m = mips[mips.length - 1], W = m.W >> 1, H = m.H >> 1;
     if (W < 8 || H < 4) break;
     const b = new Float32Array(W * H);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
       b[y * W + x] = (m.a[2 * y * m.W + 2 * x] + m.a[2 * y * m.W + 2 * x + 1] + m.a[(2 * y + 1) * m.W + 2 * x] + m.a[(2 * y + 1) * m.W + 2 * x + 1]) / 4;
-    mips.push({ W, H, a: b });
+    mips.push({ W, H, a: b, mir: m.mir });
   }
-  return mips;
+  mipCache.set(R, mips); return mips;
 }
 function bsw(t) { // uniform cubic B-spline weights for taps -1..2 (C2: no slope kinks where one map px spans several mesh cells)
   const t2 = t * t, t3 = t2 * t, m = 1 - t;
@@ -63,13 +64,13 @@ function sampleRelief(L, u, v) { // u periodic in [0,1), v in [0,1]; bicubic B-s
   let acc = 0;
   for (let b = 0; b < 4; b++) {
     const r = Math.min(Math.max(y0 - 1 + b, 0), L.H - 1) * L.W; let rs = 0;
-    for (let a = 0; a < 4; a++) rs += wx[a] * L.a[r + mod(x0 - 1 + a, L.W)];
+    for (let a = 0; a < 4; a++) { let xi = x0 - 1 + a; xi = L.mir ? (xi < 0 ? -1 - xi : xi >= L.W ? 2 * L.W - 1 - xi : xi) : mod(xi, L.W); rs += wx[a] * L.a[r + xi]; }
     acc += wy[b] * rs;
   }
   return acc;
 }
 function band(p, solitaire, quality) {
-  const rel = !solitaire && p.relief > 0 ? p.relief : 0;
+  const rel = p.relief > 0 ? p.relief : 0, RS = solitaire ? RELIEF_SOL : RELIEF_BAND;
   const step = quality === 'draft' ? 0.12 : rel ? (quality === 'ultra' ? ULTRA_STEP : 0.04) : 0.055; // 'ultra' = relief walls need >= ~6 cells (D26: .04 step leaves them 3 cells -> sawtooth hatching)
   const Ri = p.ID / 2, Ro = Ri + p.t;
   const NT = Math.max(240, Math.ceil(TAU * Ro / step));
@@ -78,7 +79,7 @@ function band(p, solitaire, quality) {
   const S = 2 * Kf + Wn, Mt = Mo + Mi + 2 * S;
   let lv = null;
   if (rel) { // pick the mip level whose pixel size matches the mesh spacing (box prefilter, no aliasing)
-    const ms = reliefMips(), pxU = (TAU * Ro / REPEATS) / RELIEF_BAND.W, pxV = p.w / RELIEF_BAND.H;
+    const ms = reliefMips(RS), pxU = (solitaire ? Math.PI * Ro : TAU * Ro / REPEATS) / RS.W, pxV = (solitaire ? p.w * 1.14 : p.w) / RS.H;
     lv = ms[Math.min(ms.length - 1, Math.max(0, Math.floor(Math.log2(Math.max(TAU * Ro / NT / pxU, (2 * (p.w / 2 - rf)) / (Mo - 1) / pxV)))))];
   }
   const P = new Float32Array(NT * Mt * 3);
@@ -97,7 +98,7 @@ function band(p, solitaire, quality) {
       let R = Ro + DOME * (1 - zn * zn);
       if (lv) { // engraved relief: peaks keep the nominal radius, recesses cut down by `rel` mm, fading out at the rounded edges
         const zf = Math.min(1, (hwid - rf - Math.abs(zn * hwid)) / FADE), fade = zf * zf * (3 - 2 * zf);
-        const hv = sampleRelief(lv, mod((i / NT) * REPEATS, 1), (zn / zt + 1) / 2);
+        const hv = sampleRelief(lv, solitaire ? Math.min(d / Math.PI, 0.99999) : mod((i / NT) * REPEATS, 1), (zn / zt + 1) / 2);
         R -= rel * fade * (1 - hv);
         const s = Math.min(1, Math.max(0, (hv - GROUND_LO) / (GROUND_HI - GROUND_LO))), k = s * s * (3 - 2 * s), c = (i * Mt + j) * 3;
         for (let q = 0; q < 3; q++) C[c + q] = GROUND_COL[q] + (1 - GROUND_COL[q]) * (1 - fade + fade * k);

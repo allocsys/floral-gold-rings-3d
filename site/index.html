@@ -41,7 +41,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL } from './geometry.js?v=relief51';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL } from './geometry.js?v=relief52';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -128,6 +128,6 @@ setCollapsed(innerWidth < 720); // start collapsed on phones so the ring is full
 function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize(); renderUI();
 // relief bands refine to 'ultra' (.02 mm step) once the view has been idle for 700 ms
-renderer.setAnimationLoop(() => { if (dirty) { const q = dirty; dirty = false; rebuild(q); if (q === 'fine' && kind !== 'solitaire') ultraTimer = setTimeout(() => queue('ultra'), 700); } controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(() => { if (dirty) { const q = dirty; dirty = false; rebuild(q); if (q === 'fine') ultraTimer = setTimeout(() => queue('ultra'), 700); } controls.update(); renderer.render(scene, camera); });
 </script>
 </body></html>

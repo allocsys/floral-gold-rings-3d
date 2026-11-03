@@ -3,7 +3,7 @@ import cv2,numpy as np,os
 from scipy import ndimage as ndi
 O=os.environ.get('SOL_OUT','/tmp/sol'); g=lambda a,s: cv2.GaussianBlur(a,(0,0),s)
 m=np.load(O+'/mask.npy').astype(np.uint8)
-im=cv2.imread('reference/solitaire_flat.png'); X0,X1,Y0,Y1=62,1308,166,269
+im=cv2.imread('reference/solitaire_flat.png'); X0,X1,Y0,Y1=[int(v) for v in os.environ.get('WIN','62,1308,166,269').split(',')]
 L=cv2.cvtColor(im[Y0:Y1,X0:X1],cv2.COLOR_BGR2LAB)[...,0].astype(np.float32)
 S=int(os.environ.get('S',2)); m2=cv2.resize(m,None,fx=S,fy=S,interpolation=cv2.INTER_NEAREST)
 d=ndi.distance_transform_edt(m2)/S                  # px (1x) inside gold

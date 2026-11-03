@@ -4,7 +4,7 @@ from scipy import ndimage as ndi
 O=os.environ.get('SOL_OUT','/tmp/sol'); os.makedirs(O,exist_ok=True)
 g=lambda a,s: cv2.GaussianBlur(a,(0,0),s)
 im=cv2.imread('reference/solitaire_flat.png')
-X0,X1,Y0,Y1=62,1308,166,269                       # pattern window (rails excluded); stone sits at x 605..760
+X0,X1,Y0,Y1=[int(v) for v in os.environ.get('WIN','62,1308,166,269').split(',')]   # pattern window (default: rails excluded); stone sits at x 605..760. D43 shank map: WIN=62,600,151,285 (left half incl. rails)
 c=im[Y0:Y1,X0:X1]; L=cv2.cvtColor(c,cv2.COLOR_BGR2LAB)[...,0].astype(np.float32)
 hsv=cv2.cvtColor(c,cv2.COLOR_BGR2HSV).astype(np.float32)
 sc=g(L,1.2)
