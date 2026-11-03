@@ -50,11 +50,20 @@ function reliefMips() {
   }
   return mips;
 }
-function sampleRelief(L, u, v) { // u periodic in [0,1), v in [0,1]
+function bsw(t) { // uniform cubic B-spline weights for taps -1..2 (C2: no slope kinks where one map px spans several mesh cells)
+  const t2 = t * t, t3 = t2 * t, m = 1 - t;
+  return [m * m * m / 6, (3 * t3 - 6 * t2 + 4) / 6, (-3 * t3 + 3 * t2 + 3 * t + 1) / 6, t3 / 6];
+}
+function sampleRelief(L, u, v) { // u periodic in [0,1), v in [0,1]; bicubic B-spline
   const x = u * L.W - 0.5, y = Math.min(Math.max(v * L.H - 0.5, 0), L.H - 1);
-  const x0 = Math.floor(x), y0 = Math.min(Math.floor(y), L.H - 2), fx = x - x0, fy = y - y0;
-  const X0 = mod(x0, L.W), X1 = mod(x0 + 1, L.W), r0 = y0 * L.W, r1 = (y0 + 1) * L.W;
-  return (L.a[r0 + X0] * (1 - fx) + L.a[r0 + X1] * fx) * (1 - fy) + (L.a[r1 + X0] * (1 - fx) + L.a[r1 + X1] * fx) * fy;
+  const x0 = Math.floor(x), y0 = Math.floor(y), wx = bsw(x - x0), wy = bsw(y - y0);
+  let acc = 0;
+  for (let b = 0; b < 4; b++) {
+    const r = Math.min(Math.max(y0 - 1 + b, 0), L.H - 1) * L.W; let rs = 0;
+    for (let a = 0; a < 4; a++) rs += wx[a] * L.a[r + mod(x0 - 1 + a, L.W)];
+    acc += wy[b] * rs;
+  }
+  return acc;
 }
 function band(p, solitaire, quality) {
   const rel = !solitaire && p.relief > 0 ? p.relief : 0;
