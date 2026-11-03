@@ -41,7 +41,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep } from './geometry.js?v=relief57';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep } from './geometry.js?v=relief58';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -81,6 +81,7 @@ function rebuild(quality) {
     g.setAttribute('position', new THREE.BufferAttribute(s.pos, 3));
     g.setIndex(new THREE.BufferAttribute(s.idx, 1));
     if (s.col) g.setAttribute('color', new THREE.BufferAttribute(s.col, 3));
+    if (s.uvf) g.setAttribute('uvf', new THREE.BufferAttribute(s.uvf, 3)); // D53 b1: (u, v, fade) for the planned shader normal map; unused so far
     g.computeVertexNormals();
     if (s.col && s.grid && quality === 'ultra') { // D33: [1 2 1] passes of the vertex normals: 1 along grid i (ring), PV along grid j (across the band; v slope noise is ~2x u in smooth gold, meshq)
       const [N, M] = s.grid, nA = g.attributes.normal.array, nB = new Float32Array(nA.length), PV = 3;
