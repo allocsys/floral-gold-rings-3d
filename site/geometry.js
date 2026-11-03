@@ -201,7 +201,7 @@ function fixWinding(sh) {
   return sh;
 }
 
-// returns [{pos, idx, kind:'metal'|'stone', col?}]; quality 'fine' (export) or 'draft' (live dragging)
+// returns [{pos, idx, kind:'metal'|'stone'|'seat', col?}]; quality 'fine' (export) or 'draft' (live dragging)
 export function buildRing(kind, p, quality = 'fine') {
   const shells = [];
   if (kind !== 'solitaire') {
@@ -212,7 +212,7 @@ export function buildRing(kind, p, quality = 'fine') {
     const R = p.stone / 2, gy = top + 0.72 * R, zg1 = gy + 0.1 * R;
     shells.push({ ...toUp(brilliant(R, gy)), kind: 'stone' });
     // basket under the stone + gallery rail
-    shells.push({ ...toUp(revolve([[0, top - 0.3], [1.4, top - 0.3], [0.92 * R, gy - 0.35], [0, gy - 0.35]], 64)), kind: 'metal' });
+    shells.push({ ...toUp(revolve([[0, top - 0.3], [1.4, top - 0.3], [0.92 * R, gy - 0.35], [0, gy - 0.35]], 64)), kind: 'seat' });   // 'seat' = basket cup right under the stone: viewer shades it dark so the gem does not refract bright yellow gold (export ignores kind)
     const rc = [0.92 * R, gy - 0.35], rr = 0.17, circ = [];
     for (let k = 0; k < 12; k++) circ.push([rc[0] + rr * Math.cos((k * TAU) / 12), rc[1] + rr * Math.sin((k * TAU) / 12)]);
     shells.push({ ...toUp(revolve(circ, 64)), kind: 'metal' });

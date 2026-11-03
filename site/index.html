@@ -41,7 +41,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL } from './geometry.js?v=relief50';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL } from './geometry.js?v=relief51';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -58,6 +58,7 @@ controls.enableDamping = true; controls.autoRotate = true; controls.autoRotateSp
 const gold = new THREE.MeshStandardMaterial({ color: 0xf5c657, metalness: 1, roughness: 0.42 });
 const goldVC = gold.clone(); goldVC.vertexColors = true; goldVC.color.set(0xf2b93c); goldVC.roughness = 0.58; /* D38: deeper base colour wins back the saturation lost at .58 */ // D34: 0.42 reflects the RoomEnvironment light panels as horizontal bands on relief walls
 const gem = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0, transmission: 1, thickness: 3, ior: 2.4, specularIntensity: 1, envMapIntensity: 0.06, side: THREE.DoubleSide, attenuationColor: 0xe2e6f2, attenuationDistance: 1.6 }); // D40: env 3.5->.06 (table reflected the RoomEnvironment ceiling panel = 46% clipped white), attenuation 12->1.6 for depth
+const seat = gold.clone(); seat.color.set(0xd6dae6); seat.envMapIntensity = 0.8; // D41: neutral white-metal basket cup under the stone (gem transmission otherwise refracts the bright gold seat = yellow stone); viewer only, STL ignores kind
 const group = new THREE.Group(); scene.add(group);
 
 let kind = 'solitaire';
@@ -90,7 +91,7 @@ function rebuild(quality) {
         nA.set(nB);
       }
     }
-    group.add(new THREE.Mesh(g, s.kind === 'stone' ? gem : s.col ? goldVC : gold));
+    group.add(new THREE.Mesh(g, s.kind === 'stone' ? gem : s.kind === 'seat' ? seat : s.col ? goldVC : gold));
   }
   const p = state[kind];
   document.getElementById('info').textContent = `Ø ${p.ID} mm inner · ${quality === 'draft' ? 'draft preview while dragging' : quality === 'ultra' ? 'ultra detail' : 'full detail'} · mm`;
