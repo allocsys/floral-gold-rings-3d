@@ -36,7 +36,8 @@ const DOME = 0.26;
 
 // ---------- relief map sampling (mip pyramid, bilinear, periodic in u) ----------
 const GROUND_COL = [0.06, 0.038, 0.016], GROUND_LO = 0.08, GROUND_HI = 0.55; // viewer tint of the recessed ground (x gold) and the relief-height range it fades over
-const ULTRA_STEP = 0.02; // mesh step (mm) of the 'ultra' quality for relief bands
+let ULTRA_STEP = 0.02; // mesh step (mm) of the 'ultra' quality for relief bands (D52: 0.03 on touch devices, see setUltraStep)
+export function setUltraStep(s) { ULTRA_STEP = s; }
 const REPEATS = 3, FADE = 0.3; // pattern repeats around the ring; relief fades to 0 over the last FADE mm before the rounded edge
 const mipCache = new Map();
 function reliefMips(R = RELIEF_BAND) {
