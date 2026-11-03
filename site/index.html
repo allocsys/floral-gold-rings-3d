@@ -41,7 +41,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL } from './geometry.js?v=relief41';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL } from './geometry.js?v=relief42';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -75,6 +75,18 @@ function rebuild(quality) {
     g.setIndex(new THREE.BufferAttribute(s.idx, 1));
     if (s.col) g.setAttribute('color', new THREE.BufferAttribute(s.col, 3));
     g.computeVertexNormals();
+    if (s.col && s.grid && quality === 'ultra') { // D32: one [1 2 1] pass of the vertex normals along both grid axes (i periodic) -> calms facet noise on steep relief walls
+      const [N, M] = s.grid, nA = g.attributes.normal.array, nB = new Float32Array(nA.length);
+      for (let i = 0; i < N; i++) for (let j = 0; j < M; j++) {
+        let x = 0, y = 0, z = 0;
+        for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+          const jj = j + dj; if (jj < 0 || jj >= M) continue;
+          const w = (di ? 1 : 2) * (dj ? 1 : 2), o = (((i + di + N) % N) * M + jj) * 3; x += w * nA[o]; y += w * nA[o + 1]; z += w * nA[o + 2];
+        }
+        const l = Math.hypot(x, y, z) || 1, o = (i * M + j) * 3; nB[o] = x / l; nB[o + 1] = y / l; nB[o + 2] = z / l;
+      }
+      nA.set(nB);
+    }
     group.add(new THREE.Mesh(g, s.kind === 'stone' ? gem : s.col ? goldVC : gold));
   }
   const p = state[kind];

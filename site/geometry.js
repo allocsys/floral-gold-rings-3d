@@ -29,7 +29,7 @@ function torus(P, N, M) {
     if (ac <= bd) { idx[k++] = a; idx[k++] = b; idx[k++] = c; idx[k++] = a; idx[k++] = c; idx[k++] = d; }
     else { idx[k++] = a; idx[k++] = b; idx[k++] = d; idx[k++] = b; idx[k++] = c; idx[k++] = d; }
   }
-  return { pos: P, idx };
+  return { pos: P, idx, grid: [N, M] };
 }
 const DOME = 0.26;
 
