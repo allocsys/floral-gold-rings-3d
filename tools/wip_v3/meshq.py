@@ -7,7 +7,8 @@ import sys, os, re, base64, math, cv2, numpy as np
 from scipy import ndimage as ndi
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
 BANDS = {'band1': dict(ID=19, w=4.5, t=1.5), 'band2': dict(ID=17, w=4.0, t=1.4)}
-REL, REPEATS, FADE, RF, STEP = .4, 3, .3, .32, .04
+REL, REPEATS, FADE, RF = .4, 3, .3, .32
+STEP = float(os.environ.get('STEP', .04))  # mesh step in mm (site: fine .04, draft .12)
 TAU = 2 * math.pi
 
 
@@ -84,6 +85,14 @@ def main():
         print('%-24s %6d   %.4f %.4f %.4f | %.4f | %.4f | %.4f' % (n, m.sum(), *np.percentile(rough[m], [50, 90, 99]), np.percentile(np.abs(ru[m]), 90), np.percentile(np.abs(rv[m]), 90), np.percentile(np.hypot(gu, gv)[m], 50)))
     m = zones[4][1] | zones[1][1]; rowe = np.array([np.abs(rv[r][m[r]]).mean() if m[r].sum() > 200 else np.nan for r in range(Mo)]); rowe = rowe[~np.isnan(rowe)]
     f = np.abs(np.fft.rfft(rowe - rowe.mean())); print('row stripes: mean|rv| per mesh row (ground+gold) mean %.4f std %.4f | strongest periodic component %.4f at period %.2f rows' % (rowe.mean(), rowe.std(), 2 * f[1:].max() / len(rowe), len(rowe) / (1 + f[1:].argmax())))
+    # facet angle: angle between the normals of adjacent quads (u and v neighbours), on steep quads (slope > .5 mm/mm, step-independent definition of 'wall') and on the rest
+    qu = (R[:-1, 1:] + R[1:, 1:] - R[:-1, :-1] - R[1:, :-1]) / (2 * du); qv = (R[1:, :-1] + R[1:, 1:] - R[:-1, :-1] - R[:-1, 1:]) / (2 * dv)
+    nn = np.stack([-qu, -qv, np.ones_like(qu)], -1); nn /= np.linalg.norm(nn, axis=-1, keepdims=True)
+    au = np.degrees(np.arccos(np.clip((nn[:, :-1] * nn[:, 1:]).sum(-1), -1, 1)))[:-1, :]; av = np.degrees(np.arccos(np.clip((nn[:-1] * nn[1:]).sum(-1), -1, 1)))[:, :-1]
+    h = min(au.shape[0], av.shape[0]); w = min(au.shape[1], av.shape[1]); fa = np.maximum(au[:h, :w], av[:h, :w]); sl = np.hypot(qu, qv)[:h, :w]; okq = ok[:h, :w]
+    for n, m in (('wall quads (slope>.5)', (sl > .5) & okq), ('other quads', (sl <= .5) & okq)):
+        print('facet angle %-22s n %6d  p50 %.1f  p90 %.1f  p99 %.1f deg | share of quads >10 deg: %.3f' % (n, m.sum(), *np.percentile(fa[m], [50, 90, 99]), (fa[m] > 10).mean()))
+    print('wall width in cells at CONE .16 (6.25 site px): %.1f' % (6.25 * (TAU * Ro / REPEATS / Ww) / du))
     import cv2 as _c; v = np.zeros((Mo, NT, 3), np.uint8); v[..., 2] = np.clip(np.abs(ru) * 800, 0, 255); v[..., 1] = np.clip(np.abs(rv) * 800, 0, 255); v[rim] //= 3; _c.imwrite('/tmp/meshq_rough_%s.png' % band, _c.resize(v[:, :NT // 3], None, fx=2, fy=2, interpolation=_c.INTER_NEAREST))
     np.save('/tmp/meshq_rough_%s.npy' % band, rough)
 

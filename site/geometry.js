@@ -32,6 +32,7 @@ const DOME = 0.26;
 
 // ---------- relief map sampling (mip pyramid, bilinear, periodic in u) ----------
 const GROUND_COL = [0.06, 0.038, 0.016], GROUND_LO = 0.08, GROUND_HI = 0.55; // viewer tint of the recessed ground (x gold) and the relief-height range it fades over
+const ULTRA_STEP = 0.02; // mesh step (mm) of the 'ultra' quality for relief bands
 const REPEATS = 3, FADE = 0.3; // pattern repeats around the ring; relief fades to 0 over the last FADE mm before the rounded edge
 let mips = null;
 function reliefMips() {
@@ -57,7 +58,7 @@ function sampleRelief(L, u, v) { // u periodic in [0,1), v in [0,1]
 }
 function band(p, solitaire, quality) {
   const rel = !solitaire && p.relief > 0 ? p.relief : 0;
-  const step = quality === 'draft' ? 0.12 : rel ? 0.04 : 0.055;
+  const step = quality === 'draft' ? 0.12 : rel ? (quality === 'ultra' ? ULTRA_STEP : 0.04) : 0.055; // 'ultra' = relief walls need >= ~6 cells (D26: .04 step leaves them 3 cells -> sawtooth hatching)
   const Ri = p.ID / 2, Ro = Ri + p.t;
   const NT = Math.max(240, Math.ceil(TAU * Ro / step));
   const rf = 0.32, Kf = quality === 'draft' ? 4 : 8, Wn = 5, Mi = 10;

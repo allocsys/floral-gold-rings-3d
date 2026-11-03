@@ -41,7 +41,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL } from './geometry.js?v=relief37';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL } from './geometry.js?v=relief38';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -63,7 +63,8 @@ const group = new THREE.Group(); scene.add(group);
 let kind = 'solitaire';
 const state = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { ...v }]));
 let shells = [], dirty = 'fine', fineTimer = 0;
-const queue = (q) => { dirty = q; };
+let ultraTimer = 0;
+const queue = (q) => { clearTimeout(ultraTimer); dirty = q; };
 
 function rebuild(quality) {
   for (const m of [...group.children]) { m.geometry.dispose(); group.remove(m); }
@@ -77,7 +78,7 @@ function rebuild(quality) {
     group.add(new THREE.Mesh(g, s.kind === 'stone' ? gem : s.col ? goldVC : gold));
   }
   const p = state[kind];
-  document.getElementById('info').textContent = `Ø ${p.ID} mm inner · ${quality === 'draft' ? 'draft preview while dragging' : 'full detail'} · mm`;
+  document.getElementById('info').textContent = `Ø ${p.ID} mm inner · ${quality === 'draft' ? 'draft preview while dragging' : quality === 'ultra' ? 'ultra detail' : 'full detail'} · mm`;
 }
 
 const tabs = document.getElementById('tabs'), sliders = document.getElementById('sliders');
@@ -110,6 +111,7 @@ tog.onclick = () => setCollapsed(!ui.classList.contains('collapsed'));
 setCollapsed(innerWidth < 720); // start collapsed on phones so the ring is fully visible
 function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize(); renderUI();
-renderer.setAnimationLoop(() => { if (dirty) { const q = dirty; dirty = false; rebuild(q); } controls.update(); renderer.render(scene, camera); });
+// relief bands refine to 'ultra' (.02 mm step) once the view has been idle for 700 ms
+renderer.setAnimationLoop(() => { if (dirty) { const q = dirty; dirty = false; rebuild(q); if (q === 'fine' && kind !== 'solitaire') ultraTimer = setTimeout(() => queue('ultra'), 700); } controls.update(); renderer.render(scene, camera); });
 </script>
 </body></html>
