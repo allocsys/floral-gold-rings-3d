@@ -41,7 +41,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL } from './geometry.js?v=relief43';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL } from './geometry.js?v=relief44';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -56,7 +56,7 @@ camera.position.set(6, 16, 34);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true; controls.autoRotate = true; controls.autoRotateSpeed = 1.5;
 const gold = new THREE.MeshStandardMaterial({ color: 0xf5c657, metalness: 1, roughness: 0.42 });
-const goldVC = gold.clone(); goldVC.vertexColors = true;
+const goldVC = gold.clone(); goldVC.vertexColors = true; goldVC.roughness = 0.58; // D34: 0.42 reflects the RoomEnvironment light panels as horizontal bands on relief walls
 const gem = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0, transmission: 1, thickness: 3, ior: 2.4, specularIntensity: 1, envMapIntensity: 3.5, side: THREE.DoubleSide, attenuationColor: 0xf2f6ff, attenuationDistance: 12 });
 const group = new THREE.Group(); scene.add(group);
 
