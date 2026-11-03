@@ -98,7 +98,7 @@ function band(p, solitaire, quality) {
       let R = Ro + DOME * (1 - zn * zn);
       if (lv) { // engraved relief: peaks keep the nominal radius, recesses cut down by `rel` mm, fading out at the rounded edges
         const zf = Math.min(1, (hwid - rf - Math.abs(zn * hwid)) / FADE), fade = zf * zf * (3 - 2 * zf);
-        const hv = sampleRelief(lv, solitaire ? Math.min(d / Math.PI, 0.99999) : mod((i / NT) * REPEATS, 1), (zn / zt + 1) / 2);
+        const hv = sampleRelief(lv, solitaire ? Math.min((2 / Math.PI) * Math.atan(0.884 * Math.tan(Math.min(d, 3.14159) / 2)), 0.99999) : mod((i / NT) * REPEATS, 1), (zn / zt + 1) / 2);
         R -= rel * fade * (1 - hv);
         const s = Math.min(1, Math.max(0, (hv - GROUND_LO) / (GROUND_HI - GROUND_LO))), k = s * s * (3 - 2 * s), c = (i * Mt + j) * 3;
         for (let q = 0; q < 3; q++) C[c + q] = GROUND_COL[q] + (1 - GROUND_COL[q]) * (1 - fade + fade * k);
