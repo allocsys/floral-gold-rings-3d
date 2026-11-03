@@ -24,7 +24,10 @@ function torus(P, N, M) {
   const idx = new Uint32Array(N * M * 6); let k = 0;
   for (let i = 0; i < N; i++) for (let j = 0; j < M; j++) {
     const a = i * M + j, b = ((i + 1) % N) * M + j, c = ((i + 1) % N) * M + (j + 1) % M, d = i * M + (j + 1) % M;
-    idx[k++] = a; idx[k++] = b; idx[k++] = c; idx[k++] = a; idx[k++] = c; idx[k++] = d;
+    // D31: split each quad along its SHORTER 3D diagonal (= the one following the iso-line on a steep wall); a fixed a-c split gives a regular sawtooth on walls running along the b-d diagonal
+    const ac = (P[a*3]-P[c*3])**2 + (P[a*3+1]-P[c*3+1])**2 + (P[a*3+2]-P[c*3+2])**2, bd = (P[b*3]-P[d*3])**2 + (P[b*3+1]-P[d*3+1])**2 + (P[b*3+2]-P[d*3+2])**2;
+    if (ac <= bd) { idx[k++] = a; idx[k++] = b; idx[k++] = c; idx[k++] = a; idx[k++] = c; idx[k++] = d; }
+    else { idx[k++] = a; idx[k++] = b; idx[k++] = d; idx[k++] = b; idx[k++] = c; idx[k++] = d; }
   }
   return { pos: P, idx };
 }
