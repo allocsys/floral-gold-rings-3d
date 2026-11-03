@@ -54,6 +54,7 @@ run stage57 "$OUT/c55b.png"            band_period_v57.png c57.png
 run stage58 "$OUT/c57.png"             band_period_v58x.png chain_final.png
 python3 "$REPO/tools/wip_v3/stage59.py" "$OUT/chain_final.png" && cp "$OUT/c59.png" "$OUT/chain_final.png"   # D29 bead fill
 python3 "$REPO/tools/wip_v3/stage60.py" "$OUT/chain_final.png" && cp "$OUT/c60.png" "$OUT/chain_final.png"   # D30 iso-line smoothing
+python3 "$REPO/tools/wip_v3/stage61.py" "$OUT/chain_final.png" && cp "$OUT/c61.png" "$OUT/chain_final.png"   # D35 bead bite fill (convex hull dome)
 
 echo "wrote $OUT/chain_final.png"
 python3 -c "import cv2,numpy,scipy,skimage;print('libs: cv2',cv2.__version__,'numpy',numpy.__version__,'scipy',scipy.__version__,'skimage',skimage.__version__)"
