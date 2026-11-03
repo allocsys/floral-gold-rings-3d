@@ -85,6 +85,7 @@ function band(p, solitaire, quality) {
   }
   const P = new Float32Array(NT * Mt * 3);
   const C = lv ? new Float32Array(NT * Mt * 3).fill(1) : null; // viewer-only vertex colour: dark bronze ground, full gold on the raised relief
+  const UVF = lv ? new Float32Array(NT * Mt * 3) : null; // D53 (b1): per-vertex map u, v and edge fade of the outer face (0 elsewhere); unused until the shader normal map (b2)
   for (let i = 0; i < NT; i++) {
     const th = (i / NT) * TAU;
     const d = Math.abs(mod(th - Math.PI / 2 + Math.PI, TAU) - Math.PI); // angle from top
@@ -99,7 +100,8 @@ function band(p, solitaire, quality) {
       let R = Ro + DOME * (1 - zn * zn);
       if (lv) { // engraved relief: peaks keep the nominal radius, recesses cut down by `rel` mm, fading out at the rounded edges
         const zf = Math.min(1, (hwid - rf - Math.abs(zn * hwid)) / FADE), fade = zf * zf * (3 - 2 * zf);
-        const hv = sampleRelief(lv, solitaire ? Math.min((2 / Math.PI) * Math.atan(0.884 * Math.tan(Math.min(d, 3.14159) / 2)), 0.99999) : mod((i / NT) * REPEATS, 1), (zn / zt + 1) / 2);
+        const mu = solitaire ? Math.min((2 / Math.PI) * Math.atan(0.884 * Math.tan(Math.min(d, 3.14159) / 2)), 0.99999) : mod((i / NT) * REPEATS, 1), mv = (zn / zt + 1) / 2;
+        const hv = sampleRelief(lv, mu, mv); { const uo = (i * Mt + j) * 3; UVF[uo] = mu; UVF[uo + 1] = mv; UVF[uo + 2] = fade; }
         R -= rel * fade * (1 - hv);
         const s = Math.min(1, Math.max(0, (hv - GROUND_LO) / (GROUND_HI - GROUND_LO))), k = s * s * (3 - 2 * s), c = (i * Mt + j) * 3;
         for (let q = 0; q < 3; q++) C[c + q] = GROUND_COL[q] + (1 - GROUND_COL[q]) * (1 - fade + fade * k);
@@ -118,7 +120,7 @@ function band(p, solitaire, quality) {
     }
     for (let k = S - 1; k >= 0; k--) put(edge[k][1], -edge[k][0]);
   }
-  const shell = torus(P, NT, Mt); if (C) shell.col = C;
+  const shell = torus(P, NT, Mt); if (C) shell.col = C; if (UVF) shell.uvf = UVF;
   return { shell, top: Ro + DOME };
 }
 function revolve(prof, n = 48) {
