@@ -38,6 +38,11 @@ const DOME = 0.26;
 const GROUND_COL = [0.06, 0.038, 0.016], GROUND_LO = 0.08, GROUND_HI = 0.55; // viewer tint of the recessed ground (x gold) and the relief-height range it fades over
 let ULTRA_STEP = 0.02; // mesh step (mm) of the 'ultra' quality for relief bands (D52: 0.03 on touch devices, see setUltraStep)
 export function setUltraStep(s) { ULTRA_STEP = s; }
+let _nmTex = null;
+export function reliefTex() { // D54 (b2): mip 0 of the band map as bytes (R8 texture for the shader normal map)
+  if (!_nmTex) { const bin = atob(RELIEF_BAND.b64), d = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) d[i] = bin.charCodeAt(i); _nmTex = { W: RELIEF_BAND.W, H: RELIEF_BAND.H, data: d }; }
+  return _nmTex;
+}
 const REPEATS = 3, FADE = 0.3; // pattern repeats around the ring; relief fades to 0 over the last FADE mm before the rounded edge
 const mipCache = new Map();
 function reliefMips(R = RELIEF_BAND) {
@@ -121,6 +126,7 @@ function band(p, solitaire, quality) {
     for (let k = S - 1; k >= 0; k--) put(edge[k][1], -edge[k][0]);
   }
   const shell = torus(P, NT, Mt); if (C) shell.col = C; if (UVF) shell.uvf = UVF;
+  if (UVF && !solitaire) shell.nm = { rel, su: TAU * Ro / REPEATS, sv: 2 * (p.w / 2 - rf), step }; // D54 (b2): mm per map-u unit, mm per map-v unit, mesh step (mm) for the shader normal map (band only)
   return { shell, top: Ro + DOME };
 }
 function revolve(prof, n = 48) {
