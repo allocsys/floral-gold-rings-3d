@@ -43,7 +43,7 @@ export function reliefTex() { // D54 (b2): mip 0 of the band map as bytes (R8 te
   if (!_nmTex) { const bin = atob(RELIEF_BAND.b64), d = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) d[i] = bin.charCodeAt(i); _nmTex = { W: RELIEF_BAND.W, H: RELIEF_BAND.H, data: d }; }
   return _nmTex;
 }
-const REPEATS = 3, FADE = 0.3; // pattern repeats around the ring; relief fades to 0 over the last FADE mm before the rounded edge
+const REPEATS = 3, FADE = 0.5; // pattern repeats around the ring; relief fades to 0 over the last FADE mm before the rounded edge
 const mipCache = new Map();
 function reliefMips(R = RELIEF_BAND) {
   if (mipCache.has(R)) return mipCache.get(R);
