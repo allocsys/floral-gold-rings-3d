@@ -9,7 +9,7 @@ PAD, UP, LP, MED = 40, 4, 1.0, 5
 W = float(os.environ.get('W', 10.0))   # bevel width (map px). Mesh needs walls >= ~7 site px = 14 map px (see meshmap.py) when the cone step is skipped (MESH=0)
 SM = float(os.environ.get('SM', 1.6)); OPTT = float(os.environ.get('OPTT', 0.5))   # SM = mask blur before trace (map px); OPTT = potrace opttolerance
 ER = int(os.environ.get('ER', 3))
-TAU, LOWS = float(os.environ.get('TAU', .08)), float(os.environ.get('LOWS', 7))   # TAU>0: soft-threshold interior detail (Hm - lowpass LOWS) = kills weak lumps, keeps strong veins/grooves
+TAU, LOWS = float(os.environ.get('TAU', .16)), float(os.environ.get('LOWS', 7))   # TAU>0: soft-threshold interior detail (Hm - lowpass LOWS) = kills weak lumps, keeps strong veins/grooves
 os.makedirs(os.path.dirname(OUT), exist_ok=True); t0 = time.time()
 H0 = cv2.imread(SRC, -1).astype(np.float32)[:520] / 65535
 Hw = np.pad(np.pad(H0, ((0, 0), (PAD, PAD)), mode='wrap'), ((PAD, PAD), (0, 0)), mode='edge')
