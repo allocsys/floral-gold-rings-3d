@@ -81,6 +81,9 @@ bev = np.clip(sdf / W, 0, 1); bev = bev * bev * (3 - 2 * bev)
 new = np.clip(level * bev, 0, 1) * np.clip(vec + (sdf > -.3), 0, 1)
 new = new[PAD:-PAD, PAD:-PAD]
 assert new.shape == (520, 2396)
+DROP = os.environ.get('DROPBOX', '1400,320,1470,385')   # 'x0,y0,x1,y1;...' map-px boxes zeroed (one-sided junk blob with no mirror twin, comps ~160+278 px at (1442,341),(1418,360); the 'thorn' cluster). '' = off
+for bx in [b for b in DROP.split(';') if b.strip()]:
+    x0, y0, x1, y1 = [int(v) for v in bx.split(',')]; new[y0:y1, x0:x1] = 0
 DSP = int(os.environ.get('DESPECKLE', 120))   # remove isolated raised comps (H>.05) smaller than DSP px (floating specks on the ground); wrap-aware
 if DSP > 0:
     sh = new.shape[1] // 2; r = np.roll(new, sh, axis=1)
