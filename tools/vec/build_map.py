@@ -91,6 +91,15 @@ if DSP > 0:
     kill = (ar < DSP) & (np.arange(nb + 1) > 0)
     print('despeckle: removed %d comps (areas %s)' % (kill.sum(), sorted(ar[kill].tolist())))
     r[kill[lb]] = 0; new = np.roll(r, -sh, axis=1)
+GCL = float(os.environ.get('GROUNDCLEAN', .02))   # remove residual bumps standing on the ground: comps of (H>.005) lying >GCD px from any gold (H>.3) whose max H > GCL (seam thorn .24, faint nubs .04-.14). 0 = off
+GCD = int(os.environ.get('GCD', 10))
+if GCL > 0:
+    sh = new.shape[1] // 2; r = np.roll(new, sh, axis=1)
+    far = ndi.distance_transform_edt(~(r > .3)) > GCD
+    lb, nb = ndi.label((r > .005) & far); mxs = ndi.maximum(r, lb, range(1, nb + 1)) if nb else []
+    kill = np.zeros(nb + 1, bool); kill[1:] = np.array(mxs) > GCL
+    kz = ndi.binary_dilation(kill[lb], iterations=3) & (r < .3)
+    print('groundclean: removed %d comps, %d px' % (kill.sum(), kz.sum())); r[kz] = 0; new = np.roll(r, -sh, axis=1)
 BEAD = int(os.environ.get('BEAD', 1))   # smooth free berries: fitted ellipse + their own radial height profile (pooled over all angles, monotone, smoothed) => perfect round domes, no lumps / polygon outline
 if BEAD:
     sh = new.shape[1] // 2; r = np.roll(new, sh, axis=1); lb, nb = ndi.label(r > .3); Y, X = np.mgrid[:r.shape[0], :r.shape[1]]; nbd = 0
