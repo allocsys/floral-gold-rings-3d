@@ -1,11 +1,12 @@
 """Vector rebuild of the whole band map (periodic): potrace outlines + sub-pixel SDF bevel + per-shape interior denoise.
 Same method as pilot_outline.py + pilot_interior.py, windowless: x wraps (period 2396), y edge-padded.
-usage: python3 tools/vec/build_map.py [maps/band_period.png] [OUT=/tmp/vec/band_vec.png]  -> 16-bit 520x2396; then tools/wip_v3/wire.py OUT"""
+usage: python3 tools/vec/build_map.py [maps/band_raster_src.png = the old raster map, the build INPUT] [OUT=/tmp/vec/band_vec.png]  -> 16-bit 520x2396; then tools/wip_v3/wire.py OUT"""
 import sys, os, time, cv2, numpy as np, potrace
 from scipy import ndimage as ndi
-SRC = sys.argv[1] if len(sys.argv) > 1 else 'maps/band_period.png'
+SRC = sys.argv[1] if len(sys.argv) > 1 else 'maps/band_raster_src.png'
 OUT = sys.argv[2] if len(sys.argv) > 2 else '/tmp/vec/band_vec.png'
-PAD, UP, SM, W, LP, ER, MED = 40, 4, 1.6, 4.0, 1.0, 3, 5
+PAD, UP, SM, W, LP, MED = 40, 4, 1.6, 4.0, 1.0, 5
+ER = int(os.environ.get('ER', 3))
 os.makedirs(os.path.dirname(OUT), exist_ok=True); t0 = time.time()
 H0 = cv2.imread(SRC, -1).astype(np.float32)[:520] / 65535
 Hw = np.pad(np.pad(H0, ((0, 0), (PAD, PAD)), mode='wrap'), ((PAD, PAD), (0, 0)), mode='edge')
@@ -34,6 +35,7 @@ print('mask IoU %.4f  %.0fs' % (iou(vec > .5, m0), time.time() - t0), flush=True
 ab = acc > 0
 sdf = cv2.resize(((ndi.distance_transform_edt(ab) - ndi.distance_transform_edt(~ab)) / UP).astype(np.float32), (Hw.shape[1], Hw.shape[0]), interpolation=cv2.INTER_AREA)
 sm = ndi.gaussian_filter
+sdf = sm(sdf, float(os.environ.get('SDFS', 1.6)))   # kills the 1/UP px staircase of the EDT on diagonal edges (shading showed it as dotted lines)
 Hm = cv2.medianBlur((np.clip(Hw, 0, 1) * 65535).astype(np.uint16), MED).astype(np.float32) / 65535
 lab, n = ndi.label(vec > .5); objs = ndi.find_objects(lab)
 level = np.zeros_like(Hw); M = 14
