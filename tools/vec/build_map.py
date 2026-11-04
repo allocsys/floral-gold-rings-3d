@@ -5,14 +5,17 @@ import sys, os, time, cv2, numpy as np, potrace
 from scipy import ndimage as ndi
 SRC = sys.argv[1] if len(sys.argv) > 1 else 'maps/band_raster_src.png'
 OUT = sys.argv[2] if len(sys.argv) > 2 else '/tmp/vec/band_vec.png'
-PAD, UP, SM, W, LP, MED = 40, 4, 1.6, 4.0, 1.0, 5
+PAD, UP, LP, MED = 40, 4, 1.0, 5
+W = float(os.environ.get('W', 10.0))   # bevel width (map px). Mesh needs walls >= ~7 site px = 14 map px (see meshmap.py) when the cone step is skipped (MESH=0)
+SM = float(os.environ.get('SM', 1.6)); OPTT = float(os.environ.get('OPTT', 0.5))   # SM = mask blur before trace (map px); OPTT = potrace opttolerance
 ER = int(os.environ.get('ER', 3))
+TAU, LOWS = float(os.environ.get('TAU', 0)), float(os.environ.get('LOWS', 4))   # TAU>0: soft-threshold interior detail (Hm - lowpass LOWS) = kills weak lumps, keeps strong veins/grooves
 os.makedirs(os.path.dirname(OUT), exist_ok=True); t0 = time.time()
 H0 = cv2.imread(SRC, -1).astype(np.float32)[:520] / 65535
 Hw = np.pad(np.pad(H0, ((0, 0), (PAD, PAD)), mode='wrap'), ((PAD, PAD), (0, 0)), mode='edge')
 m0 = Hw > .3
 big = cv2.resize(ndi.gaussian_filter(m0.astype(np.float32), SM), None, fx=UP, fy=UP, interpolation=cv2.INTER_CUBIC) > .5
-pl = potrace.Bitmap(big).trace(turdsize=int(12 * UP * UP), turnpolicy=potrace.POTRACE_TURNPOLICY_MINORITY, alphamax=1.0, opticurve=True, opttolerance=0.5)
+pl = potrace.Bitmap(big).trace(turdsize=int(12 * UP * UP), turnpolicy=potrace.POTRACE_TURNPOLICY_MINORITY, alphamax=1.0, opticurve=True, opttolerance=OPTT)
 print('traced %d curves %.0fs' % (len(pl), time.time() - t0), flush=True)
 def bez(p0, c1, c2, p1, n=14):
     t = np.linspace(0, 1, n, endpoint=False)[:, None]
@@ -51,6 +54,10 @@ for i, sl in enumerate(objs, 1):
     w = core.astype(np.float32)
     if w.sum() < 5: continue
     f = sm(Hm[y0:y1, x0:x1] * w, LP) / np.maximum(sm(w, LP), 1e-3)
+    if TAU > 0:
+        low = sm(Hm[y0:y1, x0:x1] * w, LOWS) / np.maximum(sm(w, LOWS), 1e-3)
+        d = (Hm[y0:y1, x0:x1] - low) * sm(w, 1.5)          # detail only inside the core, fades to 0 at the edge zone
+        f = low + np.sign(d) * np.maximum(np.abs(d) - TAU, 0)
     rd = ndi.binary_dilation(reg, iterations=2)
     sub = level[y0:y1, x0:x1]; sub[rd] = f[rd]
 level = np.maximum(level, .35)
