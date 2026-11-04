@@ -20,6 +20,21 @@ print('traced %d curves %.0fs' % (len(pl), time.time() - t0), flush=True)
 def bez(p0, c1, c2, p1, n=14):
     t = np.linspace(0, 1, n, endpoint=False)[:, None]
     return (1 - t) ** 3 * p0 + 3 * (1 - t) ** 2 * t * c1 + 3 * (1 - t) * t ** 2 * c2 + t ** 3 * p1
+OSM = float(os.environ.get('OSM', 3)); OCORN = float(os.environ.get('OCORN', 70))   # OSM = outline smoothing sigma (map px) along arclength; points near corners (turn > OCORN deg over +-1.5 map px) keep their position
+def smooth_outline(p):
+    """closed polyline (4x px): uniform arclength resample (0.5 px), gaussian smooth sigma OSM map px, corner-protected blend."""
+    q = np.vstack([p, p[:1]]); d = np.r_[0, np.cumsum(np.linalg.norm(np.diff(q, axis=0), axis=1))]
+    if d[-1] < 40: return p
+    n = int(d[-1] / 2); t = np.linspace(0, d[-1], n, endpoint=False)
+    x = np.interp(t, d, q[:, 0]); y = np.interp(t, d, q[:, 1])
+    sg = OSM * UP / 2     # sigma in samples (sample = 2 px of 4x grid = .5 map px)
+    xs = ndi.gaussian_filter1d(x, sg, mode='wrap'); ys = ndi.gaussian_filter1d(y, sg, mode='wrap')
+    k = int(round(1.5 * UP / 2)) + 1                      # +-1.5 map px in samples
+    a = np.arctan2(np.roll(y, -k) - y, np.roll(x, -k) - x); b = np.arctan2(y - np.roll(y, k), x - np.roll(x, k))
+    turn = np.degrees(np.abs(np.angle(np.exp(1j * (a - b)))))
+    cm = (turn > OCORN).astype(np.float32)
+    w = np.clip(ndi.gaussian_filter1d(ndi.maximum_filter1d(cm, 2 * k + 1, mode='wrap'), k, mode='wrap') * 1.5, 0, 1)   # 1 at corners, tapers out
+    return np.c_[x * w + xs * (1 - w), y * w + ys * (1 - w)]
 acc = np.zeros(big.shape, np.uint8)
 for cv in pl:
     p0 = np.array([cv.start_point.x, cv.start_point.y]); pts = []
@@ -28,6 +43,7 @@ for cv in pl:
         if s.is_corner: pts += [p0, np.array([s.c.x, s.c.y])]
         else: pts += list(bez(p0, np.array([s.c1.x, s.c1.y]), np.array([s.c2.x, s.c2.y]), e))
         p0 = e
+    if OSM > 0: pts = smooth_outline(np.array(pts))
     layer = np.zeros(big.shape, np.uint8)
     cv2.fillPoly(layer, [np.round(np.array(pts) * 16).astype(np.int32)], 1, lineType=cv2.LINE_8, shift=4)
     acc ^= layer
