@@ -6,13 +6,15 @@ export const DEFAULTS = {
   band1:     { ID: 19, w: 4.5, t: 1.5, relief: 0.4 },
   band2:     { ID: 17, w: 4.0, t: 1.4, relief: 0.4 },
   solitaire: { ID: 17, w: 2.6, t: 1.3, relief: 0.3, stone: 5.2, prongs: 6 },
+  plaque:    { L: 22.6, w: 4.9, t: 1.2, relief: 0.45 }, // D63 (S1): flat plaque = the band pattern unrolled once (frame: flat rails + square end blocks, recessed stippled ground)
 };
-export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire' };
+export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire', plaque: 'Plaque' };
 export const CONTROLS = [
-  ['ID', 'Inner diameter', 14, 24, 0.1],
+  ['ID', 'Inner diameter', 14, 24, 0.1, ['band1', 'band2', 'solitaire']],
+  ['L', 'Length', 12, 40, 0.1, 'plaque'],
   ['w', 'Width', 1.5, 8, 0.1],
   ['t', 'Thickness', 0.8, 3, 0.05],
-  ['relief', 'Relief depth', 0, 0.8, 0.05, ['band1', 'band2', 'solitaire']],
+  ['relief', 'Relief depth', 0, 0.8, 0.05, ['band1', 'band2', 'solitaire', 'plaque']],
   ['stone', 'Stone diameter', 3, 8, 0.1, 'solitaire'],
   ['prongs', 'Prongs', 4, 8, 1, 'solitaire'],
 ];
@@ -129,6 +131,54 @@ function band(p, solitaire, quality) {
   if (UVF && !solitaire) shell.nm = { rel, su: TAU * Ro / REPEATS, sv: 2 * (p.w / 2 - rf), step }; // D54 (b2): mm per map-u unit, mm per map-v unit, mesh step (mm) for the shader normal map (band only)
   return { shell, top: Ro + DOME };
 }
+// D63 (S1): flat plaque. Frame = flat rails (RW) along the long edges + square end blocks (EB) at full height; inside, the band map (u along x, v along y) cuts the ground down by `relief` mm, dark stippled ground.
+const PLQ_GROUND = [0.05, 0.043, 0.036];
+const h2 = (i, j) => { const n = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return n - Math.floor(n); };
+function plaque(p, quality) {
+  const rel = p.relief > 0 ? p.relief : 0, RS = RELIEF_BAND, RW = 0.5, EB = 0.8, TOPUP = 0.06; // TOPUP: frame stands this far above the relief peaks
+  const step = quality === 'draft' ? 0.12 : rel ? (quality === 'ultra' ? ULTRA_STEP : 0.04) : 0.08;
+  const nx = Math.max(8, Math.ceil(p.L / step)), ny = Math.max(4, Math.ceil(p.w / step));
+  const x0 = -p.L / 2, y0 = -p.w / 2, dx = p.L / nx, dy = p.w / ny;
+  const pu = p.L - 2 * EB, pv = p.w - 2 * RW;
+  const ms = reliefMips(RS), pxU = pu / RS.W, pxV = pv / RS.H;
+  const lv = ms[Math.min(ms.length - 1, Math.max(0, Math.floor(Math.log2(Math.max(dx / pxU, dy / pxV)))))];
+  const NV = (nx + 1) * (ny + 1), per = [];
+  for (let i = 0; i < nx; i++) per.push(i);                         // bottom edge, +x
+  for (let j = 0; j < ny; j++) per.push(nx + j * (nx + 1));         // right edge, +y
+  for (let i = nx; i > 0; i--) per.push(ny * (nx + 1) + i);         // top edge, -x
+  for (let j = ny; j > 0; j--) per.push(j * (nx + 1));              // left edge, -y
+  const NP = per.length, top = p.t, peak = p.t - TOPUP;
+  const P = new Float32Array((NV + NP + 1) * 3), C = new Float32Array((NV + NP + 1) * 3).fill(1);
+  for (let j = 0; j <= ny; j++) for (let i = 0; i <= nx; i++) {
+    const x = x0 + i * dx, y = y0 + j * dy, k = j * (nx + 1) + i;
+    const u = (x - (x0 + EB)) / pu, v = (y - (y0 + RW)) / pv;
+    let z = top;
+    if (u >= 0 && u <= 1 && v >= 0 && v <= 1) {
+      const hv = rel ? sampleRelief(lv, Math.min(u, 0.99999), v) : 1;
+      const s = Math.min(1, Math.max(0, (hv - GROUND_LO) / (GROUND_HI - GROUND_LO))), kk = s * s * (3 - 2 * s);
+      const st = h2(i, j);
+      z = peak - rel * (1 - hv) + (st - 0.5) * 0.03 * (1 - kk); // stipple: tiny pits/grains on the bare ground
+      const shade = 0.55 + 0.9 * st;
+      for (let q = 0; q < 3; q++) C[k * 3 + q] = PLQ_GROUND[q] * shade * (1 - kk) + kk;
+    }
+    P[k * 3] = x; P[k * 3 + 1] = y; P[k * 3 + 2] = z;
+  }
+  for (let m = 0; m < NP; m++) { const o = (NV + m) * 3, t = per[m] * 3; P[o] = P[t]; P[o + 1] = P[t + 1]; P[o + 2] = 0; }
+  const cen = NV + NP; P[cen * 3] = 0; P[cen * 3 + 1] = 0; P[cen * 3 + 2] = 0;
+  const idx = new Uint32Array((nx * ny * 2 + NP * 4) * 3); let n = 0;
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+    const a = j * (nx + 1) + i, b = a + 1, c = b + nx + 1, d = a + nx + 1;
+    const ac = Math.abs(P[a * 3 + 2] - P[c * 3 + 2]), bd = Math.abs(P[b * 3 + 2] - P[d * 3 + 2]); // split along the flatter diagonal
+    if (ac <= bd) { idx[n++] = a; idx[n++] = b; idx[n++] = c; idx[n++] = a; idx[n++] = c; idx[n++] = d; }
+    else { idx[n++] = a; idx[n++] = b; idx[n++] = d; idx[n++] = b; idx[n++] = c; idx[n++] = d; }
+  }
+  for (let m = 0; m < NP; m++) {
+    const t0 = per[m], t1 = per[(m + 1) % NP], b0 = NV + m, b1 = NV + (m + 1) % NP;
+    idx[n++] = t0; idx[n++] = b0; idx[n++] = b1; idx[n++] = t0; idx[n++] = b1; idx[n++] = t1;
+    idx[n++] = cen; idx[n++] = b1; idx[n++] = b0;
+  }
+  return { pos: P, idx: idx.subarray(0, n), col: C };
+}
 function revolve(prof, n = 48) {
   const M = prof.length, P = new Float32Array(n * M * 3);
   for (let i = 0; i < n; i++) {
@@ -214,7 +264,9 @@ function fixWinding(sh) {
 // returns [{pos, idx, kind:'metal'|'stone'|'seat', col?}]; quality 'fine' (export) or 'draft' (live dragging)
 export function buildRing(kind, p, quality = 'fine') {
   const shells = [];
-  if (kind !== 'solitaire') {
+  if (kind === 'plaque') {
+    shells.push({ ...plaque(p, quality), kind: 'metal' });
+  } else if (kind !== 'solitaire') {
     shells.push({ ...band(p, false, quality).shell, kind: 'metal' });
   } else {
     const { shell, top } = band(p, true, quality);

@@ -25,7 +25,7 @@ async def main():
         await pg.wait_for_timeout(3000)
         await pg.evaluate("(n)=>document.querySelector('#tabs button:nth-child('+n+')').click()",TAB); await pg.wait_for_timeout(4000)
         await pg.evaluate("()=>document.getElementById('tog').click()"); await pg.wait_for_timeout(1500)
-        await pg.evaluate("()=>{__ctl.autoRotate=false;__cam.up.set(0,0,1);__cam.position.set(...[%s]);__ctl.target.set(...[%s]);__ctl.update();}"%(os.environ.get('CAM','0,23,0'),os.environ.get('TGT','0,9.9,0')))
+        await pg.evaluate("()=>{__ctl.autoRotate=false;__cam.up.set(...[%s]);__cam.position.set(...[%s]);__ctl.target.set(...[%s]);__ctl.update();}"%(os.environ.get('UP','0,0,1'),os.environ.get('CAM','0,23,0'),os.environ.get('TGT','0,9.9,0')))
         await pg.wait_for_timeout(2500)
         CL=os.environ.get('CLIP')  # CLIP=x,y,w,h (css px) for a zoomed crop, use with DSF=2
         await pg.screenshot(path=OUT,timeout=120000,**({'clip':dict(zip(['x','y','width','height'],map(float,CL.split(','))))} if CL else {}))

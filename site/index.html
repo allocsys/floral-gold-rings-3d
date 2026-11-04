@@ -41,7 +41,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep, reliefTex } from './geometry.js?v=relief72';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep, reliefTex } from './geometry.js?v=relief73';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -133,7 +133,7 @@ function renderUI() {
   tabs.innerHTML = ''; sliders.innerHTML = '';
   for (const k of Object.keys(DEFAULTS)) {
     const b = document.createElement('button'); b.textContent = LABELS[k]; b.className = k === kind ? 'on' : '';
-    b.onclick = () => { kind = k; renderUI(); queue('fine'); }; tabs.appendChild(b);
+    b.onclick = () => { kind = k; if (k === 'plaque') { camera.position.set(0, -4, 31); controls.target.set(0, 0, 0); controls.autoRotate = false; } else if (controls.autoRotate === false && camera.position.z > 25 && Math.abs(camera.position.x) < 1) { camera.position.set(6, 16, 34); controls.autoRotate = true; } spin.textContent = 'Spin: ' + (controls.autoRotate ? 'on' : 'off'); renderUI(); queue('fine'); }; tabs.appendChild(b);
   }
   for (const [key, label, min, max, step, only] of CONTROLS) {
     if (only && ![].concat(only).includes(kind)) continue;
