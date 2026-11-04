@@ -164,5 +164,16 @@ if BEAD:
         val = np.interp(rho, rc, prof, right=0)
         r[use] = val[use]; nbd += 1
     print('beads smoothed: %d' % nbd); new = np.roll(r, -sh, axis=1)
+CEN = os.environ.get('CENTRES', '1199.5,240;2396,258')   # S3: flower-centre beads as true round domes: spherical cap (radius CR, height from map) + circular moat (CM) + plateau rise (CW). 'x,y;...' map px, wrap-aware (x=2396 -> seam). '' = off
+if CEN.strip():
+    CR, CM, CW, CPK = [float(os.environ.get(k, v)) for k, v in (('CR', 40), ('CM', 62), ('CW', 9), ('CPK', .93))]
+    sh = new.shape[1] // 2; r = np.roll(new, sh, axis=1); Y, X = np.mgrid[:r.shape[0], :r.shape[1]]
+    for cs in [c for c in CEN.split(';') if c.strip()]:
+        cx, cy = [float(v) for v in cs.split(',')]; cx = (cx + sh) % new.shape[1]
+        dxw = np.abs(X - cx); dxw = np.minimum(dxw, new.shape[1] - dxw); rr = np.hypot(dxw, Y - cy)
+        dome = CPK * (1 - .22 * (rr / CR) ** 2); edge = np.clip((CR - rr) / 3.0, 0, 1)   # shallow cap (edge ~ .78*peak), steep 3 px wall
+        zone = rr < CM; r[zone] = np.where(rr < CR, dome * edge, 0)[zone]   # inside CM: dome + flat ground moat; outside CM the original plateau/bevel is kept
+        print('centre (%.1f,%.1f)' % (cx - sh, cy))
+    new = np.roll(r, -sh, axis=1)
 cv2.imwrite(OUT, np.round(np.clip(new, 0, 1) * 65535).astype(np.uint16))
 print('shapes %d  wrote %s  seam jump |col0-col2395| mean %.4f (cur %.4f)  %.0fs' % (n, OUT, np.abs(new[:, 0] - new[:, -1]).mean(), np.abs(H0[:, 0] - H0[:, -1]).mean(), time.time() - t0))
