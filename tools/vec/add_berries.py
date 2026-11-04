@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """D75 (I4): add glossy berries in free ground gaps of the band map (ref has ~20+ berries, map had ~8).
 Greedy: biggest free ground disc (periodic in x) -> round dome, until no gap >= DMIN. Deterministic.
-usage: python3 tools/vec/add_berries.py IN.png OUT.png   (env DMIN 30, RMAX 38, RMIN 22, NMAX 14, PEAK .75, MARGIN 12, GAP 6)
+usage: python3 tools/vec/add_berries.py IN.png OUT.png   (env DMIN 30, RMAX 38, RMIN 22, NMAX 14, PEAK .75, MARGIN 55, GAP 6)
 """
 import os, sys
 import numpy as np
@@ -9,7 +9,7 @@ import scipy.ndimage as ndi
 from PIL import Image
 
 E = lambda k, d: float(os.environ.get(k, d))
-DMIN, RMAX, RMIN, NMAX, PEAK, MARGIN, GAP = E('DMIN', 30), E('RMAX', 38), E('RMIN', 22), int(E('NMAX', 14)), E('PEAK', .75), E('MARGIN', 12), E('GAP', 6)
+DMIN, RMAX, RMIN, NMAX, PEAK, MARGIN, GAP = E('DMIN', 30), E('RMAX', 38), E('RMIN', 22), int(E('NMAX', 14)), E('PEAK', .75), E("MARGIN", 55), E('GAP', 6)
 PAD = 100
 
 
