@@ -132,7 +132,7 @@ function band(p, solitaire, quality) {
   return { shell, top: Ro + DOME };
 }
 // D63 (S1): flat plaque. Frame = flat rails (RW) along the long edges + square end blocks (EB) at full height; inside, the band map (u along x, v along y) cuts the ground down by `relief` mm, dark stippled ground.
-const PLQ_GROUND = [0.05, 0.043, 0.036];
+const PLQ_GROUND = [0.016, 0.014, 0.012];
 const h2 = (i, j) => { const n = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return n - Math.floor(n); };
 function plaque(p, quality) {
   const rel = p.relief > 0 ? p.relief : 0, RS = RELIEF_BAND, RW = 0.5, EB = 0.8, TOPUP = 0.06; // TOPUP: frame stands this far above the relief peaks
