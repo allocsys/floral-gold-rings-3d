@@ -57,6 +57,7 @@ python3 "$REPO/tools/wip_v3/stage60.py" "$OUT/chain_final.png" && cp "$OUT/c60.p
 python3 "$REPO/tools/wip_v3/stage61.py" "$OUT/chain_final.png" && cp "$OUT/c61.png" "$OUT/chain_final.png"   # D35 bead bite fill (convex hull dome)
 python3 "$REPO/tools/wip_v3/stage62.py" "$OUT/chain_final.png" && cp "$OUT/c62.png" "$OUT/chain_final.png"   # D36 star ghost -> single pearl
 python3 "$REPO/tools/wip_v3/stage63.py" "$OUT/chain_final.png" && cp "$OUT/c63.png" "$OUT/chain_final.png"   # D37 blob pair -> 3 pearls
+python3 "$REPO/tools/wip_v3/stage64.py" "$OUT/chain_final.png" && cp "$OUT/c64.png" "$OUT/chain_final.png"   # D56/D57 flower-centre domes (main + seam), seam spike, star speck
 
 echo "wrote $OUT/chain_final.png"
 python3 -c "import cv2,numpy,scipy,skimage;print('libs: cv2',cv2.__version__,'numpy',numpy.__version__,'scipy',scipy.__version__,'skimage',skimage.__version__)"

@@ -1,3 +1,4 @@
+NOTE (2026-11): this README is historical. Current build = `chain.sh` (see SCRIPTS.md); stages 4-45 and 53 moved to `archive/`.
 WIP: band height map v3 (not wired into maps/ yet; maps/ still = v2).
 Run from repo root: mkdir -p /tmp/band_v3_out && python3 tools/wip_v3/stage1.py && python3 tools/wip_v3/stage2.py && python3 tools/wip_v3/stage3.py
 Needs opencv-python, numpy, scipy, scikit-image.
