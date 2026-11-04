@@ -1,6 +1,6 @@
 // Parametric ring geometry (mm). No dependencies: runs in the browser and in Node.
 // Both bands (band1, band2) carry the engraved floral relief (relief_band.js, derived from reference/rings_flat.png), repeated REPEATS times around the ring.
-import { RELIEF_BAND } from './relief_band.js?v=relief88';
+import { RELIEF_BAND } from './relief_band.js?v=relief89';
 import { RELIEF_SOL } from './relief_sol.js';
 export const DEFAULTS = {
   band1:     { ID: 19, w: 4.5, t: 1.5, relief: 0.4 },
@@ -111,7 +111,8 @@ function band(p, solitaire, quality) {
         const hv = sampleRelief(lv, mu, mv); { const uo = (i * Mt + j) * 3; UVF[uo] = mu; UVF[uo + 1] = mv; UVF[uo + 2] = fade; }
         R -= rel * fade * (1 - hv);
         const s = Math.min(1, Math.max(0, (hv - GROUND_LO) / (GROUND_HI - GROUND_LO))), k = s * s * (3 - 2 * s), c = (i * Mt + j) * 3;
-        for (let q = 0; q < 3; q++) C[c + q] = GROUND_COL[q] + (1 - GROUND_COL[q]) * (1 - fade + fade * k);
+        const sg = solitaire ? 1 : 0.35 + 1.5 * Math.pow(h2(i, j), 2.2); // D77: stippled ground like the ref (per-vertex grain, viewer colour only)
+        for (let q = 0; q < 3; q++) C[c + q] = GROUND_COL[q] * sg + (1 - GROUND_COL[q]) * (1 - fade + fade * k);
       }
       put(R, zn * hwid);
     }
