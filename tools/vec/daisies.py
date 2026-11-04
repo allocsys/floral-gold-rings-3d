@@ -4,7 +4,7 @@ The ref has two full side daisies (~13% / 87% of the band) and a full flower at 
 and a mirrored partial edge flower at the seam (jagged bow petals). This post-step stamps broad, rounded, near-touching petals
 (hairline gaps), a round centre bead and a mesh-ready bevel; wrap-aware in x.
 usage: python3 tools/vec/daisies.py IN.png OUT.png   (run AFTER build_map.py, BEFORE add_berries.py)
-env DAISY 'x,y,L;x,y,L;..' (default '236,258,190;2162,258,190;0,258,195'), N 8, RB 34 (bead radius), GAP 2.4, BW 9 (bevel), WMAX 44,
+env DAISY 'x,y,L;x,y,L;..' (default '236,258,190;2162,258,190;0,258,195'), N 8, RB 34 (bead radius), GAP 2.4, BW 12 (bevel), WMAX 42,
     SEAMCLEAR 215 (seam: clear old flower inside this radius, sloped 12 px), MOAT 4
 """
 import os, sys
@@ -13,7 +13,7 @@ import scipy.ndimage as ndi
 from PIL import Image
 
 E = lambda k, d: float(os.environ.get(k, d))
-N = int(E('N', 8)); RB = E('RB', 34); GAP = E('GAP', 2.4); BW = E('BW', 9); WMAX = E('WMAX', 44); MOAT = E('MOAT', 4)
+N = int(E('N', 8)); RB = E('RB', 34); GAP = E('GAP', 2.4); BW = E('BW', 12); WMAX = E('WMAX', 42); MOAT = E('MOAT', 4)
 SEAMCLEAR = E('SEAMCLEAR', 215); SS = 3; SEAMFAR = E('SEAMFAR', 360); SEAMAREA = E('SEAMAREA', 9000)
 DAISY = [tuple(float(v) for v in s.split(',')) for s in os.environ.get('DAISY', '236,258,190;2162,258,190;0,258,195').split(';')]
 
@@ -40,8 +40,9 @@ def stamp(A, cx, cy, L):
         u = dx * np.cos(a) + dy * np.sin(a); t = -dx * np.sin(a) + dy * np.cos(a)
         s = (u - U0) / (L - U0)
         c = .55
-        e = np.sqrt(np.clip(1 - ((s - c) / np.where(s < c, c, 1 - c)) ** 2, 0, 1))
-        hw = WMAX * (.35 + .65 * e) * np.sqrt(np.clip((1 - s) / .22, 0, 1))
+        z = (s - c) / np.where(s < c, c, 1 - c)
+        e = np.sqrt(np.clip(1 - z ** 2, 0, 1))
+        hw = WMAX * np.where(s < c, .35 + .65 * e, e)        # elliptical rounded tip (no kite point)
         hwlim = (u * np.sin(np.pi / N) - GAP / 2) / np.cos(np.pi / N)
         aa = .3; hw = -np.log(np.exp(-aa * hw) + np.exp(-aa * np.maximum(hwlim, -50))) / aa
         m = (s > 0) & (s < 1) & (np.abs(t) < hw)
@@ -49,8 +50,9 @@ def stamp(A, cx, cy, L):
         q = np.where(m, np.abs(t) / np.maximum(hw, 1e-3), q)
     bead = r < RB
     d_in = ndi.distance_transform_edt(foot) / SS                       # px (map units) to petal edge
-    lvl = .62 + .20 * (1 - q ** 2)
-    hp = np.where(foot, lvl * sstep(0, BW, d_in), 0.0)
+    lvl = .70 + .10 * (1 - q ** 2)
+    tb = np.clip(d_in / BW, 0, 1); rb = np.sqrt(1 - (1 - tb) ** 2)     # quarter-round wall
+    hp = np.where(foot, lvl * rb, 0.0)
     hb = np.where(bead, .80 + .15 * np.sqrt(np.clip(1 - (r / RB) ** 2, 0, 1)), 0.0)
     new = np.maximum(hp, hb)
     clr = ndi.distance_transform_edt(~(foot | (r < RB + 2))) / SS < MOAT
