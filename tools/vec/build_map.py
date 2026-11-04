@@ -77,7 +77,7 @@ for i, sl in enumerate(objs, 1):
     rd = ndi.binary_dilation(reg, iterations=2)
     sub = level[y0:y1, x0:x1]; sub[rd] = f[rd]
 level = np.maximum(level, .35)
-PL = float(os.environ.get('PLUMP', 0.25)); VD = float(os.environ.get('VEIN', 0.0)); VW = float(os.environ.get('VEINW', 2.2))   # S2: PL = petal dome (rim lowered by PL*level, peak unchanged, per-shape local inscribed radius); VD = central vein groove depth (fraction of level), VW = half-width (map px)
+PL = float(os.environ.get('PLUMP', 0.25)); VD = float(os.environ.get('VEIN', 0.15)); VW = float(os.environ.get('VEINW', 5.0))   # S2: PL = petal dome (rim lowered by PL*level, peak unchanged, per-shape local inscribed radius); VD = central vein groove depth (fraction of level), VW = half-width (map px)
 if PL > 0 or VD > 0:
     from skimage.morphology import medial_axis
     inside = vec > .5
@@ -90,13 +90,30 @@ if PL > 0 or VD > 0:
     low = sm(level, 6); detail = level - low
     dome = 1 - PL * (1 - dn) ** 2
     lv2 = low * dome + detail
-    if VD > 0:
-        sk, dist = medial_axis(zone & (sdf > 4), return_distance=True)
-        # keep skeleton where the inscribed radius is large enough (drops tip/edge spurs), then fade the groove with dn
-        sk &= dist > 0.45 * np.maximum(Rloc, 8)
-        dv = ndi.distance_transform_edt(~sk)
-        g = np.exp(-(dv / VW) ** 2) * np.clip((dn - .25) / .4, 0, 1)
-        lv2 = lv2 - VD * low * g
+    if VD > 0:   # per-petal central vein: watershed of sdf peaks around each flower centre, straight groove centre->tip (tapered), smooth valley profile
+        from skimage.segmentation import watershed
+        from skimage.feature import peak_local_max
+        gv = np.zeros_like(sdf); Y, X = np.mgrid[:sdf.shape[0], :sdf.shape[1]]
+        for cs in [c for c in os.environ.get('FLOWERS', '1199,240').split(';') if c.strip()]:
+            cx, cy = [float(v) + PAD for v in cs.split(',')]
+            near = zone & (np.hypot(X - cx, Y - cy) < float(os.environ.get('FR', 230)))
+            s2 = sm(np.maximum(sdf, 0), 3) * near
+            pk = peak_local_max(s2, min_distance=25, threshold_abs=float(os.environ.get('VPK', 30)))
+            mk = np.zeros(sdf.shape, int)
+            for i, (y, x) in enumerate(pk, 1): mk[y, x] = i
+            ws = watershed(-s2, mk, mask=near)
+            for i in range(1, len(pk) + 1):
+                ys, xs = np.nonzero(ws == i)
+                if len(ys) < 800: continue
+                dd = np.hypot(xs - cx, ys - cy); k = dd.argmax(); tx, ty = xs[k], ys[k]
+                L = dd[k]; ux, uy = (tx - cx) / L, (ty - cy) / L
+                a0, a1 = float(os.environ.get('V0', .42)) * L, float(os.environ.get('V1', .86)) * L
+                t = np.clip(((X - cx) * ux + (Y - cy) * uy - a0) / (a1 - a0), 0, 1)
+                dist = np.hypot(X - (cx + ux * (a0 + t * (a1 - a0))), Y - (cy + uy * (a0 + t * (a1 - a0))))
+                tt = np.clip(((X - cx) * ux + (Y - cy) * uy - a0) / (a1 - a0), -1, 2)
+                taper = np.clip(np.sin(np.pi * np.clip(tt, 0, 1)) * 1.6, 0, 1)
+                gv = np.maximum(gv, np.exp(-(dist / VW) ** 2) * taper * (ws == i))
+        lv2 = lv2 - VD * low * gv
     level = np.where(zone, lv2, level)
     print('S2: %d petal-size shapes, plump %.2f vein %.2f' % (big_ok.sum(), PL, VD))
 bev = np.clip(sdf / W, 0, 1); bev = bev * bev * (3 - 2 * bev)
