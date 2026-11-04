@@ -41,7 +41,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep, reliefTex } from './geometry.js?v=relief71';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep, reliefTex } from './geometry.js?v=relief72';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -70,7 +70,7 @@ const _uq = new URLSearchParams(location.search).get('ultra');
 const ULTRA_OK = _uq === '1' ? true : _uq === 'mid' ? false : _uq === '0' ? false : !(matchMedia('(pointer: coarse)').matches || (navigator.deviceMemory && navigator.deviceMemory <= 4));
 // D52: touch / low-memory devices refine to a mid ultra step (.03 mm, ~1.8x the 'fine' tris) instead of staying on .04. ?ultra=0 disables, ?ultra=mid forces it.
 const MID_OK = !ULTRA_OK && _uq !== '0';
-if (MID_OK) setUltraStep(0.025);
+if (MID_OK) setUltraStep(0.02);
 const queue = (q) => { clearTimeout(ultraTimer); dirty = q; };
 // D54 (b2): ?nm=1 (default OFF) = per-pixel shading normals from the full-res map on the band outer face. The fragment shader adds (map slope at 1 texel - map slope at the mesh step) x fade to the mesh normal, so only detail the mesh cannot carry is added. Band only (Solitaire u is non-linear).
 const NM = new URLSearchParams(location.search).get('nm') === '1';
