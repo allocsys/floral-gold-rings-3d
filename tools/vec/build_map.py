@@ -20,6 +20,7 @@ print('traced %d curves %.0fs' % (len(pl), time.time() - t0), flush=True)
 def bez(p0, c1, c2, p1, n=14):
     t = np.linspace(0, 1, n, endpoint=False)[:, None]
     return (1 - t) ** 3 * p0 + 3 * (1 - t) ** 2 * t * c1 + 3 * (1 - t) * t ** 2 * c2 + t ** 3 * p1
+OSMS = float(os.environ.get('OSMS', 7)); OSZ = float(os.environ.get('OSZ', 330)); WMAP = 2396.0
 OSM = float(os.environ.get('OSM', 3)); OCORN = float(os.environ.get('OCORN', 70))   # OSM = outline smoothing sigma (map px) along arclength; points near corners (turn > OCORN deg over +-1.5 map px) keep their position
 def smooth_outline(p):
     """closed polyline (4x px): uniform arclength resample (0.5 px), gaussian smooth sigma OSM map px, corner-protected blend."""
@@ -29,6 +30,10 @@ def smooth_outline(p):
     x = np.interp(t, d, q[:, 0]); y = np.interp(t, d, q[:, 1])
     sg = OSM * UP / 2     # sigma in samples (sample = 2 px of 4x grid = .5 map px)
     xs = ndi.gaussian_filter1d(x, sg, mode='wrap'); ys = ndi.gaussian_filter1d(y, sg, mode='wrap')
+    if OSMS > 0:   # D79: stronger outline smoothing near the seam (mirror-joined halves leave serrated petal edges there)
+        sg2 = OSMS * UP / 2; xs2 = ndi.gaussian_filter1d(x, sg2, mode='wrap'); ys2 = ndi.gaussian_filter1d(y, sg2, mode='wrap')
+        cm_ = (x / UP - PAD) % WMAP; dseam = np.minimum(cm_, WMAP - cm_); wz = np.clip((OSZ - dseam) / 80.0, 0, 1)
+        xs = xs * (1 - wz) + xs2 * wz; ys = ys * (1 - wz) + ys2 * wz
     k = int(round(1.5 * UP / 2)) + 1                      # +-1.5 map px in samples
     a = np.arctan2(np.roll(y, -k) - y, np.roll(x, -k) - x); b = np.arctan2(y - np.roll(y, k), x - np.roll(x, k))
     turn = np.degrees(np.abs(np.angle(np.exp(1j * (a - b)))))
