@@ -14,7 +14,7 @@ from PIL import Image
 
 E = lambda k, d: float(os.environ.get(k, d))
 N = int(E('N', 8)); RB = E('RB', 34); GAP = E('GAP', 2.4); BW = E('BW', 12); WMAX = E('WMAX', 42); MOAT = E('MOAT', 4)
-SEAMCLEAR = E('SEAMCLEAR', 215); SS = 3; SEAMFAR = E('SEAMFAR', 360); SEAMAREA = E('SEAMAREA', 9000)
+SEAMCLEAR = E('SEAMCLEAR', 215); SS = 3; SEAMFAR = E('SEAMFAR', 360); SEAMAREA = E('SEAMAREA', 12000); SLA = E('SLA', 2500); SLC = E('SLC', .35)
 DAISY = [tuple(float(v) for v in s.split(',')) for s in os.environ.get('DAISY', '236,258,190;2162,258,190;0,258,195').split(';')]
 
 
@@ -77,21 +77,47 @@ def remove_small(A, cx, cy, rad):
     return A
 
 
-def remove_far(A, cx, cy, rin, rout):
-    # old-flower leftovers (wing tips) outside the new daisy: small comps wholly outside rin and inside rout
+def remove_far(A, stamped, cx, cy, rout):
+    # old-flower leftovers: small comps within rout of the seam centre that contain NO stamped (new daisy) pixel
     lab, n = ndi.label(A > .05)
     yy, xx = np.mgrid[0:A.shape[0], 0:A.shape[1]]
     rr = np.hypot(xx - cx, yy - cy)
     for i in range(1, n + 1):
-        m = lab == i; area = m.sum()
-        if area < SEAMAREA and rr[m].min() > rin and rr[m].max() < rout:
+        m = lab == i
+        if m.sum() < SEAMAREA and rr[m].min() < rout and not stamped[m].any():
             A[ndi.binary_dilation(m, iterations=6)] = 0
     return A
 
 
+def remove_slivers(H):
+    """thin leftover slivers (old wing edges cut by the daisy moat) + stray 1-px specks next to the daisies"""
+    import cv2
+    h, w = H.shape; sh = w // 2
+    R = np.roll(H, sh, axis=1)
+    lab, n = ndi.label(R > .02)
+    yy, xx = np.mgrid[0:h, 0:w]
+    near = np.zeros(R.shape, bool)
+    for (x, y, L) in DAISY:
+        cx = (int(round(x)) + sh) % w
+        dxw = np.minimum(np.abs(xx - cx), w - np.abs(xx - cx))
+        near |= np.hypot(dxw, yy - y) < L + 140
+    cnt = 0
+    for i in range(1, n + 1):
+        mk = lab == i; A = int(mk.sum())
+        if A > SLA or not near[mk].any(): continue
+        if A < 12: circ = 0
+        else:
+            c, _ = cv2.findContours(mk.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+            P = cv2.arcLength(c[0], True); circ = 4 * np.pi * A / max(P, 1) ** 2
+        if circ < SLC:
+            R[ndi.binary_dilation(mk, iterations=4)] = 0; cnt += 1
+    print('slivers removed', cnt)
+    return np.roll(R, -sh, axis=1)
+
+
 def main(src, dst):
     H = np.array(Image.open(src)).astype(np.float64) / 65535.0
-    h, w = H.shape
+    h, w = H.shape; H_in = H.copy()
     for (x, y, L) in DAISY:
         sh = w // 2 - int(round(x))
         A = np.roll(H, sh, axis=1); cx = w // 2
@@ -102,8 +128,9 @@ def main(src, dst):
         else:
             A = remove_small(A, cx, y, L + 25)
         A = stamp(A, cx, y, L)
-        if x == 0 or x >= w - 1: A = remove_far(A, cx, y, L + 8, SEAMFAR)
+        if x == 0 or x >= w - 1: A = remove_far(A, (A - np.roll(H_in, sh, axis=1)) > .02, cx, y, SEAMFAR)
         H = np.roll(A, -sh, axis=1)
+    H = remove_slivers(H)
     Image.fromarray(np.clip(np.round(H * 65535), 0, 65535).astype(np.uint16)).save(dst)
     print('daisies', DAISY, 'changed px', int((np.abs(H - np.array(Image.open(src)).astype(float) / 65535) > .02).sum()))
 
