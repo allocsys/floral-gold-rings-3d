@@ -17,13 +17,13 @@ Revert to the raster map: `git checkout b00d366 -- maps/band_period.png site/rel
 ## Fresh sandbox (3 commands) - LEGACY RASTER CHAIN (stages 1-64, produces band_raster_src.png equivalent)
 ```
 git clone https://github.com/allocsys/floral-gold-rings-3d.git && cd floral-gold-rings-3d
-bash tools/wip_v3/setup.sh               # deps, git identity, starts chain.sh in background
+BUILD=1 bash tools/wip_v3/setup.sh        # deps + git identity; BUILD=1 also starts chain.sh in background (only needed for T2.png / compare.py / measure.sh; the vector map does not need it)
 bash tools/wip_v3/chain.sh status        # repeat until "not running" (~4 min for stages 1..51 + late chain)
 ```
 
 | script | what it does |
 |---|---|
-| `setup.sh` | Installs missing libs, sets git identity, starts the full build detached. `NOBUILD=1` skips the build. |
+| `setup.sh` | Installs missing libs, sets git identity. `BUILD=1` also starts the legacy raster chain detached (default: no build). |
 | `chain.sh` | Rebuilds the current map (v66): stage1,2,49,50,51 -> 54 -> 56 -> 55 (RIB=0 KNEE=.70 COMP=.6) -> 52 -> 55 (RIB=.22 COMP=1) -> 57 (terrace fix) -> 58 (ghost bumps) -> 59 (bead fill) -> 60 (iso-line smoothing) -> 61 (bead bites) -> 62 -> 63 (pearls) -> 64 (flower-centre domes, seam spike, star speck) -> `$BAND_OUT/chain_final.png`. Stages 4-45 and 53 are retired in `archive/` (not part of the chain). `LATE=1` reruns only the late chain (seconds). `BG=1` runs detached (a plain `&` is killed when the tool call ends); `chain.sh status` shows log tail + running state. Stage params in the env (`ALPHA=1.5 bash chain.sh`) are passed through. |
 | `compare.py [A] [B]` | **Main check.** Metrics of A (default committed `maps/band_period.png`) vs B (default `chain_final.png`) side by side with deltas and `<<` regression flags (exit 1 if any). Library drift cancels because both maps are measured in the same sandbox. `--one MAP` for a single map. |
 | `measure.sh [map]` | Raw output of diff/idiff/tdiff/cdiff for one map (needs `$BAND_OUT/T2.png` from stage1). |
