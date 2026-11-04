@@ -175,5 +175,32 @@ if CEN.strip():
         zone = rr < CM; r[zone] = np.where(rr < CR, dome * edge, 0)[zone]   # inside CM: dome + flat ground moat; outside CM the original plateau/bevel is kept
         print('centre (%.1f,%.1f)' % (cx - sh, cy))
     new = np.roll(r, -sh, axis=1)
+SV = os.environ.get('SEAMVEIN', '2396,258')   # S3b: per-petal central veins for flowers that straddle the seam (the in-pipeline VEIN code does not wrap): same method on a copy rolled by 600 px, groove subtracted from the final map. '' = off
+if SV.strip() and VD > 0:
+    from skimage.segmentation import watershed
+    from skimage.feature import peak_local_max
+    R6 = 600; r = np.roll(new, R6, axis=1); Y, X = np.mgrid[:r.shape[0], :r.shape[1]]
+    m = r > .3; sd = sm(ndi.distance_transform_edt(m) - ndi.distance_transform_edt(~m), 1.6); lw = sm(r, 6); gv = np.zeros_like(r)
+    for cs in [c for c in SV.split(';') if c.strip()]:
+        cx, cy = [float(v) for v in cs.split(',')]; cx = (cx + R6) % new.shape[1]
+        near = m & (np.hypot(X - cx, Y - cy) < float(os.environ.get('FR', 230)))
+        s2 = sm(np.maximum(sd, 0), 3) * near
+        pk = peak_local_max(s2, min_distance=25, threshold_abs=float(os.environ.get('VPK', 30)))
+        mk = np.zeros(r.shape, int)
+        for i, (y, x) in enumerate(pk, 1): mk[y, x] = i
+        ws = watershed(-s2, mk, mask=near); nv = 0
+        for i in range(1, len(pk) + 1):
+            ys, xs = np.nonzero(ws == i)
+            if len(ys) < 800: continue
+            dd = np.hypot(xs - cx, ys - cy); k = dd.argmax(); tx, ty = xs[k], ys[k]
+            L = dd[k]; ux, uy = (tx - cx) / L, (ty - cy) / L
+            a0, a1 = float(os.environ.get('V0', .42)) * L, float(os.environ.get('V1', .86)) * L
+            t = np.clip(((X - cx) * ux + (Y - cy) * uy - a0) / (a1 - a0), 0, 1)
+            dist = np.hypot(X - (cx + ux * (a0 + t * (a1 - a0))), Y - (cy + uy * (a0 + t * (a1 - a0))))
+            tt = np.clip(((X - cx) * ux + (Y - cy) * uy - a0) / (a1 - a0), -1, 2)
+            taper = np.clip(np.sin(np.pi * np.clip(tt, 0, 1)) * 1.6, 0, 1)
+            gv = np.maximum(gv, np.exp(-(dist / VW) ** 2) * taper * (ws == i) * np.clip((np.hypot(X - cx, Y - cy) - 62) / 8, 0, 1)); nv += 1   # never through the centre bead/moat (r<62)
+        print('seam veins: %d peaks, %d petals grooved at (%s)' % (len(pk), nv, cs))
+    r = r - VD * lw * gv; new = np.roll(r, -R6, axis=1)
 cv2.imwrite(OUT, np.round(np.clip(new, 0, 1) * 65535).astype(np.uint16))
 print('shapes %d  wrote %s  seam jump |col0-col2395| mean %.4f (cur %.4f)  %.0fs' % (n, OUT, np.abs(new[:, 0] - new[:, -1]).mean(), np.abs(H0[:, 0] - H0[:, -1]).mean(), time.time() - t0))
