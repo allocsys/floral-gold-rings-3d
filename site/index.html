@@ -41,7 +41,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep, reliefTex } from './geometry.js?v=relief84';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep, reliefTex } from './geometry.js?v=relief86';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -58,10 +58,11 @@ controls.enableDamping = true; controls.autoRotate = true; controls.autoRotateSp
 const gold = new THREE.MeshStandardMaterial({ color: 0xf5c657, metalness: 1, roughness: 0.42 });
 const goldVC = gold.clone(); goldVC.vertexColors = true; goldVC.color.set(0xf2b93c); goldVC.roughness = 0.58; /* D38: deeper base colour wins back the saturation lost at .58 */ // D34: 0.42 reflects the RoomEnvironment light panels as horizontal bands on relief walls
 // D64 (S1b): plaque material = goldVC with per-vertex roughness/metalness from the vertex colour: dark ground (r<.15) matte + dielectric-ish, raised gold glossy mirror
-const plq = goldVC.clone(); plq.roughness = 1; plq.metalness = 1; plq.envMapIntensity = 1.7; plq.customProgramCacheKey = () => 'plq1';
+const plq = goldVC.clone(); plq.roughness = 1; plq.metalness = 1; plq.envMapIntensity = 1.7; plq.customProgramCacheKey = () => 'plq2';
 plq.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader
   .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nfloat gk = smoothstep(0.12, 0.55, vColor.r); roughnessFactor = mix(0.9, 0.3, gk);')
-  .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(0.15, 1.0, gk);'); };
+  .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(0.15, 1.0, gk);')
+  .replace('#include <opaque_fragment>', 'outgoingLight *= mix(0.3, 1.0, gk);\n#include <opaque_fragment>'); }; // D74: ground reflected the room env as grey-brown; dim it toward the near-black matte of the ref
 const gem = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0, transmission: 1, thickness: 3, ior: 2.4, specularIntensity: 1, envMapIntensity: 0.06, side: THREE.DoubleSide, attenuationColor: 0xe2e6f2, attenuationDistance: 1.6 }); // D40: env 3.5->.06 (table reflected the RoomEnvironment ceiling panel = 46% clipped white), attenuation 12->1.6 for depth
 const seat = gold.clone(); seat.color.set(0xd6dae6); seat.envMapIntensity = 0.8; // D41: neutral white-metal basket cup under the stone (gem transmission otherwise refracts the bright gold seat = yellow stone); viewer only, STL ignores kind
 const group = new THREE.Group(); scene.add(group);
@@ -128,7 +129,7 @@ function rebuild(quality) {
         nA.set(nB);
       }
     }
-    group.add(new THREE.Mesh(g, s.kind === 'stone' ? gem : s.kind === 'seat' ? seat : s.col ? (kind === 'plaque' ? plq : NM && s.nm && quality !== 'draft' ? makeNM(s) : goldVC) : gold));
+    group.add(new THREE.Mesh(g, s.kind === 'stone' ? gem : s.kind === 'seat' ? seat : s.col ? (kind === 'plaque' || kind === 'band1' || kind === 'band2' ? plq : NM && s.nm && quality !== 'draft' ? makeNM(s) : goldVC) : gold));
   }
   const p = state[kind];
   document.getElementById('info').textContent = `Ø ${p.ID} mm inner · ${quality === 'draft' ? 'draft preview while dragging' : quality === 'ultra' ? 'ultra detail' : 'full detail'} · mm`;
