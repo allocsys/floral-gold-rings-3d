@@ -1,0 +1,60 @@
+"""Vector rebuild of the whole band map (periodic): potrace outlines + sub-pixel SDF bevel + per-shape interior denoise.
+Same method as pilot_outline.py + pilot_interior.py, windowless: x wraps (period 2396), y edge-padded.
+usage: python3 tools/vec/build_map.py [maps/band_period.png] [OUT=/tmp/vec/band_vec.png]  -> 16-bit 520x2396; then tools/wip_v3/wire.py OUT"""
+import sys, os, time, cv2, numpy as np, potrace
+from scipy import ndimage as ndi
+SRC = sys.argv[1] if len(sys.argv) > 1 else 'maps/band_period.png'
+OUT = sys.argv[2] if len(sys.argv) > 2 else '/tmp/vec/band_vec.png'
+PAD, UP, SM, W, LP, ER, MED = 40, 4, 1.6, 4.0, 1.0, 3, 5
+os.makedirs(os.path.dirname(OUT), exist_ok=True); t0 = time.time()
+H0 = cv2.imread(SRC, -1).astype(np.float32)[:520] / 65535
+Hw = np.pad(np.pad(H0, ((0, 0), (PAD, PAD)), mode='wrap'), ((PAD, PAD), (0, 0)), mode='edge')
+m0 = Hw > .3
+big = cv2.resize(ndi.gaussian_filter(m0.astype(np.float32), SM), None, fx=UP, fy=UP, interpolation=cv2.INTER_CUBIC) > .5
+pl = potrace.Bitmap(big).trace(turdsize=int(12 * UP * UP), turnpolicy=potrace.POTRACE_TURNPOLICY_MINORITY, alphamax=1.0, opticurve=True, opttolerance=0.5)
+print('traced %d curves %.0fs' % (len(pl), time.time() - t0), flush=True)
+def bez(p0, c1, c2, p1, n=14):
+    t = np.linspace(0, 1, n, endpoint=False)[:, None]
+    return (1 - t) ** 3 * p0 + 3 * (1 - t) ** 2 * t * c1 + 3 * (1 - t) * t ** 2 * c2 + t ** 3 * p1
+acc = np.zeros(big.shape, np.uint8)
+for cv in pl:
+    p0 = np.array([cv.start_point.x, cv.start_point.y]); pts = []
+    for s in cv.segments:
+        e = np.array([s.end_point.x, s.end_point.y])
+        if s.is_corner: pts += [p0, np.array([s.c.x, s.c.y])]
+        else: pts += list(bez(p0, np.array([s.c1.x, s.c1.y]), np.array([s.c2.x, s.c2.y]), e))
+        p0 = e
+    layer = np.zeros(big.shape, np.uint8)
+    cv2.fillPoly(layer, [np.round(np.array(pts) * 16).astype(np.int32)], 1, lineType=cv2.LINE_8, shift=4)
+    acc ^= layer
+vec = cv2.resize(acc.astype(np.float32), (Hw.shape[1], Hw.shape[0]), interpolation=cv2.INTER_AREA)
+iou = lambda a, b: (a & b).sum() / max((a | b).sum(), 1)
+if iou(vec > .5, m0) < iou(vec <= .5, m0): vec = 1 - vec; acc = 1 - acc
+print('mask IoU %.4f  %.0fs' % (iou(vec > .5, m0), time.time() - t0), flush=True)
+ab = acc > 0
+sdf = cv2.resize(((ndi.distance_transform_edt(ab) - ndi.distance_transform_edt(~ab)) / UP).astype(np.float32), (Hw.shape[1], Hw.shape[0]), interpolation=cv2.INTER_AREA)
+sm = ndi.gaussian_filter
+Hm = cv2.medianBlur((np.clip(Hw, 0, 1) * 65535).astype(np.uint16), MED).astype(np.float32) / 65535
+lab, n = ndi.label(vec > .5); objs = ndi.find_objects(lab)
+level = np.zeros_like(Hw); M = 14
+for i, sl in enumerate(objs, 1):
+    if sl is None: continue
+    y0, y1 = max(sl[0].start - M, 0), min(sl[0].stop + M, Hw.shape[0]); x0, x1 = max(sl[1].start - M, 0), min(sl[1].stop + M, Hw.shape[1])
+    reg = lab[y0:y1, x0:x1] == i
+    if reg.sum() < 30: continue
+    mo = m0[y0:y1, x0:x1]
+    core = ndi.binary_erosion(reg & mo, iterations=ER)
+    if core.sum() < 10: core = ndi.binary_erosion(reg & mo, iterations=2)
+    if core.sum() < 5: core = reg & mo
+    w = core.astype(np.float32)
+    if w.sum() < 5: continue
+    f = sm(Hm[y0:y1, x0:x1] * w, LP) / np.maximum(sm(w, LP), 1e-3)
+    rd = ndi.binary_dilation(reg, iterations=2)
+    sub = level[y0:y1, x0:x1]; sub[rd] = f[rd]
+level = np.maximum(level, .35)
+bev = np.clip(sdf / W, 0, 1); bev = bev * bev * (3 - 2 * bev)
+new = np.clip(level * bev, 0, 1) * np.clip(vec + (sdf > -.3), 0, 1)
+new = new[PAD:-PAD, PAD:-PAD]
+assert new.shape == (520, 2396)
+cv2.imwrite(OUT, np.round(np.clip(new, 0, 1) * 65535).astype(np.uint16))
+print('shapes %d  wrote %s  seam jump |col0-col2395| mean %.4f (cur %.4f)  %.0fs' % (n, OUT, np.abs(new[:, 0] - new[:, -1]).mean(), np.abs(H0[:, 0] - H0[:, -1]).mean(), time.time() - t0))
