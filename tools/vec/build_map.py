@@ -65,5 +65,12 @@ bev = np.clip(sdf / W, 0, 1); bev = bev * bev * (3 - 2 * bev)
 new = np.clip(level * bev, 0, 1) * np.clip(vec + (sdf > -.3), 0, 1)
 new = new[PAD:-PAD, PAD:-PAD]
 assert new.shape == (520, 2396)
+DSP = int(os.environ.get('DESPECKLE', 120))   # remove isolated raised comps (H>.05) smaller than DSP px (floating specks on the ground); wrap-aware
+if DSP > 0:
+    sh = new.shape[1] // 2; r = np.roll(new, sh, axis=1)
+    lb, nb = ndi.label(r > .05); ar = np.bincount(lb.ravel(), minlength=nb + 1)
+    kill = (ar < DSP) & (np.arange(nb + 1) > 0)
+    print('despeckle: removed %d comps (areas %s)' % (kill.sum(), sorted(ar[kill].tolist())))
+    r[kill[lb]] = 0; new = np.roll(r, -sh, axis=1)
 cv2.imwrite(OUT, np.round(np.clip(new, 0, 1) * 65535).astype(np.uint16))
 print('shapes %d  wrote %s  seam jump |col0-col2395| mean %.4f (cur %.4f)  %.0fs' % (n, OUT, np.abs(new[:, 0] - new[:, -1]).mean(), np.abs(H0[:, 0] - H0[:, -1]).mean(), time.time() - t0))
