@@ -88,5 +88,30 @@ if DSP > 0:
     kill = (ar < DSP) & (np.arange(nb + 1) > 0)
     print('despeckle: removed %d comps (areas %s)' % (kill.sum(), sorted(ar[kill].tolist())))
     r[kill[lb]] = 0; new = np.roll(r, -sh, axis=1)
+BEAD = int(os.environ.get('BEAD', 1))   # smooth free berries: fitted ellipse + their own radial height profile (pooled over all angles, monotone, smoothed) => perfect round domes, no lumps / polygon outline
+if BEAD:
+    sh = new.shape[1] // 2; r = np.roll(new, sh, axis=1); lb, nb = ndi.label(r > .3); Y, X = np.mgrid[:r.shape[0], :r.shape[1]]; nbd = 0
+    for i in range(1, nb + 1):
+        m = lb == i; a = int(m.sum())
+        if a < 2500 or a > 9000: continue
+        ys = np.nonzero(m.any(axis=1))[0]
+        if ys.min() < 3 or ys.max() > r.shape[0] - 4: continue
+        cn, _ = cv2.findContours(m.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE); c = max(cn, key=len)
+        circ = 4 * np.pi * a / cv2.arcLength(c, True) ** 2
+        (cx, cy), (MA, ma), ang = cv2.fitEllipse(c); el = np.zeros(m.shape, np.uint8); cv2.ellipse(el, ((cx, cy), (MA, ma), ang), 1, -1)
+        eiou = (m & (el > 0)).sum() / (m | (el > 0)).sum()
+        if circ < .85 or eiou < .91 or ndi.label(ndi.binary_fill_holes(m) & ~m)[1] > 0: continue
+        t = np.radians(ang); dx, dy = X - cx, Y - cy
+        rho = np.hypot((dx * np.cos(t) + dy * np.sin(t)) / (MA / 2), (-dx * np.sin(t) + dy * np.cos(t)) / (ma / 2))
+        other = ndi.binary_dilation((lb > 0) & ~m, iterations=3)
+        use = (rho < 1.4) & ~other
+        bi = np.minimum((rho[use] / 1.4 * 140).astype(int), 139)
+        prof = np.array([r[use][bi == k].mean() if (bi == k).any() else 0 for k in range(140)])
+        prof = ndi.gaussian_filter1d(prof, 1.5, mode='nearest'); prof = np.minimum.accumulate(prof)   # monotone non-increasing
+        rc = (np.arange(140) + .5) / 140 * 1.4; R0 = float(os.environ.get('BR0', .85)); pe = float(np.interp(R0, rc, prof)); pc = min(1.0, pe + float(os.environ.get('BRISE', .2)))
+        prof = np.where(rc < R0, pe + (pc - pe) * (1 - (rc / R0) ** 2), prof)   # true cap inside rho<R0, data edge fall-off outside (continuous at R0)
+        val = np.interp(rho, rc, prof, right=0)
+        r[use] = val[use]; nbd += 1
+    print('beads smoothed: %d' % nbd); new = np.roll(r, -sh, axis=1)
 cv2.imwrite(OUT, np.round(np.clip(new, 0, 1) * 65535).astype(np.uint16))
 print('shapes %d  wrote %s  seam jump |col0-col2395| mean %.4f (cur %.4f)  %.0fs' % (n, OUT, np.abs(new[:, 0] - new[:, -1]).mean(), np.abs(H0[:, 0] - H0[:, -1]).mean(), time.time() - t0))
