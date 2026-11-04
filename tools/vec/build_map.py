@@ -123,7 +123,7 @@ assert new.shape == (520, 2396)
 DROP = os.environ.get('DROPBOX', '1400,320,1470,385')   # 'x0,y0,x1,y1;...' map-px boxes zeroed (one-sided junk blob with no mirror twin, comps ~160+278 px at (1442,341),(1418,360); the 'thorn' cluster). '' = off
 for bx in [b for b in DROP.split(';') if b.strip()]:
     x0, y0, x1, y1 = [int(v) for v in bx.split(',')]; new[y0:y1, x0:x1] = 0
-HOLES = float(os.environ.get('HOLES', .7))   # S2c: enclosed open slits in leaves/vine (ref shows only thin dark vein lines, not wide holes): fill each enclosed hole (area >= HMIN px) to the local leaf level, then cut a narrow centre groove (core = EDT/local-max > HK) of depth HOLES*level, smooth profile. 0 = off
+HOLES = float(os.environ.get('HOLES', .5))   # S2c: enclosed open slits in leaves/vine (ref shows only thin dark vein lines, not wide holes): fill each enclosed hole (area >= HMIN px) to the local leaf level, then cut a narrow centre groove (core = EDT/local-max > HK) of depth HOLES*level, smooth profile. 0 = off
 HMIN, HK = int(os.environ.get('HMIN', 500)), float(os.environ.get('HK', .6))
 if HOLES > 0:
     mk_ = new > .3; hl = ndi.label(ndi.binary_fill_holes(mk_) & ~mk_)[0]; nh = hl.max(); ahl = np.bincount(hl.ravel(), minlength=nh + 1)
