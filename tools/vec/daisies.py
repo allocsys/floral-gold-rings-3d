@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""D82 (S-1): proper 8-petal daisies for the band map.
+The ref has two full side daisies (~13% / 87% of the band) and a full flower at the seam; the vector map had none at the sides
+and a mirrored partial edge flower at the seam (jagged bow petals). This post-step stamps broad, rounded, near-touching petals
+(hairline gaps), a round centre bead and a mesh-ready bevel; wrap-aware in x.
+usage: python3 tools/vec/daisies.py IN.png OUT.png   (run AFTER build_map.py, BEFORE add_berries.py)
+env DAISY 'x,y,L;x,y,L;..' (default '236,258,190;2162,258,190;0,258,195'), N 8, RB 34 (bead radius), GAP 2.4, BW 9 (bevel), WMAX 44,
+    SEAMCLEAR 215 (seam: clear old flower inside this radius, sloped 12 px), MOAT 4
+"""
+import os, sys
+import numpy as np
+import scipy.ndimage as ndi
+from PIL import Image
+
+E = lambda k, d: float(os.environ.get(k, d))
+N = int(E('N', 8)); RB = E('RB', 34); GAP = E('GAP', 2.4); BW = E('BW', 9); WMAX = E('WMAX', 44); MOAT = E('MOAT', 4)
+SEAMCLEAR = E('SEAMCLEAR', 215); SS = 3; SEAMFAR = E('SEAMFAR', 360); SEAMAREA = E('SEAMAREA', 9000)
+DAISY = [tuple(float(v) for v in s.split(',')) for s in os.environ.get('DAISY', '236,258,190;2162,258,190;0,258,195').split(';')]
+
+
+def sstep(a, b, x):
+    t = np.clip((x - a) / (b - a), 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def stamp(A, cx, cy, L):
+    """A: float height map (h,w) with the centre at column cx (int). Returns modified copy."""
+    h, w = A.shape
+    R = int(L + 40)
+    y0, y1 = max(0, int(cy) - R), min(h, int(cy) + R + 1)
+    x0, x1 = cx - R, cx + R + 1
+    ys = (np.arange(y0 * SS, y1 * SS) + .5) / SS - .5
+    xs = (np.arange(x0 * SS, x1 * SS) + .5) / SS - .5
+    dx, dy = xs[None, :] - cx, ys[:, None] - cy
+    r = np.hypot(dx, dy)
+    U0 = RB + 2
+    foot = np.zeros(r.shape, bool); q = np.zeros(r.shape)
+    for k in range(N):
+        a = np.pi * 2 * k / N + np.pi / 2          # petal at top first; symmetric for N=8 about both axes
+        u = dx * np.cos(a) + dy * np.sin(a); t = -dx * np.sin(a) + dy * np.cos(a)
+        s = (u - U0) / (L - U0)
+        c = .55
+        e = np.sqrt(np.clip(1 - ((s - c) / np.where(s < c, c, 1 - c)) ** 2, 0, 1))
+        hw = WMAX * (.35 + .65 * e) * np.sqrt(np.clip((1 - s) / .22, 0, 1))
+        hwlim = (u * np.sin(np.pi / N) - GAP / 2) / np.cos(np.pi / N)
+        aa = .3; hw = -np.log(np.exp(-aa * hw) + np.exp(-aa * np.maximum(hwlim, -50))) / aa
+        m = (s > 0) & (s < 1) & (np.abs(t) < hw)
+        foot |= m
+        q = np.where(m, np.abs(t) / np.maximum(hw, 1e-3), q)
+    bead = r < RB
+    d_in = ndi.distance_transform_edt(foot) / SS                       # px (map units) to petal edge
+    lvl = .62 + .20 * (1 - q ** 2)
+    hp = np.where(foot, lvl * sstep(0, BW, d_in), 0.0)
+    hb = np.where(bead, .80 + .15 * np.sqrt(np.clip(1 - (r / RB) ** 2, 0, 1)), 0.0)
+    new = np.maximum(hp, hb)
+    clr = ndi.distance_transform_edt(~(foot | (r < RB + 2))) / SS < MOAT
+    # downsample to map pixels (area mean)
+    def ds(z): return z.reshape(z.shape[0] // SS, SS, z.shape[1] // SS, SS).mean((1, 3))
+    new_d, clr_d = ds(new), ds(clr.astype(float))
+    sub = A[y0:y1, x0:x1].copy()
+    out = np.where(clr_d > .5, new_d, sub)
+    A = A.copy(); A[y0:y1, x0:x1] = out
+    return A
+
+
+def remove_small(A, cx, cy, rad):
+    lab, n = ndi.label(A > .05)
+    yy, xx = np.mgrid[0:A.shape[0], 0:A.shape[1]]
+    for i in range(1, n + 1):
+        m = lab == i; area = m.sum()
+        if area < 12000:
+            c = ndi.center_of_mass(m)
+            if np.hypot(c[1] - cx, c[0] - cy) < rad:
+                A[ndi.binary_dilation(m, iterations=6)] = 0
+    return A
+
+
+def remove_far(A, cx, cy, rin, rout):
+    # old-flower leftovers (wing tips) outside the new daisy: small comps wholly outside rin and inside rout
+    lab, n = ndi.label(A > .05)
+    yy, xx = np.mgrid[0:A.shape[0], 0:A.shape[1]]
+    rr = np.hypot(xx - cx, yy - cy)
+    for i in range(1, n + 1):
+        m = lab == i; area = m.sum()
+        if area < SEAMAREA and rr[m].min() > rin and rr[m].max() < rout:
+            A[ndi.binary_dilation(m, iterations=6)] = 0
+    return A
+
+
+def main(src, dst):
+    H = np.array(Image.open(src)).astype(np.float64) / 65535.0
+    h, w = H.shape
+    for (x, y, L) in DAISY:
+        sh = w // 2 - int(round(x))
+        A = np.roll(H, sh, axis=1); cx = w // 2
+        yy, xx = np.mgrid[0:h, 0:w]
+        if x == 0 or x >= w - 1:                      # seam flower: clear the mirrored partial flower, sloped edge
+            rr = np.hypot(xx - cx, yy - y)
+            A = A * sstep(SEAMCLEAR - 12, SEAMCLEAR, rr)
+        else:
+            A = remove_small(A, cx, y, L + 25)
+        A = stamp(A, cx, y, L)
+        if x == 0 or x >= w - 1: A = remove_far(A, cx, y, L + 8, SEAMFAR)
+        H = np.roll(A, -sh, axis=1)
+    Image.fromarray(np.clip(np.round(H * 65535), 0, 65535).astype(np.uint16)).save(dst)
+    print('daisies', DAISY, 'changed px', int((np.abs(H - np.array(Image.open(src)).astype(float) / 65535) > .02).sum()))
+
+
+if __name__ == '__main__':
+    main(sys.argv[1], sys.argv[2])
