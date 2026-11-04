@@ -1,4 +1,5 @@
 #!/bin/bash
+# LEGACY: the live maps/band_period.png is now built by tools/vec/build_map.py (input maps/band_raster_src.png, the output of this chain). See SCRIPTS.md.
 # Rebuild the band height map (current chain = v60) from scratch.
 #   bash tools/wip_v3/chain.sh            # full rebuild (~1.5 min for stages 1..51), then the late chain
 #   LATE=1 bash tools/wip_v3/chain.sh     # reuse existing stage1..51 outputs, rerun only 54 -> 56 -> 55 -> 52 -> 55 -> 57
