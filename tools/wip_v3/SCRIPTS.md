@@ -3,7 +3,18 @@
 All take `BAND_OUT` (work dir, default `/tmp/band_v3_out`) and `CROPX` (default 7). Run from anywhere; they locate the repo themselves.
 Invoke with `bash script.sh` / `python3 script.py` (no exec bit). `bash_tool` is /bin/sh, so always use `bash`.
 
-## Fresh sandbox (3 commands)
+## LIVE MAP = VECTOR BUILD (tools/vec, since V3/relief63; current V8/relief68)
+`maps/band_period.png` is built by `tools/vec/build_map.py`, NOT by chain.sh. INPUT = `maps/band_raster_src.png` (the old raster map from the chain below, kept in repo); the live chain no longer needs stages 1-64 to be rerun.
+```
+pip install potracer --break-system-packages          # per sandbox
+python3 tools/vec/build_map.py                        # -> /tmp/vec/band_vec.png (~20 s, 16-bit 520x2396, periodic)
+python3 tools/wip_v3/wire.py /tmp/vec/band_vec.png    # writes map + site/relief_band.js b64 (MESH off); then bump ?v in index.html AND geometry.js relief_band import
+```
+Method: potrace outline of ref mask (SM1.6, UP4) -> corner-protected outline smoothing (OSM 3) -> sub-pixel SDF bevel (W10, SDFS 1.6) -> per-shape interior denoise (median5, LP1, ER3) -> despeckle (DSP 120) -> bead refit (BEAD=1: ellipse + parabolic cap). Env knobs: W SM OPTT ER OSM OCORN TAU LOWS DESPECKLE BEAD. Default build == committed map (bit-identical in the s46-47 sandbox).
+Other files: `wobble.py` (outline inflection/corner metric), `pilot_outline.py` + `pilot_interior.py` (window pilots, history only).
+Revert to the raster map: `git checkout b00d366 -- maps/band_period.png site/relief_band.js` (+ bump ?v).
+
+## Fresh sandbox (3 commands) - LEGACY RASTER CHAIN (stages 1-64, produces band_raster_src.png equivalent)
 ```
 git clone https://github.com/allocsys/floral-gold-rings-3d.git && cd floral-gold-rings-3d
 bash tools/wip_v3/setup.sh               # deps, git identity, starts chain.sh in background
