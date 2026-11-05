@@ -15,7 +15,8 @@ h, w = H.shape
 yy, xx = np.mgrid[0:h, 0:w]
 dx, dy = xx - CX, yy - CY
 r = np.hypot(dx, dy); a = np.degrees(np.arctan2(dy, dx)) % 360
-m = (r >= 92) & (r < 128)
+GR0, GR1 = float(os.environ.get('GR0', 160)), float(os.environ.get('GR1', 200))   # D94: detect the gaps beyond the fill (r 160-200) = all 7 real petal gaps; r 92-128 found a false groove through the odd top petal and missed its two gaps
+m = (r >= GR0) & (r < GR1)
 g = np.array([(H[m & (a >= k) & (a < k + 1)] < .35).mean() for k in range(360)])
 gs = np.convolve(np.r_[g[-3:], g, g[:3]], np.ones(5) / 5, 'same')[3:-3]
 pk, _ = find_peaks(np.r_[gs, gs[:30]], height=.12, distance=15)
@@ -53,6 +54,18 @@ bev = np.clip((r - R0) / BR, 0, 1); bev = bev * bev * (3 - 2 * bev)      # D93 b
 add = np.where(r >= R0, Lp * wr * wmul * bev, 0)
 add = ndi.gaussian_filter(add, .8)
 out = np.maximum(H, add * (r >= R0 - 1))
+# D94: gaps whose natural notch tip lies beyond RF (the two gaps of the odd top petal, tip ~r160): the petals are merged inside the tip, so carve a thin dark wedge from the bead moat out to the tip
+CW = float(os.environ.get('CW', 3.5))
+for k, s in gaps:
+    th = np.radians(k); rr = np.arange(R0 + 8, 270.0)
+    v = ndi.map_coordinates(H, [CY + rr * np.sin(th), CX + rr * np.cos(th)], order=1, mode='wrap')
+    ii = np.where((v < .3) & (rr > 100))[0]
+    if not len(ii) or rr[ii[0]] <= RF + 4: continue
+    tip = rr[ii[0]]; print('carve gap', k, 'tip r', tip)
+    d = np.abs(-dx * np.sin(th) + dy * np.cos(th)); d = np.where(dx * np.cos(th) + dy * np.sin(th) > 0, d, 1e9)
+    wm = np.clip((d / (CW / 2) - .6) / .8, 0, 1)
+    fr = np.clip((tip + 5 - r) / 8, 0, 1) * (r >= R0)
+    out = out * (1 - fr * (1 - wm))
 out = np.where((r > 38) & (r < R0 - 1) & (H > .02), np.minimum(out, H * np.clip((R0 - 1 - r) / 4, 0, 1)), out)   # D93 clean thin moat ring round the bead (r 40..R0)
 Image.fromarray(np.clip(out * 65535 + .5, 0, 65535).astype(np.uint16)).save(dst)
 print('changed px', int((np.abs(out - H) > .01).sum()), 'max', float(np.abs(out - H).max()))
