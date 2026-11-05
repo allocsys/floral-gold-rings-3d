@@ -106,3 +106,5 @@ D90 side daisies removed: daisies.py default DAISY='0,258,195' (seam only) + new
 D91 blunt lower leaf tails removed: daisies.py CUT polygon (left end, mirrored x->w-x) cut out of the big stem comp along the hook's upper edge, stem side slopes over CUTSL 14 (x>=CUTX 400); env CUT=0 disables. relief103
 
 D92 beads fused to leaves detached: daisies.py DETACH (356,72,R52) (+mirror x->w-x): blob+neck within R+DETG cleared, clean hemisphere bead (DETH .75), moat DETG 10 ramping out over 6 px; DETACH=0 disables. relief104
+
+D93 centre flower redo (centre_fill.py, local not yet pushed at time of writing): fan/sunburst plateau replaced by petals running in to a thin dark moat ring around the bead (R0 46, BR 7 bevel), strong gaps = narrow dark wedges to ground (GW0 3 -> GW1 13 px at RF 125), petal lobes domed (LD .14, RD .10), NB 1.0 (no nearest-petal facets), weak peaks = hairline veins only (GD .5). Defaults changed. relief105
