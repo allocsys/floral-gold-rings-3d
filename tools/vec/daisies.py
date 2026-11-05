@@ -4,7 +4,7 @@ The ref has two full side daisies (~13% / 87% of the band) and a full flower at 
 and a mirrored partial edge flower at the seam (jagged bow petals). This post-step stamps broad, rounded, near-touching petals
 (hairline gaps), a round centre bead and a mesh-ready bevel; wrap-aware in x.
 usage: python3 tools/vec/daisies.py IN.png OUT.png   (run AFTER build_map.py, BEFORE add_berries.py)
-env DAISY 'x,y,L;x,y,L;..' (default '236,258,190;2162,258,190;0,258,195'), N 8, RB 34 (bead radius), GAP 2.4, BW 12 (bevel), WMAX 42,
+env DAISY 'x,y,L;x,y,L;..' (default '0,258,195' = seam daisy only), DELETE 'x,y,L;..' (default '236,258,190;2162,258,190': old flower cleared, nothing stamped; D90), N 8, RB 34 (bead radius), GAP 2.4, BW 12 (bevel), WMAX 42,
     SEAMCLEAR 215 (seam: clear old flower inside this radius, sloped 12 px), MOAT 4
 """
 import os, sys
@@ -15,7 +15,10 @@ from PIL import Image
 E = lambda k, d: float(os.environ.get(k, d))
 N = int(E('N', 8)); RB = E('RB', 34); GAP = E('GAP', 2.4); BW = E('BW', 12); WMAX = E('WMAX', 42); MOAT = E('MOAT', 4); DVO = E('DVO', 9); DVHW = E('DVHW', 1.3); DVD = E('DVD', .07); DVR = E('DVR', .03)
 SEAMCLEAR = E('SEAMCLEAR', 215); SS = 3; SEAMFAR = E('SEAMFAR', 360); SEAMAREA = E('SEAMAREA', 12000); SLA = E('SLA', 2500); SLC = E('SLC', .35)
-DAISY = [tuple(float(v) for v in s.split(',')) for s in os.environ.get('DAISY', '236,258,190;2162,258,190;0,258,195').split(';')]
+DAISY = [tuple(float(v) for v in s.split(',')) for s in os.environ.get('DAISY', '0,258,195').split(';')]
+# DELETE: places where the old flower is cleared (small comps within L+25) but NO daisy is stamped (D90: side daisies removed)
+DELAREA = E('DELAREA', 30000)   # D90: bigger cutoff in delete mode so the old wing (~16.6k px) goes too
+DELETE = [tuple(float(v) for v in s.split(',')) for s in os.environ.get('DELETE', '236,258,190;2162,258,190').split(';') if s]
 
 
 def sstep(a, b, x):
@@ -68,12 +71,12 @@ def stamp(A, cx, cy, L):
     return A
 
 
-def remove_small(A, cx, cy, rad):
+def remove_small(A, cx, cy, rad, amax=12000):
     lab, n = ndi.label(A > .05)
     yy, xx = np.mgrid[0:A.shape[0], 0:A.shape[1]]
     for i in range(1, n + 1):
         m = lab == i; area = m.sum()
-        if area < 12000:
+        if area < amax:
             c = ndi.center_of_mass(m)
             if np.hypot(c[1] - cx, c[0] - cy) < rad:
                 A[ndi.binary_dilation(m, iterations=6)] = 0
@@ -100,7 +103,7 @@ def remove_slivers(H):
     lab, n = ndi.label(R > .02)
     yy, xx = np.mgrid[0:h, 0:w]
     near = np.zeros(R.shape, bool)
-    for (x, y, L) in DAISY:
+    for (x, y, L) in DAISY + DELETE:
         cx = (int(round(x)) + sh) % w
         dxw = np.minimum(np.abs(xx - cx), w - np.abs(xx - cx))
         near |= np.hypot(dxw, yy - y) < L + 140
@@ -132,6 +135,17 @@ def main(src, dst):
             A = remove_small(A, cx, y, L + 25)
         A = stamp(A, cx, y, L)
         if x == 0 or x >= w - 1: A = remove_far(A, (A - np.roll(H_in, sh, axis=1)) > .02, cx, y, SEAMFAR)
+        H = np.roll(A, -sh, axis=1)
+    stamped = (H - H_in) > .02                       # new daisy px: never delete comps that contain them
+    for (x, y, L) in DELETE:                         # after the seam clear: the old wing is cut off from the stem there
+        sh = w // 2 - int(round(x))
+        A = np.roll(H, sh, axis=1); P = np.roll(stamped, sh, axis=1)
+        lab, n = ndi.label(A > .05)
+        for i in range(1, n + 1):
+            m = lab == i
+            if m.sum() < DELAREA and not P[m].any():
+                c = ndi.center_of_mass(m)
+                if np.hypot(c[1] - w // 2, c[0] - y) < L + 25: A[ndi.binary_dilation(m, iterations=6)] = 0
         H = np.roll(A, -sh, axis=1)
     H = remove_slivers(H)
     Image.fromarray(np.clip(np.round(H * 65535), 0, 65535).astype(np.uint16)).save(dst)

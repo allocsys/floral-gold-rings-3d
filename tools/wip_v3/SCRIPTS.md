@@ -100,3 +100,5 @@ D86 petal vein = low rib (VEINR .05, half-width VEINO 4.5) + 2 hairline grooves 
 D87 ground micro-dots (tools/vec/ground_dots.py, LAST pipeline step after centre_fill, before wire): seeded poisson dots r 3-6.5 px, h .12-.26 dome, CLR 20 from gold, rows 46..h-46, left half mirrored x->w-x; env SEED RMIN RMAX HMIN HMAX CLR SP YM NMAX. 86x2 dots. NOT idempotent-safe: run once on centre_fill output. relief99
 D88 S-4 leaf slits: tapered cuts along leaf axis (build_map TAPER 1 TW 3.2 TL 1.25 TP 1.6), relief100
 D89 leaf cuts follow hole curvature (build_map TC 1, parabola fit) and TL 1.0, relief101
+
+D90 side daisies removed: daisies.py default DAISY='0,258,195' (seam only) + new DELETE '236,258,190;2162,258,190' (old flower comps < DELAREA 30000 within L+25 cleared AFTER the seam clear, never comps with stamped px; nothing stamped) -> berries/dots refill. relief102
