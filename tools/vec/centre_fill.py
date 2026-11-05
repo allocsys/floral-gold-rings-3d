@@ -22,46 +22,57 @@ gs = np.convolve(np.r_[g[-3:], g, g[:3]], np.ones(5) / 5, 'same')[3:-3]
 pk, _ = find_peaks(np.r_[gs, gs[:30]], height=.12, distance=15)
 gaps = sorted({(int(p % 360), float(gs[p % 360])) for p in pk})
 print('grooves at', [(k, round(s, 2)) for k, s in gaps])
+# D95: per-gap natural notch tip radius along the gap ray (first dark px beyond r100); tip > RF+4 = odd-top-petal gaps (petals merged inside the tip)
+tips = {}
+for k, s in gaps:
+    th = np.radians(k); rr = np.arange(R0 + 8, 270.0)
+    v = ndi.map_coordinates(H, [CY + rr * np.sin(th), CX + rr * np.cos(th)], order=1, mode='wrap')
+    ii = np.where((v < .3) & (rr > 100))[0]
+    tips[k] = float(rr[ii[0]]) if len(ii) else RF
+RM = float(os.environ.get('RM', 160)); LI = float(os.environ.get('LI', .68)); CW = float(os.environ.get('CW', 3.5))
 # perpendicular distance to nearest groove line (px)
-dmin = np.full(H.shape, 1e9); wmul = np.ones(H.shape)
+wmul = np.ones(H.shape)
 for k, s in gaps:
     th = np.radians(k); d = np.abs(-dx * np.sin(th) + dy * np.cos(th)); d = np.where(dx * np.cos(th) + dy * np.sin(th) > 0, d, 1e9)
-    if s > .6:     # D93: real petal gap = narrow dark wedge to ground, widening outward (petals run in to the bead moat)
-        half = (GW0 + (GW1 - GW0) * np.clip((r - R0) / (RF - R0), 0, 1)) / 2; fl = 0.0
-    else:          # central vein: hairline, shallow
-        half = (G0 + GK * np.clip(r - R0, 0, None)) * .6 / 2; fl = GD
-    q = d / half
-    wmul = np.minimum(wmul, fl + (1 - fl) * np.clip((q - .6) / .8, 0, 1))
-Lp = PL0 + (PL1 - PL0) * np.clip((r - R0) / (RF - R0), 0, 1)
-# continue the neighbouring petal surface inward (nearest petal height, smoothed), blend to the plateau near the bead
-NB = float(os.environ.get('NB', 1.0))   # D93 plateau (no nearest-petal facets); petal lobes are domed below
-valid = (H > .3) & (r > RF + 6)
+    if tips[k] > RF + 4: half = np.full(H.shape, CW / 2)         # narrow wedge up to the notch tip
+    else: half = (GW0 + (GW1 - GW0) * np.clip((r - R0) / (RF - R0), 0, 1)) / 2   # wedge widens to the rim, then stays (natural notch takes over)
+    wmul = np.minimum(wmul, np.clip((d / half - .6) / .8, 0, 1))
+# D95: ONE smooth ramp per petal: from LI at the bead moat to the real outer petal height at r=RM (nearest outer petal height, smoothed), lobes domed between the gap lines
+valid = (H > .5) & (r >= RM)
 idx = ndi.distance_transform_edt(~valid, return_distances=False, return_indices=True)
-pv = ndi.gaussian_filter(H[idx[0], idx[1]], 4.0)
-t = NB * np.clip((RF - r) / (RF - R0), 0, 1)
-Lp = np.where(r < RF + 20, (1 - t) * np.clip(pv, .55, .85) + t * Lp, Lp)
-# D93: each petal lobe = smooth dome between its two gap lines (u 0..1 across the sector), rising outward
+Hm = np.clip(ndi.gaussian_filter(H[idx[0], idx[1]], 3.0), .55, .9)
+t = np.clip((r - R0 - BR) / (RM - R0 - BR), 0, 1); S = t * t * (3 - 2 * t)
+Lp = LI + (Hm - LI) * S
 sa = np.array(sorted(k for k, sc in gaps if sc > .6), float)
 if len(sa) >= 3:
     ext = np.r_[sa[-1] - 360, sa, sa[0] + 360]
     ii = np.clip(np.searchsorted(ext, a, side='right'), 1, len(ext) - 1)
     u = (a - ext[ii - 1]) / (ext[ii] - ext[ii - 1])
     lobe = (1 - LD) + LD * 4 * u * (1 - u)
-    Lp = Lp * lobe * (1 - RD + RD * np.clip((r - R0) / (RF - R0), 0, 1))
-wr = np.clip((RF + RFE - r) / (2 * RFE), 0, 1); wr = wr * wr * (3 - 2 * wr)   # smoothstep taper at the rim
-wr = np.where(r < RF - RFE, 1.0, wr)
-bev = np.clip((r - R0) / BR, 0, 1); bev = bev * bev * (3 - 2 * bev)      # D93 bevel up from the bead moat
-add = np.where(r >= R0, Lp * wr * wmul * bev, 0)
+    Lp = Lp * (1 - (1 - lobe) * (1 - S))
+bev = np.clip((r - R0) / BR, 0, 1); bev = bev * bev * (3 - 2 * bev)      # bevel up from the bead moat
+gnd = (H < .3) & (r >= 105) & (r < 300)                                    # natural notches beyond the fill stay open; isolated dark pockets (not connected to the outer ground) are filled
+lab, nl = ndi.label(gnd); keep = np.unique(lab[gnd & (r >= RM + 40)]); nat = ndi.gaussian_filter(np.isin(lab, keep[keep > 0]).astype(float), 1.0)
+# D95: vein hairlines continue inward to the bead: 2 per petal at the petal mid-angle, offset VO at RM converging to the bead
+VO, VW, VD = float(os.environ.get('VO', 4.5)), float(os.environ.get('VW', 1.2)), float(os.environ.get('VD', .12))
+vf = np.ones(H.shape)
+if len(sa) >= 3:
+    for i in range(len(ext) - 1):
+        a0, a1 = ext[i], ext[i + 1]
+        if a1 - a0 > 90 or a1 < -1 or a0 > 361: continue
+        th = np.radians((a0 + a1) / 2); d = -dx * np.sin(th) + dy * np.cos(th); fw = dx * np.cos(th) + dy * np.sin(th) > 0
+        tt = np.clip((r - R0 - 8) / (RM - R0 - 8), 0, 1); off = 1.2 + (VO - 1.2) * tt
+        dep = VD * np.clip((r - R0 - 6) / 14, 0, 1) * (1 - .5 * tt)
+        for sg in (-1, 1): vf = np.minimum(vf, 1 - np.where(fw, dep * np.exp(-((d - sg * off) / VW) ** 2), 0))
+add = np.where((r >= R0) & (r < RM + 25), Lp * wmul * bev * (1 - nat) * vf, 0)
+wr = np.clip((RM + 20 - r) / 20, 0, 1); wr = wr * wr * (3 - 2 * wr)
 add = ndi.gaussian_filter(add, .8)
-out = np.maximum(H, add * (r >= R0 - 1))
-# D94: gaps whose natural notch tip lies beyond RF (the two gaps of the odd top petal, tip ~r160): the petals are merged inside the tip, so carve a thin dark wedge from the bead moat out to the tip
-CW = float(os.environ.get('CW', 3.5))
+out = np.maximum(H, add * wr * (r >= R0 - 1))
+# D94: gaps whose notch tip lies beyond RF (odd top petal): petals are merged inside the tip, so carve the thin dark wedge into H too
 for k, s in gaps:
-    th = np.radians(k); rr = np.arange(R0 + 8, 270.0)
-    v = ndi.map_coordinates(H, [CY + rr * np.sin(th), CX + rr * np.cos(th)], order=1, mode='wrap')
-    ii = np.where((v < .3) & (rr > 100))[0]
-    if not len(ii) or rr[ii[0]] <= RF + 4: continue
-    tip = rr[ii[0]]; print('carve gap', k, 'tip r', tip)
+    tip = tips[k]
+    if tip <= RF + 4: continue
+    print('carve gap', k, 'tip r', tip); th = np.radians(k)
     d = np.abs(-dx * np.sin(th) + dy * np.cos(th)); d = np.where(dx * np.cos(th) + dy * np.sin(th) > 0, d, 1e9)
     wm = np.clip((d / (CW / 2) - .6) / .8, 0, 1)
     fr = np.clip((tip + 5 - r) / 8, 0, 1) * (r >= R0)
