@@ -139,6 +139,17 @@ if HOLES > 0:
     w_ = sm(ring.astype(float), 12); v_ = sm(new * ring, 12); Lf = np.where(w_ > 1e-4, v_ / np.maximum(w_, 1e-4), 0)   # local leaf level around each hole
     d_ = ndi.distance_transform_edt(sel); dm = ndi.maximum_filter(d_, size=41); core = (d_ / np.maximum(dm, 1e-3) > HK) & sel
     G = np.clip(sm(core.astype(float), 1.6) * 2.2, 0, 1)
+    TAPER = int(os.environ.get('TAPER', 1))   # S-4: replace the oval groove core by a long tapered cut along each hole's principal axis (lens: half-width TW*(1-|t|^TP), half-length = TL * hole half-length, pointed ends)
+    if TAPER:
+        TW, TL, TP = float(os.environ.get('TW', 3.2)), float(os.environ.get('TL', 1.25)), float(os.environ.get('TP', 1.6))
+        Y_, X_ = np.mgrid[:new.shape[0], :new.shape[1]]; tap = np.zeros(new.shape, bool); T = np.zeros(new.shape)
+        for i in [i for i in range(1, nh + 1) if ahl[i] >= HMIN]:
+            ys, xs = np.nonzero(hl == i); cx_, cy_ = xs.mean(), ys.mean(); w2, v2 = np.linalg.eigh(np.cov(np.vstack([xs, ys])))
+            ax = v2[:, 1]; nx_ = np.array([-ax[1], ax[0]]); a_ = np.sqrt(ahl[i] / np.pi)
+            hl_ = max(np.abs((xs - cx_) * ax[0] + (ys - cy_) * ax[1]).max(), 6) * TL
+            tt = ((X_ - cx_) * ax[0] + (Y_ - cy_) * ax[1]) / hl_; nn = (X_ - cx_) * nx_[0] + (Y_ - cy_) * nx_[1]
+            hw = TW * np.clip(1 - np.abs(tt) ** TP, 0, 1); T = np.maximum(T, np.where(np.abs(tt) < 1, np.clip(hw + .8 - np.abs(nn), 0, 1), 0))
+        G = np.clip(sm(T, .8) * 1.0, 0, 1)
     new = np.where(sel_d, Lf * (1 - HOLES * G), new)
     print('holes closed: %d of %d (px %d), groove core %d px' % (len([i for i in range(1, nh + 1) if ahl[i] >= HMIN]), nh, sel.sum(), core.sum()))
 DSP = int(os.environ.get('DESPECKLE', 120))   # remove isolated raised comps (H>.05) smaller than DSP px (floating specks on the ground); wrap-aware

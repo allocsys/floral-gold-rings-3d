@@ -98,3 +98,4 @@ D84 daisies.py leftovers cleanup: seam wing remnants (comps with no new daisy pi
 D85 centre_fill spokes -> shallow hairlines (G0 1.3, GK .02, GD .5 floor); relief97. Rib+hairlines per petal (VEIN) still to do.
 D86 petal vein = low rib (VEINR .05, half-width VEINO 4.5) + 2 hairline grooves at +-VEINO (VEINHW 1.3, depth VEIN .15) in build_map (main + SEAMVEIN); daisies.py DVO 9 DVHW 1.3 DVD .07 DVR .03 tapered rib+hairlines per petal. relief98
 D87 ground micro-dots (tools/vec/ground_dots.py, LAST pipeline step after centre_fill, before wire): seeded poisson dots r 3-6.5 px, h .12-.26 dome, CLR 20 from gold, rows 46..h-46, left half mirrored x->w-x; env SEED RMIN RMAX HMIN HMAX CLR SP YM NMAX. 86x2 dots. NOT idempotent-safe: run once on centre_fill output. relief99
+D88 S-4 leaf slits: tapered cuts along leaf axis (build_map TAPER 1 TW 3.2 TL 1.25 TP 1.6), relief100
