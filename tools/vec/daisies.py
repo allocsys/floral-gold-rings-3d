@@ -17,6 +17,10 @@ N = int(E('N', 8)); RB = E('RB', 34); GAP = E('GAP', 2.4); BW = E('BW', 12); WMA
 SEAMCLEAR = E('SEAMCLEAR', 215); SS = 3; SEAMFAR = E('SEAMFAR', 360); SEAMAREA = E('SEAMAREA', 12000); SLA = E('SLA', 2500); SLC = E('SLC', .35)
 DAISY = [tuple(float(v) for v in s.split(',')) for s in os.environ.get('DAISY', '0,258,195').split(';')]
 # DELETE: places where the old flower is cleared (small comps within L+25) but NO daisy is stamped (D90: side daisies removed)
+# D91: blunt leaf tails next to the seam daisy: polygon (map x,y; left end) cut out of the big stem comp, mirrored x->w-x for the right end;
+# stem side of the cut slopes up over CUTSL px (only for x>=CUTX; the hook top edge left of that stays crisp)
+CUT = [[(100, 270), (466, 270), (466, 400), (450, 418), (430, 432), (400, 441), (100, 441)]] if os.environ.get('CUT', '1') == '1' else []
+CUTSL = E('CUTSL', 14); CUTX = E('CUTX', 400)
 DELAREA = E('DELAREA', 30000)   # D90: bigger cutoff in delete mode so the old wing (~16.6k px) goes too
 DELETE = [tuple(float(v) for v in s.split(',')) for s in os.environ.get('DELETE', '236,258,190;2162,258,190').split(';') if s]
 
@@ -121,6 +125,28 @@ def remove_slivers(H):
     return np.roll(R, -sh, axis=1)
 
 
+def cut_leaves(H):
+    import cv2
+    h, w = H.shape
+    lab, n = ndi.label(H > .05)
+    big = np.zeros(H.shape, bool)
+    for i in range(1, n + 1):
+        m = lab == i
+        if m.sum() > 60000: big |= m
+    yy, xx = np.mgrid[0:h, 0:w]
+    for poly in CUT:
+        for mir in (0, 1):
+            P = np.array([((w - x) if mir else x, y) for x, y in poly], np.int32)
+            pm = np.zeros(H.shape, np.uint8); cv2.fillPoly(pm, [P], 1); pm = pm.astype(bool)
+            kill = pm & big
+            ux = (w - xx) if mir else xx
+            dist = ndi.distance_transform_edt(~kill)
+            near = big & ~kill & (dist < CUTSL) & (ux >= CUTX)      # stem side slopes up from the cut
+            H = np.where(kill, 0, H)
+            H = np.where(near, H * sstep(0, CUTSL, dist), H)
+    return H
+
+
 def main(src, dst):
     H = np.array(Image.open(src)).astype(np.float64) / 65535.0
     h, w = H.shape; H_in = H.copy()
@@ -147,6 +173,7 @@ def main(src, dst):
                 c = ndi.center_of_mass(m)
                 if np.hypot(c[1] - w // 2, c[0] - y) < L + 25: A[ndi.binary_dilation(m, iterations=6)] = 0
         H = np.roll(A, -sh, axis=1)
+    H = cut_leaves(H)
     H = remove_slivers(H)
     Image.fromarray(np.clip(np.round(H * 65535), 0, 65535).astype(np.uint16)).save(dst)
     print('daisies', DAISY, 'changed px', int((np.abs(H - np.array(Image.open(src)).astype(float) / 65535) > .02).sum()))
