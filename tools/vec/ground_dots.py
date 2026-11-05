@@ -10,10 +10,16 @@ import numpy as np
 import scipy.ndimage as ndi
 from PIL import Image
 E = lambda k, d: float(os.environ.get(k, d))
-SEED = int(E('SEED', 7)); RMIN, RMAX = E('RMIN', 3), E('RMAX', 6.5); HMIN, HMAX = E('HMIN', .12), E('HMAX', .26)
-CLR, SP, YM, NMAX = E('CLR', 20), E('SP', 24), int(E('YM', 46)), int(E('NMAX', 400))
+SEED = int(E('SEED', 7)); RMIN, RMAX = E('RMIN', 6), E('RMAX', 11); HMIN, HMAX = E('HMIN', .12), E('HMAX', .26)   # D98: measured vs ref: ~12-20 distinct small dots per centre window, r ~6-12 map px (was 60 dots r 2.5-5.7)
+CLR, SP, YM, NMAX = E('CLR', 20), E('SP', 70), int(E('YM', 46)), int(E('NMAX', 400))
 H = np.array(Image.open(sys.argv[1])).astype(np.float64) / 65535
 h, w = H.shape
+if int(E('CLEAN', 0)):   # strip the domes of an earlier ground_dots run (small isolated low comps, max < .3) so the dots can be re-placed with new params
+    lab0, n0 = ndi.label(H > .06); ids0 = range(1, n0 + 1)
+    ar0 = np.array(ndi.sum(np.ones_like(H), lab0, ids0)); mx0 = np.array(ndi.maximum(H, lab0, ids0))
+    m0 = ndi.binary_dilation(np.isin(lab0, np.where((ar0 < 260) & (mx0 < .3))[0] + 1), iterations=2)
+    print('CLEAN: removed', int(((ar0 < 260) & (mx0 < .3)).sum()), 'old ground dots')
+    H = np.where(m0 & (H < .3), 0, H)
 gold = H > .05
 ok = ndi.distance_transform_edt(~gold) >= CLR
 ok[:YM] = False; ok[h - YM:] = False
