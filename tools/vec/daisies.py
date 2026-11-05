@@ -21,6 +21,10 @@ DAISY = [tuple(float(v) for v in s.split(',')) for s in os.environ.get('DAISY', 
 # stem side of the cut slopes up over CUTSL px (only for x>=CUTX; the hook top edge left of that stays crisp)
 CUT = [[(100, 270), (466, 270), (466, 400), (450, 418), (430, 432), (400, 441), (100, 441)]] if os.environ.get('CUT', '1') == '1' else []
 CUTSL = E('CUTSL', 14); CUTX = E('CUTX', 400)
+# D92: beads fused to a leaf: (x,y,R) = old blob centre/size (left end, mirrored x->w-x). Everything within R+DETG is replaced by a clean
+# hemisphere bead (peak DETH, like the other berries) with a ground moat DETG px wide around it (ramps back to the leaf over 6 px)
+DETACH = [(356, 72, 52)] if os.environ.get('DETACH', '1') == '1' else []
+DETG = E('DETG', 10); DETH = E('DETH', .75)
 DELAREA = E('DELAREA', 30000)   # D90: bigger cutoff in delete mode so the old wing (~16.6k px) goes too
 DELETE = [tuple(float(v) for v in s.split(',')) for s in os.environ.get('DELETE', '236,258,190;2162,258,190').split(';') if s]
 
@@ -147,6 +151,17 @@ def cut_leaves(H):
     return H
 
 
+def detach_beads(H):
+    h, w = H.shape
+    yy, xx = np.mgrid[0:h, 0:w]
+    for (x, y, R) in DETACH:
+        for cx in (x, w - x):
+            d = np.hypot(xx - cx, yy - y)
+            H = np.where(d < R + DETG + 6, H * sstep(R + DETG, R + DETG + 6, d), H)    # clear blob + neck, moat ramps out
+            H = np.where(d <= R, DETH * np.sqrt(np.clip(1 - (d / R) ** 2, 0, 1)), H)   # clean dome
+    return H
+
+
 def main(src, dst):
     H = np.array(Image.open(src)).astype(np.float64) / 65535.0
     h, w = H.shape; H_in = H.copy()
@@ -174,6 +189,7 @@ def main(src, dst):
                 if np.hypot(c[1] - w // 2, c[0] - y) < L + 25: A[ndi.binary_dilation(m, iterations=6)] = 0
         H = np.roll(A, -sh, axis=1)
     H = cut_leaves(H)
+    H = detach_beads(H)
     H = remove_slivers(H)
     Image.fromarray(np.clip(np.round(H * 65535), 0, 65535).astype(np.uint16)).save(dst)
     print('daisies', DAISY, 'changed px', int((np.abs(H - np.array(Image.open(src)).astype(float) / 65535) > .02).sum()))

@@ -104,3 +104,5 @@ D89 leaf cuts follow hole curvature (build_map TC 1, parabola fit) and TL 1.0, r
 D90 side daisies removed: daisies.py default DAISY='0,258,195' (seam only) + new DELETE '236,258,190;2162,258,190' (old flower comps < DELAREA 30000 within L+25 cleared AFTER the seam clear, never comps with stamped px; nothing stamped) -> berries/dots refill. relief102
 
 D91 blunt lower leaf tails removed: daisies.py CUT polygon (left end, mirrored x->w-x) cut out of the big stem comp along the hook's upper edge, stem side slopes over CUTSL 14 (x>=CUTX 400); env CUT=0 disables. relief103
+
+D92 beads fused to leaves detached: daisies.py DETACH (356,72,R52) (+mirror x->w-x): blob+neck within R+DETG cleared, clean hemisphere bead (DETH .75), moat DETG 10 ramping out over 6 px; DETACH=0 disables. relief104
