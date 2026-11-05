@@ -96,3 +96,4 @@ D82 daisies (tools/vec/daisies.py): pipeline now build_map -> daisies -> add_ber
 D83 daisy petals rounded: elliptical tips (no kite point), WMAX 42, quarter-round bevel BW 12, flatter dome (.70+.10). relief95
 D84 daisies.py leftovers cleanup: seam wing remnants (comps with no new daisy pixels within SEAMFAR 360 of seam), thin slivers + 1-px specks near daisies (SLA 2500, SLC .35 circularity). relief96. NOTE: never pipe run to head (SIGPIPE kills later stages).
 D85 centre_fill spokes -> shallow hairlines (G0 1.3, GK .02, GD .5 floor); relief97. Rib+hairlines per petal (VEIN) still to do.
+D86 petal vein = low rib (VEINR .05, half-width VEINO 4.5) + 2 hairline grooves at +-VEINO (VEINHW 1.3, depth VEIN .15) in build_map (main + SEAMVEIN); daisies.py DVO 9 DVHW 1.3 DVD .07 DVR .03 tapered rib+hairlines per petal. relief98

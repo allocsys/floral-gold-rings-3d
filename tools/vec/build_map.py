@@ -82,7 +82,7 @@ for i, sl in enumerate(objs, 1):
     rd = ndi.binary_dilation(reg, iterations=2)
     sub = level[y0:y1, x0:x1]; sub[rd] = f[rd]
 level = np.maximum(level, .35)
-PL = float(os.environ.get('PLUMP', 0.25)); VD = float(os.environ.get('VEIN', 0.15)); VW = float(os.environ.get('VEINW', 5.0))   # S2: PL = petal dome (rim lowered by PL*level, peak unchanged, per-shape local inscribed radius); VD = central vein groove depth (fraction of level), VW = half-width (map px)
+PL = float(os.environ.get('PLUMP', 0.25)); VD = float(os.environ.get('VEIN', 0.15)); VW = float(os.environ.get('VEINW', 5.0)); VO = float(os.environ.get('VEINO', 4.5)); VHW = float(os.environ.get('VEINHW', 1.3)); VR = float(os.environ.get('VEINR', .05))   # D86: vein = low central rib (VR, half-width VO) + 2 hairline grooves at +-VO (half-width VHW) instead of one groove (VW kept for legacy)   # S2: PL = petal dome (rim lowered by PL*level, peak unchanged, per-shape local inscribed radius); VD = central vein groove depth (fraction of level), VW = half-width (map px)
 if PL > 0 or VD > 0:
     from skimage.morphology import medial_axis
     inside = vec > .5
@@ -98,7 +98,7 @@ if PL > 0 or VD > 0:
     if VD > 0:   # per-petal central vein: watershed of sdf peaks around each flower centre, straight groove centre->tip (tapered), smooth valley profile
         from skimage.segmentation import watershed
         from skimage.feature import peak_local_max
-        gv = np.zeros_like(sdf); Y, X = np.mgrid[:sdf.shape[0], :sdf.shape[1]]
+        gv = np.zeros_like(sdf); gr = np.zeros_like(sdf); Y, X = np.mgrid[:sdf.shape[0], :sdf.shape[1]]
         for cs in [c for c in os.environ.get('FLOWERS', '1199,240').split(';') if c.strip()]:
             cx, cy = [float(v) + PAD for v in cs.split(',')]
             near = zone & (np.hypot(X - cx, Y - cy) < float(os.environ.get('FR', 230)))
@@ -117,8 +117,10 @@ if PL > 0 or VD > 0:
                 dist = np.hypot(X - (cx + ux * (a0 + t * (a1 - a0))), Y - (cy + uy * (a0 + t * (a1 - a0))))
                 tt = np.clip(((X - cx) * ux + (Y - cy) * uy - a0) / (a1 - a0), -1, 2)
                 taper = np.clip(np.sin(np.pi * np.clip(tt, 0, 1)) * 1.6, 0, 1)
-                gv = np.maximum(gv, np.exp(-(dist / VW) ** 2) * taper * (ws == i))
-        lv2 = lv2 - VD * low * gv
+                sp = np.abs(-(X - cx) * uy + (Y - cy) * ux)
+                gv = np.maximum(gv, np.exp(-((sp - VO) / VHW) ** 2) * taper * (ws == i))
+                gr = np.maximum(gr, np.exp(-(sp / VO) ** 2) * taper * (ws == i))
+        lv2 = lv2 - VD * low * gv + VR * low * gr * (1 - gv)
     level = np.where(zone, lv2, level)
     print('S2: %d petal-size shapes, plump %.2f vein %.2f' % (big_ok.sum(), PL, VD))
 bev = np.clip(sdf / W, 0, 1); bev = bev * bev * (3 - 2 * bev)
@@ -198,7 +200,7 @@ if SV.strip() and VD > 0:
     from skimage.segmentation import watershed
     from skimage.feature import peak_local_max
     R6 = 600; r = np.roll(new, R6, axis=1); Y, X = np.mgrid[:r.shape[0], :r.shape[1]]
-    m = r > .3; sd = sm(ndi.distance_transform_edt(m) - ndi.distance_transform_edt(~m), 1.6); lw = sm(r, 6); gv = np.zeros_like(r)
+    m = r > .3; sd = sm(ndi.distance_transform_edt(m) - ndi.distance_transform_edt(~m), 1.6); lw = sm(r, 6); gv = np.zeros_like(r); gr = np.zeros_like(r)
     for cs in [c for c in SV.split(';') if c.strip()]:
         cx, cy = [float(v) for v in cs.split(',')]; cx = (cx + R6) % new.shape[1]
         near = m & (np.hypot(X - cx, Y - cy) < float(os.environ.get('FR', 230)))
@@ -217,8 +219,9 @@ if SV.strip() and VD > 0:
             dist = np.hypot(X - (cx + ux * (a0 + t * (a1 - a0))), Y - (cy + uy * (a0 + t * (a1 - a0))))
             tt = np.clip(((X - cx) * ux + (Y - cy) * uy - a0) / (a1 - a0), -1, 2)
             taper = np.clip(np.sin(np.pi * np.clip(tt, 0, 1)) * 1.6, 0, 1)
-            gv = np.maximum(gv, np.exp(-(dist / VW) ** 2) * taper * (ws == i) * np.clip((np.hypot(X - cx, Y - cy) - 62) / 8, 0, 1)); nv += 1   # never through the centre bead/moat (r<62)
+            sp = np.abs(-(X - cx) * uy + (Y - cy) * ux); cl = np.clip((np.hypot(X - cx, Y - cy) - 62) / 8, 0, 1)
+            gv = np.maximum(gv, np.exp(-((sp - VO) / VHW) ** 2) * taper * (ws == i) * cl); gr = np.maximum(gr, np.exp(-(sp / VO) ** 2) * taper * (ws == i) * cl); nv += 1   # never through the centre bead/moat (r<62)
         print('seam veins: %d peaks, %d petals grooved at (%s)' % (len(pk), nv, cs))
-    r = r - VD * lw * gv; new = np.roll(r, -R6, axis=1)
+    r = r - VD * lw * gv + VR * lw * gr * (1 - gv); new = np.roll(r, -R6, axis=1)
 cv2.imwrite(OUT, np.round(np.clip(new, 0, 1) * 65535).astype(np.uint16))
 print('shapes %d  wrote %s  seam jump |col0-col2395| mean %.4f (cur %.4f)  %.0fs' % (n, OUT, np.abs(new[:, 0] - new[:, -1]).mean(), np.abs(H0[:, 0] - H0[:, -1]).mean(), time.time() - t0))

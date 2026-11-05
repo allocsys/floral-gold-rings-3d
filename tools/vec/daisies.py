@@ -13,7 +13,7 @@ import scipy.ndimage as ndi
 from PIL import Image
 
 E = lambda k, d: float(os.environ.get(k, d))
-N = int(E('N', 8)); RB = E('RB', 34); GAP = E('GAP', 2.4); BW = E('BW', 12); WMAX = E('WMAX', 42); MOAT = E('MOAT', 4)
+N = int(E('N', 8)); RB = E('RB', 34); GAP = E('GAP', 2.4); BW = E('BW', 12); WMAX = E('WMAX', 42); MOAT = E('MOAT', 4); DVO = E('DVO', 9); DVHW = E('DVHW', 1.3); DVD = E('DVD', .07); DVR = E('DVR', .03)
 SEAMCLEAR = E('SEAMCLEAR', 215); SS = 3; SEAMFAR = E('SEAMFAR', 360); SEAMAREA = E('SEAMAREA', 12000); SLA = E('SLA', 2500); SLC = E('SLC', .35)
 DAISY = [tuple(float(v) for v in s.split(',')) for s in os.environ.get('DAISY', '236,258,190;2162,258,190;0,258,195').split(';')]
 
@@ -34,7 +34,7 @@ def stamp(A, cx, cy, L):
     dx, dy = xs[None, :] - cx, ys[:, None] - cy
     r = np.hypot(dx, dy)
     U0 = RB + 2
-    foot = np.zeros(r.shape, bool); q = np.zeros(r.shape)
+    foot = np.zeros(r.shape, bool); q = np.zeros(r.shape); rib = np.zeros(r.shape); hair = np.zeros(r.shape)
     for k in range(N):
         a = np.pi * 2 * k / N + np.pi / 2          # petal at top first; symmetric for N=8 about both axes
         u = dx * np.cos(a) + dy * np.sin(a); t = -dx * np.sin(a) + dy * np.cos(a)
@@ -47,12 +47,15 @@ def stamp(A, cx, cy, L):
         aa = .3; hw = -np.log(np.exp(-aa * hw) + np.exp(-aa * np.maximum(hwlim, -50))) / aa
         m = (s > 0) & (s < 1) & (np.abs(t) < hw)
         foot |= m
+        tp = np.sin(np.pi * np.clip((s - .10) / .78, 0, 1)) ** 1.3 * (s > .12) * (s < .88)       # D86: rib + 2 hairlines per petal, tapered along the axis
+        rib = np.where(m, np.maximum(rib, np.exp(-(t / DVO) ** 2) * tp), rib)
+        hair = np.where(m, np.maximum(hair, np.exp(-((np.abs(t) - DVO) / DVHW) ** 2) * tp), hair)
         q = np.where(m, np.abs(t) / np.maximum(hw, 1e-3), q)
     bead = r < RB
     d_in = ndi.distance_transform_edt(foot) / SS                       # px (map units) to petal edge
     lvl = .70 + .10 * (1 - q ** 2)
     tb = np.clip(d_in / BW, 0, 1); rb = np.sqrt(1 - (1 - tb) ** 2)     # quarter-round wall
-    hp = np.where(foot, lvl * rb, 0.0)
+    hp = np.where(foot, lvl * rb * (1 - DVD * hair) + DVR * rib * (1 - hair), 0.0)
     hb = np.where(bead, .80 + .15 * np.sqrt(np.clip(1 - (r / RB) ** 2, 0, 1)), 0.0)
     new = np.maximum(hp, hb)
     clr = ndi.distance_transform_edt(~(foot | (r < RB + 2))) / SS < MOAT
