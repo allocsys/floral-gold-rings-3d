@@ -8,7 +8,7 @@ from scipy.signal import find_peaks
 src, dst = sys.argv[1], sys.argv[2]
 CX, CY = [float(v) for v in os.environ.get('CEN', '1199.5,240').split(',')]
 R0 = float(os.environ.get('R0', 36)); RF = float(os.environ.get('RF', 104)); RFE = float(os.environ.get('RFE', 10))
-PL0, PL1 = float(os.environ.get('PL0', .74)), float(os.environ.get('PL1', .72)); G0 = float(os.environ.get('G0', 1.6)); GK = float(os.environ.get('GK', .09))
+PL0, PL1 = float(os.environ.get('PL0', .74)), float(os.environ.get('PL1', .72)); G0 = float(os.environ.get('G0', 1.3)); GK = float(os.environ.get('GK', .02)); GD = float(os.environ.get('GD', .5))
 H = np.array(Image.open(src)).astype(float) / 65535
 h, w = H.shape
 yy, xx = np.mgrid[0:h, 0:w]
@@ -26,7 +26,7 @@ for k, s in gaps:
     th = np.radians(k); d = np.abs(-dx * np.sin(th) + dy * np.cos(th)); d = np.where(dx * np.cos(th) + dy * np.sin(th) > 0, d, 1e9)
     half = (G0 + GK * np.clip(r - R0, 0, None)) * (1.0 if s > .6 else .6) / 2
     q = d / half
-    wmul = np.minimum(wmul, np.clip(q, 0, 1) ** 1.5 * 0 + np.clip((q - .6) / .8, 0, 1))
+    wmul = np.minimum(wmul, GD + (1 - GD) * np.clip((q - .6) / .8, 0, 1))   # D85: hairline, shallow (floor GD of plateau) not to ground
 Lp = PL0 + (PL1 - PL0) * np.clip((r - R0) / (RF - R0), 0, 1)
 # continue the neighbouring petal surface inward (nearest petal height, smoothed), blend to the plateau near the bead
 NB = float(os.environ.get('NB', .55))
