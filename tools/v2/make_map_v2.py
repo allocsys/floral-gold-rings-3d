@@ -188,6 +188,22 @@ H = np.clip(level * bev, 0, 1) * np.clip(B + (sdf > -.3), 0, 1)
 _slw = E('SLW', 9); _wr = np.clip(np.minimum(_r - (29 * sc - 5), (29 * sc + E('COL', 8) + 2.5) - _r) / 3, 0, 1)
 _wa = np.clip((_slw - _r * np.sin(np.radians(np.clip(_gd, 0, 90)))) / 3, 0, 1); _ws = _wr * _wa
 H = np.clip(_ws * sg(H, E('SLG', 1.3)) + (1 - _ws) * H, 0, 1)
+# s88 collar ring ripple: tangential (along-angle) Gaussian of H in the collar band r CR0..CR1 around the flower centre, skipped within CRG deg of the 6 petal gap lines (slits keep their shape). CRS = sigma in px along the ring (0 = off, reproduces prior map)
+_crs = E('CRS', 3.0)
+if _crs > 0:
+    _CR0, _CR1, _CRG = E('CR0', 52), E('CR1', 66), E('CRG', 9)
+    _NA = 2880; _rr = np.arange(40, 80, .5)
+    _th = np.linspace(0, 2 * np.pi, _NA, endpoint=False)
+    _mx = (820.2 + _rr[:, None] * np.cos(_th)[None]).astype(np.float32); _my = (233.7 + _rr[:, None] * np.sin(_th)[None]).astype(np.float32)
+    _pol = cv2.remap(H.astype(np.float32), _mx, _my, cv2.INTER_CUBIC)
+    _sp = ndi.gaussian_filter1d(_pol, _crs / 66 * _NA / (2 * np.pi), axis=1, mode='wrap')
+    _dg = np.min(np.abs((np.degrees(_th)[None] - np.array(FGAP)[:, None] + 180) % 360 - 180), axis=0)
+    _wa = np.clip((_dg - _CRG) / 3, 0, 1)[None]; _wr = np.clip(np.minimum(_rr - _CR0, _CR1 - _rr) / 2, 0, 1)[:, None]
+    _wgt = _wa * _wr; _d = (_sp - _pol) * _wgt
+    _dH = np.zeros(H.shape, np.float32); _cnt = np.zeros(H.shape, np.float32)
+    _xi = np.clip(np.round(_mx).astype(int), 0, TW - 1); _yi = np.clip(np.round(_my).astype(int), 0, TH - 1)
+    np.add.at(_dH, (_yi, _xi), _d); np.add.at(_cnt, (_yi, _xi), 1)
+    _ok = _cnt > 0; H = np.clip(H + np.where(_ok, _dH / np.maximum(_cnt, 1), 0), 0, 1)
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 cv2.imwrite(OUT, (H * 65535).astype(np.uint16))
 m_ = H; gy, gx = np.gradient(m_ * 40); nn = np.dstack([-gx, -gy, np.ones_like(gx)]); nn /= np.linalg.norm(nn, axis=2, keepdims=True)
