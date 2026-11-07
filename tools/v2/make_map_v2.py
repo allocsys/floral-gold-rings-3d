@@ -34,6 +34,14 @@ rr = 6; yy_, xx_ = np.mgrid[-rr:rr + 1, -rr:rr + 1]; disc = (yy_ ** 2 + xx_ ** 2
 opn = ndi.binary_opening(tri(~B), structure=disc)[:, TW:2 * TW]
 thin = ~B & ~opn
 B = B | (thin & (ndi.distance_transform_edt(~tri(B))[:, TW:2 * TW] <= E('GN', 2.5)))
+# D-v2 s74 petal slit fill: the mask subtracted dark ref slits that are really petal ribs (not petal gaps). Inside the flower disc, close B within +-FW deg of each petal axis (gaps lie midway between axes, untouched).
+FCX, FCY = 407 * TW / P, 116 * TW / P; FAX = [357, 57, 117, 177, 237, 297]; FW = E('FW', 14)
+_a = (np.degrees(np.arctan2(np.mgrid[:TH, :TW][0] - FCY, np.mgrid[:TH, :TW][1] - FCX)) % 360); _r = np.hypot(np.mgrid[:TH, :TW][0] - FCY, np.mgrid[:TH, :TW][1] - FCX)
+_ax = np.zeros(B.shape, bool)
+for _t in FAX: _ax |= (np.abs((_a - _t + 180) % 360 - 180) <= FW)
+_zone = _ax & (_r > 62) & (_r < 330)
+_cl = ndi.binary_closing(B, structure=np.ones((3, 3)), iterations=int(E('FCI', 9)))
+B = B | (_cl & _zone)
 # beads (ring-template matched on the ref, tile px x,y,r, moat?, top): carve moat ring, stamp disc
 sc = TW / P; Yg, Xg = np.mgrid[:TH, :TW]
 BEADS = [(407, 116, 29, 1, FBEAD), (593, 151, 22, 1, BEAD), (80, 214, 27, 1, BEAD), (530, 33, 10, 1, BEAD), (302, 224, 9, 1, BEAD), (593, 36, 18, 0, BEAD), (228, 145, 21, 0, .78)]
@@ -56,11 +64,30 @@ if GR > 0:   # thin dark hairlines inside gold (black-hat of ref luminance); wid
     Vb = cv2.GaussianBlur(Vt, (0, 0), 1.0); bh = cv2.morphologyEx(Vb, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)) - Vb
     g = rs(((bh > E('GT', 30))).astype(np.float32)) > .5
     g &= ndi.binary_erosion(B & ~isbead, iterations=14)
+    g &= ~(_r < 335)   # flower petals get procedural veins instead (s74)
     gl, gn = ndi.label(g, structure=np.ones((3, 3))); keep = np.zeros_like(g)
     for k, sl in enumerate(ndi.find_objects(gl), 1):
         h_, w_ = sl[0].stop - sl[0].start, sl[1].stop - sl[1].start
         if max(h_, w_) >= 40: keep |= gl == k
     plate = plate * (1 - GD * sg(keep.astype(np.float32), 1.3) / max(sg(keep.astype(np.float32), 1.3).max(), 1e-3))
+# D-v2 s74 petal veins: per petal ONE rib + 2 diverging hairlines (clean, evenly tapered), straight along the petal axis; replaces the ref's reflection-dependent dark lines
+VR, VH, VW, VO, VS, VE = E('VR', .05), E('VH', .035), E('VW', 1.4), E('VO', 9), E('VS', 80), E('VE', .86)
+VG = np.zeros(B.shape, np.float32)
+def seg_field(p0, p1, t0, t1, w):
+    """gaussian groove around segment p0->p1 with sin-taper along length (t0,t1 = taper fractions)"""
+    d = p1 - p0; L = np.hypot(*d); u = d / L
+    px, py = Xg - p0[0], Yg - p0[1]; s_ = (px * u[0] + py * u[1]) / L; q = np.abs(px * -u[1] + py * u[0])
+    tap = np.clip(np.minimum(s_ / t0, (1 - s_) / t1), 0, 1); tap = np.sin(tap * np.pi / 2) * ((s_ >= 0) & (s_ <= 1))
+    return (np.exp(-.5 * (q / w) ** 2) * tap).astype(np.float32)
+for t in FAX:
+    sel = B & _zone & (np.abs((_a - t + 180) % 360 - 180) <= 5)
+    tipR = _r[sel].max() if sel.any() else 250; L1 = VE * (tipR - VS)
+    u = np.array([np.cos(np.radians(t)), np.sin(np.radians(t))]); n_ = np.array([-u[1], u[0]]); c = np.array([FCX, FCY])
+    VG = np.maximum(VG, VR * seg_field(c + u * VS, c + u * (VS + L1), .12, .35, VW * 1.1))
+    for sgn in (-1, 1):   # hairlines start at 0.15 L with offset 2, diverge to +-VO at the end, run to .8 L
+        a0 = c + u * (VS + .15 * L1) + n_ * sgn * 2; a1 = c + u * (VS + .8 * L1) + n_ * sgn * VO
+        VG = np.maximum(VG, VH * seg_field(a0, a1, .25, .4, VW))
+plate = plate - VG
 level = np.where(big, plate, level)
 bev = np.clip(sdf / W, 0, 1); bev = bev * bev * (3 - 2 * bev)
 H = np.clip(level * bev, 0, 1) * np.clip(B + (sdf > -.3), 0, 1)
