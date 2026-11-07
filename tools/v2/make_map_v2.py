@@ -44,18 +44,21 @@ _cl = ndi.binary_closing(B, structure=np.ones((3, 3)), iterations=int(E('FCI', 9
 B = B | (_cl & _zone)
 # s75 petal bases: per petal, fill the convex hull of its gold (r > RB) inside its own 60 deg sector (inset GAPH px from the gap lines) -> no slit remnants/slivers; clear the ring r < RB around the bead moat; round the base corners (SDF smoothing r < 130)
 RB, GAPH = E('RB', 70), E('GAPH', 1.5)
+GW0, GS, RF = E('GW0', 3.5), E('GS', .04), E('RF', 150)
+_dB = ndi.distance_transform_edt(~B); _sm = np.clip((_r - E('FR0', 110)) / (E('FR1', 210) - E('FR0', 110)), 0, 1); _e = E('FEXP', 14) * (1 - _sm * _sm * (3 - 2 * _sm))   # fill may grow a petal by <= _e px, fading out with r (no hard step)
+_gwr = GW0 + GS * (np.clip(_r, RB, RF) - RB)   # s77 gap half-width (px): narrow at the bead, widening outward (ref gaps are thin dark lines, petal sides straight along them)
 for _t in FAX:
-    _d = np.abs((_a - _t + 180) % 360 - 180); _sec = (_d <= 30) & (_r > RB) & (_r < 340) & (_r * np.sin(np.radians(np.clip(30 - _d, 0, 90))) >= GAPH)
+    _d = np.abs((_a - _t + 180) % 360 - 180); _sec = (_d <= 30) & (_r > RB) & (_r < 340) & (_r * np.sin(np.radians(np.clip(30 - _d, 0, 90))) >= _gwr)
     _m = (B & _sec).astype(np.uint8); _n, _l, _st, _ = cv2.connectedComponentsWithStats(_m, connectivity=8)
     if _n < 2: continue
     _k = 1 + int(np.argmax(_st[1:, cv2.CC_STAT_AREA])); _pts = cv2.findNonZero((_l == _k).astype(np.uint8))
     _hm = np.zeros(B.shape, np.uint8); cv2.fillConvexPoly(_hm, cv2.convexHull(_pts), 1)
-    B = B | ((_hm > 0) & _sec)
+    B = B | ((_hm > 0) & _sec) | (_sec & (_dB <= _e))   # hull + wedge fill toward the gap lines (distance-limited, fades with r)
 B = B & ~((_r < RB) & (_r > 40))
 _B2 = sg(sdf_of(B), E('BSG', 2.5)) > 0
 B = np.where((_r > 55) & (_r < 130), _B2, B)
 _gd = np.min([np.abs((_a - g + 180) % 360 - 180) for g in (27, 87, 147, 207, 267, 327)], axis=0)   # re-cut the 6 radial petal gaps (smoothing can close them)
-B = B & ~((_r * np.sin(np.radians(np.clip(_gd, 0, 90))) < E('GW', 2.5)) & (_r > RB) & (_r < E('GR1', 300)))
+B = B & ~((_r * np.sin(np.radians(np.clip(_gd, 0, 90))) < _gwr) & (_r > RB) & (_r < E('GR1', 300)))
 _l2, _n2 = ndi.label(B); _a2 = np.bincount(_l2.ravel(), minlength=_n2 + 1); B = np.isin(_l2, [i for i in range(1, _n2 + 1) if _a2[i] >= 150])   # drop slivers left by the gap cut
 # beads (ring-template matched on the ref, tile px x,y,r, moat?, top): carve moat ring, stamp disc
 sc = TW / P; Yg, Xg = np.mgrid[:TH, :TW]
