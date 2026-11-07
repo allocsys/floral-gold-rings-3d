@@ -83,6 +83,20 @@ _l2, _n2 = ndi.label(B); _a2 = np.bincount(_l2.ravel(), minlength=_n2 + 1); B = 
 # s79 local corner round: the top-right petal's rim meets its gap line in a tiny hook at map (820,72); SDF-smooth B in a soft window (NCX,NCY,NCR) so only that corner rounds
 _nx, _ny = np.meshgrid(np.arange(TW), np.arange(TH)); _nd = np.hypot(_nx - E('NCX', 821), _ny - E('NCY', 72)); _nw = 1 - np.clip((_nd - E('NCR', 14)) / 8, 0, 1)
 B = np.where(_nw > .5, sg(sdf_of(B), E('NSG', 3)) > 0, B)
+# s84 bay fills: where a dark crease next to a leaf edge was cut out of the mask it opened a bite / left a shaded tail out (diff MISS blobs, x y window radius). Inside these soft windows the map takes the union with the ref's own gold (brightness hysteresis, same detector as diff_v2.py: seeds V>HI 150 grown <=6 px into V>85, opened 3x3, comps/holes <150 dropped), opened 5x5 to drop rim noise. BAY=0 disables.
+BAYS = [(146, 74, 34), (1377, 492, 44)]
+if E('BAY', 1):
+    _ref = cv2.imread('reference/band_face.png')[215:473, 70:2116]
+    _V = cv2.GaussianBlur(cv2.cvtColor(_ref, cv2.COLOR_BGR2GRAY).astype(np.float32), (0, 0), 1.0)
+    _sd = ndi.binary_opening(_V > 150, np.ones((3, 3))); _cd = _V > 85; _g = _sd.copy()
+    for _ in range(6): _g = ndi.binary_dilation(_g, np.ones((3, 3))) & _cd | _sd
+    _g = ndi.binary_opening(_g, np.ones((3, 3))); _l, _n = ndi.label(_g); _ar = np.bincount(_l.ravel(), minlength=_n + 1); _g = np.isin(_l, [i for i in range(1, _n + 1) if _ar[i] >= 150])
+    _e = _g[:, C0:C0 + P + SEAM].astype(np.float32).copy(); _t = _e[:, :P].copy(); _al = (np.arange(SEAM) / SEAM)[None, :]
+    _t[:, :SEAM] = (1 - _al) * _e[:, P:P + SEAM] + _al * _e[:, :SEAM]
+    _Rg = ndi.binary_opening(cv2.resize(_t, (TW, TH), interpolation=cv2.INTER_CUBIC) > .5, np.ones((5, 5)))
+    _bx, _by = np.meshgrid(np.arange(TW), np.arange(TH))
+    for _cx, _cy, _wr in BAYS:
+        B = B | (_Rg & (np.hypot(_bx - _cx, _by - _cy) <= _wr))
 # beads (ring-template matched on the ref, tile px x,y,r, moat?, top): carve moat ring, stamp disc
 sc = TW / P; Yg, Xg = np.mgrid[:TH, :TW]
 BEADS = [(407, 116, 29, 1, FBEAD), (593, 151, 22, 1, BEAD), (80, 214, 27, 1, BEAD), (530, 33, 10, 1, BEAD), (302, 224, 9, 1, BEAD), (593, 36, 18, 0, BEAD), (228, 145, 21, 0, .78)]
