@@ -42,6 +42,21 @@ for _t in FAX: _ax |= (np.abs((_a - _t + 180) % 360 - 180) <= FW)
 _zone = _ax & (_r > 62) & (_r < 330)
 _cl = ndi.binary_closing(B, structure=np.ones((3, 3)), iterations=int(E('FCI', 9)))
 B = B | (_cl & _zone)
+# s75 petal bases: per petal, fill the convex hull of its gold (r > RB) inside its own 60 deg sector (inset GAPH px from the gap lines) -> no slit remnants/slivers; clear the ring r < RB around the bead moat; round the base corners (SDF smoothing r < 130)
+RB, GAPH = E('RB', 70), E('GAPH', 1.5)
+for _t in FAX:
+    _d = np.abs((_a - _t + 180) % 360 - 180); _sec = (_d <= 30) & (_r > RB) & (_r < 340) & (_r * np.sin(np.radians(np.clip(30 - _d, 0, 90))) >= GAPH)
+    _m = (B & _sec).astype(np.uint8); _n, _l, _st, _ = cv2.connectedComponentsWithStats(_m, connectivity=8)
+    if _n < 2: continue
+    _k = 1 + int(np.argmax(_st[1:, cv2.CC_STAT_AREA])); _pts = cv2.findNonZero((_l == _k).astype(np.uint8))
+    _hm = np.zeros(B.shape, np.uint8); cv2.fillConvexPoly(_hm, cv2.convexHull(_pts), 1)
+    B = B | ((_hm > 0) & _sec)
+B = B & ~((_r < RB) & (_r > 40))
+_B2 = sg(sdf_of(B), E('BSG', 2.5)) > 0
+B = np.where((_r > 55) & (_r < 130), _B2, B)
+_gd = np.min([np.abs((_a - g + 180) % 360 - 180) for g in (27, 87, 147, 207, 267, 327)], axis=0)   # re-cut the 6 radial petal gaps (smoothing can close them)
+B = B & ~((_r * np.sin(np.radians(np.clip(_gd, 0, 90))) < E('GW', 2.5)) & (_r > RB) & (_r < E('GR1', 300)))
+_l2, _n2 = ndi.label(B); _a2 = np.bincount(_l2.ravel(), minlength=_n2 + 1); B = np.isin(_l2, [i for i in range(1, _n2 + 1) if _a2[i] >= 150])   # drop slivers left by the gap cut
 # beads (ring-template matched on the ref, tile px x,y,r, moat?, top): carve moat ring, stamp disc
 sc = TW / P; Yg, Xg = np.mgrid[:TH, :TW]
 BEADS = [(407, 116, 29, 1, FBEAD), (593, 151, 22, 1, BEAD), (80, 214, 27, 1, BEAD), (530, 33, 10, 1, BEAD), (302, 224, 9, 1, BEAD), (593, 36, 18, 0, BEAD), (228, 145, 21, 0, .78)]
