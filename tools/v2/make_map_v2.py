@@ -102,11 +102,20 @@ if E('BAY', 1):
     CUTS = [(396, 319, 26), (575, 312, 30)]
     for _cx, _cy, _wr in CUTS:
         B = B & ~(_Dk & (np.hypot(_bx - _cx, _by - _cy) <= _wr))
+    # s86 ref-shape windows (x, y, radius): inside, the map silhouette becomes the ref's own (ref gold union, minus ref-dark recess), level-set smoothed RSG. REFW=0 disables.
+    REFW = [(1495, 395, 75), (438, 258, 16), (396, 319, 34)]   # bottom-right pointed leaf recess; curl-head groove pocket; gap beside the curl
+    if E('REFW', 1):
+        _ev = _V[:, C0:C0 + P + SEAM].copy(); _tv = _ev[:, :P].copy(); _tv[:, :SEAM] = (1 - _al) * _ev[:, P:P + SEAM] + _al * _ev[:, :SEAM]
+        _Dk2 = ndi.binary_opening(cv2.resize(_tv, (TW, TH), interpolation=cv2.INTER_CUBIC) < E('RDT', 50), np.ones((E('RDO', 3).__int__(),) * 2)); _l3, _n3 = ndi.label(_Dk2); _a3 = np.bincount(_l3.ravel(), minlength=_n3 + 1); _Dk2 = np.isin(_l3, [i for i in range(1, _n3 + 1) if _a3[i] >= 60])
+        _Bn = (ndi.binary_dilation(B | _Rg, iterations=E('RGR', 8).__int__()) & ~_Dk2) if E('RFILL', 1) else ((B | _Rg) & ~_Dk2); _Bs = sg(sdf_of(_Bn), E('RSG', 1.5)) > 0
+        for _cx, _cy, _wr in REFW:
+            B = np.where(np.hypot(_bx - _cx, _by - _cy) <= _wr, _Bs, B)
 # beads (ring-template matched on the ref, tile px x,y,r, moat?, top): carve moat ring, stamp disc
 sc = TW / P; Yg, Xg = np.mgrid[:TH, :TW]
 BEADS = [(407, 116, 29, 1, FBEAD), (593, 151, 22, 1, BEAD), (80, 214, 27, 1, BEAD), (530, 33, 10, 1, BEAD), (302, 224, 9, 1, BEAD), (593, 36, 18, 0, BEAD), (228, 145, 21, 0, .78)]
 if E('BFIT', 1):   # s85 circles refitted (robust LSQ) to the ref gold outline, edge px with ground outside; only beads with >=33/36 angular bins covered (the (302,224) and curl-ball (228,145) fits were contaminated, kept)
     BEADS[1] = (592.7, 151.9, 22.29, 1, BEAD); BEADS[2] = (81.0, 214.1, 27.2, 1, BEAD); BEADS[3] = (530.9, 34.0, 9.93, 1, BEAD); BEADS[5] = (592.8, 36.4, 18.31, 0, BEAD)
+if E('NOCURL', 1): BEADS = [_b for _b in BEADS if _b[0] != 228]   # s86: the curl-head 'ball' (228,145) is the scroll's own rounded end in the ref (no sphere, no circle edge): let the scroll plateau carry it
 dist_b = np.full(B.shape, 1e9, np.float32)
 for bx, by, br, moat, top in BEADS:
     d = np.hypot(Xg - bx * sc, Yg - by * sc); R = br * sc
@@ -165,6 +174,8 @@ if _LUM > 0:   # s76 faint shape-from-shading: ref luminance (blurred) relative 
     _mu = sg(_Vl * _w, 30) / np.maximum(sg(_w, 30), 1e-3)
     plate = plate + _LUM * np.clip((_Vl - _mu) / 60, -1, 1) * np.clip((_r - 300) / 60, 0, 1) * sg(_w, 2)
 plate = plate - VG
+if E('NOCURL', 1) and E('CB', .25) > 0:   # s86: gentle rounded swell on the scroll's curl head (ref head is a lit round end), smooth falloff so no circle edge
+    _dc = np.hypot(Xg - 228 * sc, Yg - 145 * sc) / (E('CBR', 1.15) * 21 * sc); plate = plate + E('CB', .25) * (1 - np.clip(_dc, 0, 1) ** 2) ** 2
 level = np.where(big, plate, level)
 _sb = sg(sdf, E('SBS', 2.0)) if E('SBS', 2.0) > 0 else sdf   # s79 rim faceting: bevel ramp from a smoother SDF (binary-mask staircase made stripes on the rims)
 bev = np.clip(_sb / W, 0, 1); bev = bev * bev * (3 - 2 * bev)
