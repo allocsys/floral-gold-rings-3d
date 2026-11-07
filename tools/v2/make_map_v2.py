@@ -35,7 +35,8 @@ opn = ndi.binary_opening(tri(~B), structure=disc)[:, TW:2 * TW]
 thin = ~B & ~opn
 B = B | (thin & (ndi.distance_transform_edt(~tri(B))[:, TW:2 * TW] <= E('GN', 2.5)))
 # D-v2 s74 petal slit fill: the mask subtracted dark ref slits that are really petal ribs (not petal gaps). Inside the flower disc, close B within +-FW deg of each petal axis (gaps lie midway between axes, untouched).
-FCX, FCY = 407 * TW / P, 116 * TW / P; FAX = [357, 57, 117, 177, 237, 297]; FW = E('FW', 14)
+FCX, FCY = 407 * TW / P, 116 * TW / P; # s80: MEASURED petal gap angles in the new ref (valley centroid of ref brightness about the flower centre, r80..180 median; deg, 0=+x, y down): the ref flower is NOT 60-deg regular (spacings 56.9..64). Axes = midpoints of neighbouring gaps, FHW = half sector widths.
+FGAP = [31.8, 88.7, 146.8, 210.8, 271.0, 329.3]; FAX = [(FGAP[i] + FGAP[(i + 1) % 6] + (360 if i == 5 else 0)) / 2 % 360 for i in range(6)]; FHW = [((FGAP[(i + 1) % 6] + (360 if i == 5 else 0)) - FGAP[i]) / 2 for i in range(6)]; FW = E('FW', 14)
 _a = (np.degrees(np.arctan2(np.mgrid[:TH, :TW][0] - FCY, np.mgrid[:TH, :TW][1] - FCX)) % 360); _r = np.hypot(np.mgrid[:TH, :TW][0] - FCY, np.mgrid[:TH, :TW][1] - FCX)
 _ax = np.zeros(B.shape, bool)
 for _t in FAX: _ax |= (np.abs((_a - _t + 180) % 360 - 180) <= FW)
@@ -47,8 +48,8 @@ RB, GAPH = E('RB', 74), E('GAPH', 1.5)
 GW0, GS, RF = E('GW0', 3.5), E('GS', .04), E('RF', 150)
 _dB = ndi.distance_transform_edt(~B); _sm = np.clip((_r - E('FR0', 110)) / (E('FR1', 210) - E('FR0', 110)), 0, 1); _e = E('FEXP', 14) * (1 - _sm * _sm * (3 - 2 * _sm))   # fill may grow a petal by <= _e px, fading out with r (no hard step)
 _gwr = GW0 + GS * (np.clip(_r, RB, RF) - RB)   # s77 gap half-width (px): narrow at the bead, widening outward (ref gaps are thin dark lines, petal sides straight along them)
-for _t in FAX:
-    _d = np.abs((_a - _t + 180) % 360 - 180); _sec = (_d <= 30) & (_r > RB) & (_r < 340) & (_r * np.sin(np.radians(np.clip(30 - _d, 0, 90))) >= _gwr)
+for _t, _hw in zip(FAX, FHW):
+    _d = np.abs((_a - _t + 180) % 360 - 180); _sec = (_d <= _hw) & (_r > RB) & (_r < 340) & (_r * np.sin(np.radians(np.clip(_hw - _d, 0, 90))) >= _gwr)
     _m = (B & _sec).astype(np.uint8); _n, _l, _st, _ = cv2.connectedComponentsWithStats(_m, connectivity=8)
     if _n < 2: continue
     _k = 1 + int(np.argmax(_st[1:, cv2.CC_STAT_AREA])); _pts = cv2.findNonZero((_l == _k).astype(np.uint8))
@@ -57,8 +58,8 @@ for _t in FAX:
 B = B & ~((_r < RB) & (_r > 40))
 _B2 = sg(sdf_of(B), E('BSG', 2.5)) > 0
 B = np.where((_r > 55) & (_r < 130), _B2, B)
-_gd = np.min([np.abs((_a - g + 180) % 360 - 180) for g in (27, 87, 147, 207, 267, 327)], axis=0)   # re-cut the 6 radial petal gaps (smoothing can close them)
-B = B & ~((_r * np.sin(np.radians(np.clip(_gd, 0, 90))) < _gwr) & (_r > RB) & (_r < E('GR1', 300)))
+_gd = np.min([np.abs((_a - g + 180) % 360 - 180) for g in FGAP], axis=0)   # re-cut the 6 radial petal gaps (smoothing can close them)
+B = B & ~((_r * np.sin(np.radians(np.clip(_gd, 0, 90))) < _gwr) & (_r > RB) & (_r < E('GR1', 250)))
 _l2, _n2 = ndi.label(B); _a2 = np.bincount(_l2.ravel(), minlength=_n2 + 1); B = np.isin(_l2, [i for i in range(1, _n2 + 1) if _a2[i] >= 150])   # drop slivers left by the gap cut
 # s79 local corner round: the top-right petal's rim meets its gap line in a tiny hook at map (820,72); SDF-smooth B in a soft window (NCX,NCY,NCR) so only that corner rounds
 _nx, _ny = np.meshgrid(np.arange(TW), np.arange(TH)); _nd = np.hypot(_nx - E('NCX', 821), _ny - E('NCY', 72)); _nw = 1 - np.clip((_nd - E('NCR', 14)) / 8, 0, 1)

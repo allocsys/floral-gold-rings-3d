@@ -1,6 +1,6 @@
 """v2 diff vs the NEW reference picture (reference/band_face.png), independent of panel_mask.png / the map's own mask.
-usage: [T=.03 map footprint threshold] [HI=170 LO=85] python3 tools/v2/diff_v2.py [map=maps/v2/band_period_v2.png] [out=/mnt/user-data/outputs/v2_diff.png]
-Gold in the ref = brightness hysteresis on the ref's own pixels: seeds V>HI (bright gold; the pitted ground never gets that bright in a patch), grown into V>LO (shaded gold rims) but at most GROW px from a seed
+usage: [T=.03 map footprint threshold] [HI=150 LO=85] python3 tools/v2/diff_v2.py [map=maps/v2/band_period_v2.png] [out=/mnt/user-data/outputs/v2_diff.png]
+Gold in the ref = brightness hysteresis on the ref's own pixels: seeds V>HI 150 (170 missed the duller mid-tone gold of the top petals), grown into V>LO (shaded gold rims) but at most GROW px from a seed
 (blocks leaking into ground speckle), then 3x3 open, drop comps <150 px, fill holes <150 px. Tile = same cut as make_map_v2.py (ref panel rows 215..472, cols 70..2115 -> tile cols C0..C0+814,
 40 px seam cross-fade), resized to the map's 1640x520. Map footprint = H > T.
 Picture on the darkened ref: green = both, red = MISS (ref gold, map has none), blue = EXTRA (map has it, ref does not). Prints IoU and counts (all / flower disc r<340 / outside) and the mask's IoU vs maps/v2/panel_mask.png as a sanity check."""
@@ -9,7 +9,7 @@ from scipy import ndimage as ndi
 mp = sys.argv[1] if len(sys.argv) > 1 else 'maps/v2/band_period_v2.png'
 out = sys.argv[2] if len(sys.argv) > 2 else '/mnt/user-data/outputs/v2_diff.png'
 E = lambda k, d: float(os.environ.get(k, d))
-T, HI, LO, GROW = E('T', .03), E('HI', 170), E('LO', 85), int(E('GROW', 6))
+T, HI, LO, GROW = E('T', .03), E('HI', 150), E('LO', 85), int(E('GROW', 6))
 TW, TH, P, C0, SEAM = 1640, 520, 814, 608, 40
 ref = cv2.imread('reference/band_face.png')[215:473, 70:2116]
 V = cv2.GaussianBlur(cv2.cvtColor(ref, cv2.COLOR_BGR2GRAY).astype(np.float32), (0, 0), 1.0)
