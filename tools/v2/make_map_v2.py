@@ -111,6 +111,19 @@ if E('BAY', 1):
         _Bn = (ndi.binary_dilation(B | _Rg, iterations=E('RGR', 4).__int__()) & ~_Dk2) if E('RFILL', 1) else ((B | _Rg) & ~_Dk2); _Bs = sg(sdf_of(_Bn), E('RSG', 1.5)) > 0
         for _cx, _cy, _wr in REFW:
             B = np.where(np.hypot(_bx - _cx, _by - _cy) <= _wr, _Bs, B)
+# s93 shaded-gold grooves SHADE (x, y, r): ref dark-BROWN creases (V ~40..100, clearly brighter than bare ground V<~25) are recessed gold, not holes to the ground. Inside the window the silhouette hole is closed (disk SHC px), and the filled area gets a groove whose depth follows the ref darkness: plate *= 1 - SD * clip((SHV1 - V)/(SHV1 - SHV0), 0, 1). SHADE=0 disables.
+SHADE = [(1390, 463, 55)]; SHS = np.zeros(B.shape, bool); SHD = np.zeros(B.shape, np.float32)
+if E('SHADE', 1):
+    _ev2 = _V[:, C0:C0 + P + SEAM].copy(); _tv2 = _ev2[:, :P].copy(); _tv2[:, :SEAM] = (1 - _al) * _ev2[:, P:P + SEAM] + _al * _ev2[:, :SEAM]
+    _tvr = cv2.GaussianBlur(cv2.resize(_tv2, (TW, TH), interpolation=cv2.INTER_CUBIC), (0, 0), E('SHB', 1.5))
+    _k = int(E('SHC', 12)); _dk = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * _k + 1, 2 * _k + 1))
+    _cl = ndi.binary_closing(np.pad(B, 20), _dk)[20:-20, 20:-20]
+    for _cx, _cy, _wr in SHADE:
+        _w = np.hypot(_bx - _cx, _by - _cy) <= _wr; SHS |= _cl & ~B & _w
+    SHS = sg(SHS.astype(np.float32), E('SHG', 1.5)) > .5
+    B = B | SHS
+    for _cx, _cy, _wr in SHADE: B = B | (ndi.binary_closing(np.pad(B, 4), np.ones((3, 3)))[4:-4, 4:-4] & (np.hypot(_bx - _cx, _by - _cy) <= _wr + 6))   # close 1-px pinholes at the groove/strip seams
+    SHD = np.clip((E('SHV1', 95) - _tvr) / (E('SHV1', 95) - E('SHV0', 28)), 0, 1) * sg(SHS.astype(np.float32), 2.0)
 # beads (ring-template matched on the ref, tile px x,y,r, moat?, top): carve moat ring, stamp disc
 sc = TW / P; Yg, Xg = np.mgrid[:TH, :TW]
 BEADS = [(407, 116, 29, 1, FBEAD), (593, 151, 22, 1, BEAD), (80, 214, 27, 1, BEAD), (530, 33, 10, 1, BEAD), (302, 224, 9, 1, BEAD), (593, 36, 18, 0, BEAD), (228, 145, 21, 0, .78)]
@@ -142,6 +155,7 @@ yy, xx = np.mgrid[-30:31, -30:31]; fp = (yy ** 2 + xx ** 2) <= 900
 Rloc = sg(ndi.maximum_filter(tri(np.maximum(sdf, 0)), footprint=fp, mode='nearest')[:, TW:2 * TW], 14)   # tiled x3 so the round footprint wraps
 dn = sg(np.clip(sdf / np.maximum(Rloc, 8), 0, 1), 4)
 plate = .58 * (1 - PL * (1 - dn) ** 2)
+if SHS.any(): plate = plate * (1 - E('SD', .45) * SHD)   # s93 shaded-gold groove depth (follows ref darkness)
 if GR > 0:   # thin dark hairlines inside gold (black-hat of ref luminance); wide dark bands are reflections, not grooves -> thin + elongated comps only
     Vb = cv2.GaussianBlur(Vt, (0, 0), 1.0); bh = cv2.morphologyEx(Vb, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)) - Vb
     g = rs(((bh > E('GT', 30))).astype(np.float32)) > .5
