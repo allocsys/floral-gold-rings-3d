@@ -1,0 +1,63 @@
+"""v2 step 3: ONE-period height map (1640x520, 16-bit, x wraps) of the NEW reference, from maps/v2/panel_mask.png (+ the ref colour for hairline grooves).
+Tile = 814 ref cols centred on flower 2 (ref bead (1085,331) = panel col 1015, row 116); seam made exactly periodic by a 40 px cross-fade with the next period.
+Scale 2.0155 map px per ref px (258 -> 520 rows, 814 -> 1640 cols, isotropic). Heights follow the old map's convention (ground 0, gold plateau ~.58, beads ~.8, flower bead .95, bevel W 10 px).
+usage: python3 tools/v2/make_map_v2.py [OUT=maps/v2/band_period_v2.png]    knobs (env): PL .25 W 10 BEAD .8 FBEAD .95 GROOVE 1 GD .12 SIG 2.2
+"""
+import os, sys, cv2, numpy as np
+from scipy import ndimage as ndi
+OUT = sys.argv[1] if len(sys.argv) > 1 else 'maps/v2/band_period_v2.png'
+E = lambda k, d: float(os.environ.get(k, d))
+PL, W, BEAD, FBEAD, GR, GD, SIG = E('PL', .25), E('W', 10), E('BEAD', .8), E('FBEAD', .95), E('GROOVE', 1), E('GD', .12), E('SIG', 2.2)
+TW, TH, P, C0, SEAM = 1640, 520, 814, 1015 - 407, 40
+mask = cv2.imread('maps/v2/panel_mask.png', 0).astype(np.float32) / 255
+ref = cv2.imread('reference/band_face.png')[215:473, 70:2116]
+def periodic(a):
+    e = a[:, C0:C0 + P + SEAM].copy(); t = e[:, :P].copy()
+    al = (np.arange(SEAM) / SEAM)[None, ...] if a.ndim == 2 else None
+    t[:, :SEAM] = (1 - al) * e[:, P:P + SEAM] + al * e[:, :SEAM]
+    return t
+mt = periodic(mask)
+V = cv2.cvtColor(ref, cv2.COLOR_BGR2GRAY).astype(np.float32); Vt = periodic(V)
+rs = lambda a: cv2.resize(a, (TW, TH), interpolation=cv2.INTER_CUBIC)
+sg = lambda a, s: ndi.gaussian_filter(a, s, mode=('nearest', 'wrap'))
+B = sg(rs(sg(mt, .8)), SIG) > .5
+lab, n = ndi.label(B); ar = np.bincount(lab.ravel())
+B = np.isin(lab, [i for i in range(1, n + 1) if ar[i] >= 150])
+hl, hn = ndi.label(~B); ha = np.bincount(hl.ravel(), minlength=hn + 1)
+B = B | np.isin(hl, [i for i in range(1, hn + 1) if ha[i] < 150])   # fill small holes
+def tri(a): return np.tile(a, (1, 3))
+d_in = ndi.distance_transform_edt(tri(B))[:, TW:2 * TW]; d_out = ndi.distance_transform_edt(~tri(B))[:, TW:2 * TW]
+sdf = sg((d_in - d_out).astype(np.float32), 1.0)
+lab3, n3 = ndi.label(tri(B)); labm = lab3[:, TW:2 * TW]
+level = np.zeros(B.shape, np.float32)
+fcx, fcy = (1015 - C0) * TW / P, 116 * TH / 258
+Rmax = {}
+for i in np.unique(labm[B]):
+    r = labm == i; A = int((lab3 == i).sum()); R = float(sdf[r].max()); Rmax[i] = (A, R)
+    bead = A < 9000 and np.pi * R * R / A > .72
+    if not bead: continue
+    s = np.clip(sdf / R, 0, 1); top = FBEAD if np.hypot(*(np.argwhere(r).mean(0)[::-1] - (fcx, fcy))) < 40 else BEAD
+    level[r] = (.3 + (top - .3) * np.sqrt(np.clip(1 - (1 - s) ** 2, 0, 1)))[r]
+big = B & (level == 0)
+yy, xx = np.mgrid[-30:31, -30:31]; fp = (yy ** 2 + xx ** 2) <= 900
+Rloc = sg(ndi.maximum_filter(tri(np.maximum(sdf, 0)), footprint=fp, mode='nearest')[:, TW:2 * TW], 14)   # tiled x3 so the round footprint wraps
+dn = sg(np.clip(sdf / np.maximum(Rloc, 8), 0, 1), 4)
+plate = .58 * (1 - PL * (1 - dn) ** 2)
+if GR > 0:   # thin dark hairlines inside gold (black-hat of ref luminance); wide dark bands are reflections, not grooves -> thin + elongated comps only
+    Vb = cv2.GaussianBlur(Vt, (0, 0), 1.0); bh = cv2.morphologyEx(Vb, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)) - Vb
+    g = rs(((bh > 22)).astype(np.float32)) > .5
+    g &= ndi.binary_erosion(B, iterations=14)
+    gl, gn = ndi.label(g, structure=np.ones((3, 3))); keep = np.zeros_like(g)
+    for k, sl in enumerate(ndi.find_objects(gl), 1):
+        h_, w_ = sl[0].stop - sl[0].start, sl[1].stop - sl[1].start
+        if max(h_, w_) >= 30: keep |= gl == k
+    plate = plate * (1 - GD * sg(keep.astype(np.float32), 1.3) / max(sg(keep.astype(np.float32), 1.3).max(), 1e-3))
+level = np.where(big, plate, level)
+bev = np.clip(sdf / W, 0, 1); bev = bev * bev * (3 - 2 * bev)
+H = np.clip(level * bev, 0, 1) * np.clip(B + (sdf > -.3), 0, 1)
+os.makedirs(os.path.dirname(OUT), exist_ok=True)
+cv2.imwrite(OUT, (H * 65535).astype(np.uint16))
+m_ = H; gy, gx = np.gradient(m_ * 40); nn = np.dstack([-gx, -gy, np.ones_like(gx)]); nn /= np.linalg.norm(nn, axis=2, keepdims=True)
+hs = np.clip(nn @ np.array([-1, -1, 1.2]) / np.linalg.norm([-1, -1, 1.2]), 0, 1); hs = hs / hs.max()
+cv2.imwrite(OUT.replace('.png', '_hillshade.png'), (hs * 255).astype(np.uint8))
+print('wrote', OUT, H.shape, 'beads:', sum(1 for i, (a, R) in Rmax.items() if a < 9000 and np.pi * R * R / a > .72), 'coverage %.3f' % B.mean())
