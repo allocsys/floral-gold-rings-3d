@@ -20,6 +20,10 @@ m=ndi.binary_opening(ndi.binary_closing(m,np.ones((3,3))),np.ones((3,3))); m=ndi
 s=(cv2.GaussianBlur(V,(0,0),1.0)<65)&ndi.binary_erosion(m,iterations=2)
 lab,n=ndi.label(s);sz=ndi.sum(s,lab,range(1,n+1));s=np.isin(lab,[i+1 for i,z in enumerate(sz) if z>=12])
 m=m&~ndi.binary_dilation(s,iterations=1)
-lab,n=ndi.label(m);sz=ndi.sum(m,lab,range(1,n+1));m=np.isin(lab,[i+1 for i,z in enumerate(sz) if z>=40])
+# ground-texture removal (D-v2 s72d, user flagged ground speckle merged into gold between flower and scroll): pitted ground = wide patches of high local texture energy
+T=cv2.GaussianBlur(np.abs(V-cv2.GaussianBlur(V,(0,0),1.5)),(0,0),2)
+g=ndi.binary_erosion(ndi.binary_opening(T>14,structure=np.ones((11,11))),iterations=4)   # open 11 keeps wide patches only (rims are thin); erode 4 = compensate texture-blur bleed into gold
+m=ndi.binary_opening(m&~g,structure=np.ones((5,5)))
+lab,n=ndi.label(m);sz=ndi.sum(m,lab,range(1,n+1));m=np.isin(lab,[i+1 for i,z in enumerate(sz) if z>=80])
 cv2.imwrite('maps/v2/panel_mask.png',(m*255).astype(np.uint8))
 # periodicity: IoU of mask vs mask shifted by period for shifts around 813 (x offset 70 removed)
