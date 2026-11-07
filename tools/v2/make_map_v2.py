@@ -43,7 +43,7 @@ _zone = _ax & (_r > 62) & (_r < 330)
 _cl = ndi.binary_closing(B, structure=np.ones((3, 3)), iterations=int(E('FCI', 9)))
 B = B | (_cl & _zone)
 # s75 petal bases: per petal, fill the convex hull of its gold (r > RB) inside its own 60 deg sector (inset GAPH px from the gap lines) -> no slit remnants/slivers; clear the ring r < RB around the bead moat; round the base corners (SDF smoothing r < 130)
-RB, GAPH = E('RB', 70), E('GAPH', 1.5)
+RB, GAPH = E('RB', 74), E('GAPH', 1.5)
 GW0, GS, RF = E('GW0', 3.5), E('GS', .04), E('RF', 150)
 _dB = ndi.distance_transform_edt(~B); _sm = np.clip((_r - E('FR0', 110)) / (E('FR1', 210) - E('FR0', 110)), 0, 1); _e = E('FEXP', 14) * (1 - _sm * _sm * (3 - 2 * _sm))   # fill may grow a petal by <= _e px, fading out with r (no hard step)
 _gwr = GW0 + GS * (np.clip(_r, RB, RF) - RB)   # s77 gap half-width (px): narrow at the bead, widening outward (ref gaps are thin dark lines, petal sides straight along them)
@@ -66,12 +66,20 @@ BEADS = [(407, 116, 29, 1, FBEAD), (593, 151, 22, 1, BEAD), (80, 214, 27, 1, BEA
 dist_b = np.full(B.shape, 1e9, np.float32)
 for bx, by, br, moat, top in BEADS:
     d = np.hypot(Xg - bx * sc, Yg - by * sc); R = br * sc
+    if bx == 407 and by == 116:   # s78 flower bead: ref has a gold COLLAR out to r~66 (cut by the 6 petal gap lines), dark moat r 66..73, petals from ~74 (measured radial profile)
+        Rc = R + E('COL', 8); B = B & ~((d > Rc) & (d <= Rc + E('FMOAT', 7))); B = B | (d <= Rc)
+        B = B & ~((_r * np.sin(np.radians(np.clip(_gd, 0, 90))) < E('CGW', 3)) & (d > R) & (d <= Rc))
+        B = B | (d <= R)
+        continue
     if moat: B = B & ~((d > R) & (d <= R + E('MOAT', 8)))
     B = B | (d <= R)
 sdf = sg(sdf_of(B), 1.0)
 level = np.zeros(B.shape, np.float32); isbead = np.zeros(B.shape, bool)
 for bx, by, br, moat, top in BEADS:
     d = np.hypot(Xg - bx * sc, Yg - by * sc); R = br * sc; r_ = d <= R
+    if bx == 407 and by == 116:   # flower bead: dome rises from a flat collar (height COLH) out to Rc (already carved by the gap lines / moat in B)
+        _Rc = R + E('COL', 8); _col = (d > R) & (d <= _Rc) & B; level[_col] = E('COLH', .5); isbead |= _col
+        level[r_] = (E('COLH', .5) + (top - E('COLH', .5)) * np.sqrt(np.clip(1 - (d / R) ** 2, 0, 1)))[r_]; isbead |= r_; continue
     _b0 = .3 if moat else .55   # moat-less balls sit on the leaf: dome starts at plate height, no cliff (s76)
     level[r_] = (_b0 + (top - _b0) * np.sqrt(np.clip(1 - (d / R) ** 2, 0, 1)))[r_]; isbead |= r_
 big = B & ~isbead
