@@ -125,7 +125,8 @@ if _LUM > 0:   # s76 faint shape-from-shading: ref luminance (blurred) relative 
     plate = plate + _LUM * np.clip((_Vl - _mu) / 60, -1, 1) * np.clip((_r - 300) / 60, 0, 1) * sg(_w, 2)
 plate = plate - VG
 level = np.where(big, plate, level)
-bev = np.clip(sdf / W, 0, 1); bev = bev * bev * (3 - 2 * bev)
+_sb = sg(sdf, E('SBS', 2.0)) if E('SBS', 2.0) > 0 else sdf   # s79 rim faceting: bevel ramp from a smoother SDF (binary-mask staircase made stripes on the rims)
+bev = np.clip(_sb / W, 0, 1); bev = bev * bev * (3 - 2 * bev)
 # s79 collar slit pockets: the bevel of the flower dome ignores the 6 collar slits (distance to the moat only), so slit ends no longer scoop round pockets out of the dome edge
 _sf = sg(sdf_of(B | _FS), 1.0); _bf = np.clip(_sf / W, 0, 1); _bf = _bf * _bf * (3 - 2 * _bf)
 bev = _FD * _bf + (1 - _FD) * bev
