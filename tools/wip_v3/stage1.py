@@ -10,7 +10,7 @@ def ell(k):
     return cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(k,k))
 g=lambda a,s: cv2.GaussianBlur(a,(0,0),s)
 
-ref=cv2.imread(ROOT+'/reference/band_face.png')
+ref=cv2.imread(ROOT+'/reference/band_face_v1.png')
 im=cv2.resize(ref[37:207,6:741],None,fx=2.2,fy=2.2,interpolation=cv2.INTER_CUBIC)
 # new ref (reference/band_face.png): affine-aligned (ECC, shift ~3.4x0.6 ref px + 0.3% scale/1deg shear) into the frame the old ring crop had, so all hand-tuned coordinates stay valid
 _WA=np.array([[1.00325,0.01918,-7.56803],[0.00187,1.00146,-1.42234]])
