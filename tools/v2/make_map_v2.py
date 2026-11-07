@@ -45,6 +45,9 @@ _cl = ndi.binary_closing(B, structure=np.ones((3, 3)), iterations=int(E('FCI', 9
 B = B | (_cl & _zone)
 # s75 petal bases: per petal, fill the convex hull of its gold (r > RB) inside its own 60 deg sector (inset GAPH px from the gap lines) -> no slit remnants/slivers; clear the ring r < RB around the bead moat; round the base corners (SDF smoothing r < 130)
 RB, GAPH = E('RB', 74), E('GAPH', 1.5)
+# s83 per-petal base radius (ref petal bases start nearer the bead at the top: measured V rise r~70 top, ~72 left/right, ~74 lower; the dark ring is thin there). RBP env 'a,b,c,d,e,f' in FAX order; default = RB for all reproduces s82.
+RBPL = [float(v) for v in os.environ.get('RBP', '74,74,72,69.5,69.5,72').split(',')]
+_pi = np.argmin(np.stack([np.abs((_a - t + 180) % 360 - 180) / h for t, h in zip(FAX, FHW)]), axis=0); _rbp = np.array(RBPL)[_pi]
 GW0, GS, RF = E('GW0', 3.5), E('GS', .04), E('RF', 150)
 _dB = ndi.distance_transform_edt(~B); _sm = np.clip((_r - E('FR0', 110)) / (E('FR1', 210) - E('FR0', 110)), 0, 1); _e = E('FEXP', 14) * (1 - _sm * _sm * (3 - 2 * _sm))   # fill may grow a petal by <= _e px, fading out with r (no hard step)
 _gwr = GW0 + GS * (np.clip(_r, RB, RF) - RB)   # s77 gap half-width (px): narrow at the bead, widening outward (ref gaps are thin dark lines, petal sides straight along them)
@@ -55,17 +58,17 @@ _gdi = np.stack([np.abs((_a - g + 180) % 360 - 180) for g in FGAP]); _gi = np.ar
 _fs = np.clip((_r - FLE0) / (FLE1 - FLE0), 0, 1); _fp = np.where(_r <= FL0, 1.0, np.exp(-(_r - FL0) / FLT)) * (1 - _fs * _fs * (3 - 2 * _fs))
 _gwr = _gwr + np.array(FLA)[_gi] * _fp * (_r > RB)
 for _t, _hw in zip(FAX, FHW):
-    _d = np.abs((_a - _t + 180) % 360 - 180); _sec = (_d <= _hw) & (_r > RB) & (_r < 340) & (_r * np.sin(np.radians(np.clip(_hw - _d, 0, 90))) >= _gwr)
+    _d = np.abs((_a - _t + 180) % 360 - 180); _sec = (_d <= _hw) & (_r > _rbp) & (_r < 340) & (_r * np.sin(np.radians(np.clip(_hw - _d, 0, 90))) >= _gwr)
     _m = (B & _sec).astype(np.uint8); _n, _l, _st, _ = cv2.connectedComponentsWithStats(_m, connectivity=8)
     if _n < 2: continue
     _k = 1 + int(np.argmax(_st[1:, cv2.CC_STAT_AREA])); _pts = cv2.findNonZero((_l == _k).astype(np.uint8))
     _hm = np.zeros(B.shape, np.uint8); cv2.fillConvexPoly(_hm, cv2.convexHull(_pts), 1)
     B = B | ((_hm > 0) & _sec) | (_sec & (_dB <= _e))   # hull + wedge fill toward the gap lines (distance-limited, fades with r)
-B = B & ~((_r < RB) & (_r > 40))
+B = B & ~((_r < _rbp) & (_r > 40))
 _B2 = sg(sdf_of(B), E('BSG', 2.5)) > 0
 B = np.where((_r > 55) & (_r < 130), _B2, B)
 _gd = np.min([np.abs((_a - g + 180) % 360 - 180) for g in FGAP], axis=0)   # re-cut the 6 radial petal gaps (smoothing can close them)
-B = B & ~((_r * np.sin(np.radians(np.clip(_gd, 0, 90))) < _gwr) & (_r > RB) & (_r < E('GR1', 250)))
+B = B & ~((_r * np.sin(np.radians(np.clip(_gd, 0, 90))) < _gwr) & (_r > _rbp) & (_r < E('GR1', 250)))
 # s82 rib slits: the ref's 4 side/lower petals (axes FAX[0,1,2,5]) have a dark rib channel (measured full width px by r, centre offset deg): flare at the bead, ~12-14 px line, pointed end. Cut as tapered slits (SLIT=0 disables). top two petals have none.
 SLITS = {0: (-0.4, [(74, 30), (82, 24), (90, 12), (120, 11), (130, 5), (140, 4), (148, 0)]),
          1: (-0.8, [(74, 28), (82, 22), (90, 14), (100, 13), (106, 6), (112, 0)]),
@@ -87,7 +90,7 @@ dist_b = np.full(B.shape, 1e9, np.float32)
 for bx, by, br, moat, top in BEADS:
     d = np.hypot(Xg - bx * sc, Yg - by * sc); R = br * sc
     if bx == 407 and by == 116:   # s78 flower bead: ref has a gold COLLAR out to r~66 (cut by the 6 petal gap lines), dark moat r 66..73, petals from ~74 (measured radial profile)
-        Rc = R + E('COL', 8); B = B & ~((d > Rc) & (d <= Rc + E('FMOAT', 7))); B = B | (d <= Rc)
+        Rc = R + E('COL', 8); B = B & ~((d > Rc) & (d <= np.minimum(Rc + E('FMOAT', 7), _rbp))); B = B | (d <= Rc)
         _FS = ((_r * np.sin(np.radians(np.clip(_gd, 0, 90))) < E('CGW', 3)) & (d > R) & (d <= Rc)); _FD = np.clip((R + 2.5 - d) / 5, 0, 1)   # s79: slit mask + soft dome weight (1 inside r<=R-2.5, 0 beyond R+2.5)
         B = B & ~_FS
         B = B | (d <= R)
