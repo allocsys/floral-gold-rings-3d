@@ -48,6 +48,12 @@ RB, GAPH = E('RB', 74), E('GAPH', 1.5)
 GW0, GS, RF = E('GW0', 3.5), E('GS', .04), E('RF', 150)
 _dB = ndi.distance_transform_edt(~B); _sm = np.clip((_r - E('FR0', 110)) / (E('FR1', 210) - E('FR0', 110)), 0, 1); _e = E('FEXP', 14) * (1 - _sm * _sm * (3 - 2 * _sm))   # fill may grow a petal by <= _e px, fading out with r (no hard step)
 _gwr = GW0 + GS * (np.clip(_r, RB, RF) - RB)   # s77 gap half-width (px): narrow at the bead, widening outward (ref gaps are thin dark lines, petal sides straight along them)
+
+# s81 per-gap flare near the bead (lower-petal slivers): extra half-width FLA[i] px at r<=FL0, decaying exp(-(r-FL0)/FLT), gone by FLE0..FLE1 -- ref gaps are wide pockets at the bead (full width 20-38 px at r76-84) that taper to the ~16 px line by r~90
+FLA = [float(v) for v in os.environ.get('FLA', '13,13,6,1.5,0,4').split(',')]; FL0, FLT, FLE0, FLE1 = E('FL0', 80), E('FLT', 6), E('FLE0', 98), E('FLE1', 112)
+_gdi = np.stack([np.abs((_a - g + 180) % 360 - 180) for g in FGAP]); _gi = np.argmin(_gdi, axis=0)
+_fs = np.clip((_r - FLE0) / (FLE1 - FLE0), 0, 1); _fp = np.where(_r <= FL0, 1.0, np.exp(-(_r - FL0) / FLT)) * (1 - _fs * _fs * (3 - 2 * _fs))
+_gwr = _gwr + np.array(FLA)[_gi] * _fp * (_r > RB)
 for _t, _hw in zip(FAX, FHW):
     _d = np.abs((_a - _t + 180) % 360 - 180); _sec = (_d <= _hw) & (_r > RB) & (_r < 340) & (_r * np.sin(np.radians(np.clip(_hw - _d, 0, 90))) >= _gwr)
     _m = (B & _sec).astype(np.uint8); _n, _l, _st, _ = cv2.connectedComponentsWithStats(_m, connectivity=8)
