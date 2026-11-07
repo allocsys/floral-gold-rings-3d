@@ -103,7 +103,7 @@ if E('BAY', 1):
     for _cx, _cy, _wr in CUTS:
         B = B & ~(_Dk & (np.hypot(_bx - _cx, _by - _cy) <= _wr))
     # s86 ref-shape windows (x, y, radius): inside, the map silhouette becomes the ref's own (ref gold union, minus ref-dark recess), level-set smoothed RSG. REFW=0 disables.
-    REFW = [(1495, 395, 75), (438, 258, 16), (396, 319, 34)]   # bottom-right pointed leaf recess; curl-head groove pocket; gap beside the curl
+    REFW = [(1495, 395, 75), (438, 258, 16), (396, 319, 34), (142, 80, 30)]   # bottom-right pointed leaf recess; curl-head groove pocket; gap beside the curl; s91 scroll slit (142,80)
     if E('REFW', 1):
         _ev = _V[:, C0:C0 + P + SEAM].copy(); _tv = _ev[:, :P].copy(); _tv[:, :SEAM] = (1 - _al) * _ev[:, P:P + SEAM] + _al * _ev[:, :SEAM]
         _Dk2 = ndi.binary_opening(cv2.resize(_tv, (TW, TH), interpolation=cv2.INTER_CUBIC) < E('RDT', 60), np.ones((E('RDO', 1).__int__(),) * 2)); _l3, _n3 = ndi.label(_Dk2); _a3 = np.bincount(_l3.ravel(), minlength=_n3 + 1); _Dk2 = np.isin(_l3, [i for i in range(1, _n3 + 1) if _a3[i] >= 60])
