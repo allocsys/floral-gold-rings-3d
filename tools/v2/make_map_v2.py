@@ -124,6 +124,12 @@ if E('SHADE', 0):
     B = B | SHS
     for _cx, _cy, _wr in SHADE: B = B | (ndi.binary_closing(np.pad(B, 4), np.ones((3, 3)))[4:-4, 4:-4] & (np.hypot(_bx - _cx, _by - _cy) <= _wr + 6))   # close 1-px pinholes at the groove/strip seams
     SHD = np.clip((E('SHV1', 95) - _tvr) / (E('SHV1', 95) - E('SHV0', 28)), 0, 1) * sg(SHS.astype(np.float32), 2.0)
+# s94 gap channels GAPL ([(x,y),...], full width px): empty space between two petals that the ref shows as a thin brown channel (V ~60-90, too bright for the dark-recess detector) -> carved out of the silhouette along the polyline. User-confirmed: brown here = empty space, not recessed gold. GAPL=0 disables.
+GAPL = [([(1463, 433), (1440, 443), (1423, 455), (1410, 461)], 7)]
+if E('GAPL', 0):
+    for _pts, _gw in GAPL:
+        _gm = np.zeros(B.shape, np.uint8); cv2.polylines(_gm, [np.round(np.array(_pts) * 1.0).astype(np.int32).reshape(-1, 1, 2)], False, 1, int(round(_gw)), cv2.LINE_AA)
+        B = B & ~(_gm > 0)
 # beads (ring-template matched on the ref, tile px x,y,r, moat?, top): carve moat ring, stamp disc
 sc = TW / P; Yg, Xg = np.mgrid[:TH, :TW]
 BEADS = [(407, 116, 29, 1, FBEAD), (593, 151, 22, 1, BEAD), (80, 214, 27, 1, BEAD), (530, 33, 10, 1, BEAD), (302, 224, 9, 1, BEAD), (593, 36, 18, 0, BEAD), (228, 145, 21, 0, .78)]
