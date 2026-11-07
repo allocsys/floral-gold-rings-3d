@@ -7,7 +7,7 @@ import os, sys, cv2, numpy as np
 from scipy import ndimage as ndi
 OUT = sys.argv[1] if len(sys.argv) > 1 else 'maps/v2/band_period_v2.png'
 E = lambda k, d: float(os.environ.get(k, d))
-PL, W, BEAD, FBEAD, GR, GD, SIG = E('PL', .25), E('W', 10), E('BEAD', .8), E('FBEAD', .95), E('GROOVE', 1), E('GD', .12), E('SIG', 2.2)
+PL, W, BEAD, FBEAD, GR, GD, SIG = E('PL', .5), E('W', 10), E('BEAD', .8), E('FBEAD', .95), E('GROOVE', 1), E('GD', .12), E('SIG', 2.2)
 TW, TH, P, C0, SEAM = 1640, 520, 814, 1015 - 407, 40
 mask = cv2.imread('maps/v2/panel_mask.png', 0).astype(np.float32) / 255
 ref = cv2.imread('reference/band_face.png')[215:473, 70:2116]
@@ -69,7 +69,8 @@ sdf = sg(sdf_of(B), 1.0)
 level = np.zeros(B.shape, np.float32); isbead = np.zeros(B.shape, bool)
 for bx, by, br, moat, top in BEADS:
     d = np.hypot(Xg - bx * sc, Yg - by * sc); R = br * sc; r_ = d <= R
-    level[r_] = (.3 + (top - .3) * np.sqrt(np.clip(1 - (d / R) ** 2, 0, 1)))[r_]; isbead |= r_
+    _b0 = .3 if moat else .55   # moat-less balls sit on the leaf: dome starts at plate height, no cliff (s76)
+    level[r_] = (_b0 + (top - _b0) * np.sqrt(np.clip(1 - (d / R) ** 2, 0, 1)))[r_]; isbead |= r_
 big = B & ~isbead
 yy, xx = np.mgrid[-30:31, -30:31]; fp = (yy ** 2 + xx ** 2) <= 900
 Rloc = sg(ndi.maximum_filter(tri(np.maximum(sdf, 0)), footprint=fp, mode='nearest')[:, TW:2 * TW], 14)   # tiled x3 so the round footprint wraps
@@ -102,6 +103,11 @@ for t in FAX:
     for sgn in (-1, 1):   # hairlines start at 0.15 L with offset 2, diverge to +-VO at the end, run to .8 L
         a0 = c + u * (VS + .15 * L1) + n_ * sgn * 2; a1 = c + u * (VS + .8 * L1) + n_ * sgn * VO
         VG = np.maximum(VG, VH * seg_field(a0, a1, .25, .4, VW))
+_LUM = E('LUM', .05)
+if _LUM > 0:   # s76 faint shape-from-shading: ref luminance (blurred) relative to its local gold mean -> +-LUM height; flower disc excluded (procedural veins)
+    _Vl = sg(rs(Vt), E('LSIG', 5)); _w = (B & ~isbead).astype(np.float32)
+    _mu = sg(_Vl * _w, 30) / np.maximum(sg(_w, 30), 1e-3)
+    plate = plate + _LUM * np.clip((_Vl - _mu) / 60, -1, 1) * np.clip((_r - 300) / 60, 0, 1) * sg(_w, 2)
 plate = plate - VG
 level = np.where(big, plate, level)
 bev = np.clip(sdf / W, 0, 1); bev = bev * bev * (3 - 2 * bev)
