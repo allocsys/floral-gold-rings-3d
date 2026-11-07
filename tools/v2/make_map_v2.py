@@ -60,6 +60,9 @@ B = np.where((_r > 55) & (_r < 130), _B2, B)
 _gd = np.min([np.abs((_a - g + 180) % 360 - 180) for g in (27, 87, 147, 207, 267, 327)], axis=0)   # re-cut the 6 radial petal gaps (smoothing can close them)
 B = B & ~((_r * np.sin(np.radians(np.clip(_gd, 0, 90))) < _gwr) & (_r > RB) & (_r < E('GR1', 300)))
 _l2, _n2 = ndi.label(B); _a2 = np.bincount(_l2.ravel(), minlength=_n2 + 1); B = np.isin(_l2, [i for i in range(1, _n2 + 1) if _a2[i] >= 150])   # drop slivers left by the gap cut
+# s79 local corner round: the top-right petal's rim meets its gap line in a tiny hook at map (820,72); SDF-smooth B in a soft window (NCX,NCY,NCR) so only that corner rounds
+_nx, _ny = np.meshgrid(np.arange(TW), np.arange(TH)); _nd = np.hypot(_nx - E('NCX', 821), _ny - E('NCY', 72)); _nw = 1 - np.clip((_nd - E('NCR', 14)) / 8, 0, 1)
+B = np.where(_nw > .5, sg(sdf_of(B), E('NSG', 3)) > 0, B)
 # beads (ring-template matched on the ref, tile px x,y,r, moat?, top): carve moat ring, stamp disc
 sc = TW / P; Yg, Xg = np.mgrid[:TH, :TW]
 BEADS = [(407, 116, 29, 1, FBEAD), (593, 151, 22, 1, BEAD), (80, 214, 27, 1, BEAD), (530, 33, 10, 1, BEAD), (302, 224, 9, 1, BEAD), (593, 36, 18, 0, BEAD), (228, 145, 21, 0, .78)]
