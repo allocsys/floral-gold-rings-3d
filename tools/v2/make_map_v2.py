@@ -66,6 +66,16 @@ _B2 = sg(sdf_of(B), E('BSG', 2.5)) > 0
 B = np.where((_r > 55) & (_r < 130), _B2, B)
 _gd = np.min([np.abs((_a - g + 180) % 360 - 180) for g in FGAP], axis=0)   # re-cut the 6 radial petal gaps (smoothing can close them)
 B = B & ~((_r * np.sin(np.radians(np.clip(_gd, 0, 90))) < _gwr) & (_r > RB) & (_r < E('GR1', 250)))
+# s82 rib slits: the ref's 4 side/lower petals (axes FAX[0,1,2,5]) have a dark rib channel (measured full width px by r, centre offset deg): flare at the bead, ~12-14 px line, pointed end. Cut as tapered slits (SLIT=0 disables). top two petals have none.
+SLITS = {0: (-0.4, [(74, 30), (82, 24), (90, 12), (120, 11), (130, 5), (140, 4), (148, 0)]),
+         1: (-0.8, [(74, 28), (82, 22), (90, 14), (100, 13), (106, 6), (112, 0)]),
+         2: (-1.5, [(74, 16), (90, 14), (110, 14), (120, 12), (130, 10), (142, 10), (152, 0)]),
+         5: (0.3, [(74, 16), (90, 12), (130, 12), (142, 10), (152, 10), (162, 0)])}
+if E('SLIT', 1):
+    for _i, (_off, _pr) in SLITS.items():
+        _pr = np.array(_pr, float); _wr = np.interp(_r, _pr[:, 0], _pr[:, 1], right=0) * E('SLW', 1.0)
+        _dth = np.abs((_a - (FAX[_i] + _off) + 180) % 360 - 180)
+        B = B & ~((_r * np.sin(np.radians(np.clip(_dth, 0, 90))) < _wr / 2) & (_dth < 40) & (_r >= RB - 4))
 _l2, _n2 = ndi.label(B); _a2 = np.bincount(_l2.ravel(), minlength=_n2 + 1); B = np.isin(_l2, [i for i in range(1, _n2 + 1) if _a2[i] >= 150])   # drop slivers left by the gap cut
 # s79 local corner round: the top-right petal's rim meets its gap line in a tiny hook at map (820,72); SDF-smooth B in a soft window (NCX,NCY,NCR) so only that corner rounds
 _nx, _ny = np.meshgrid(np.arange(TW), np.arange(TH)); _nd = np.hypot(_nx - E('NCX', 821), _ny - E('NCY', 72)); _nw = 1 - np.clip((_nd - E('NCR', 14)) / 8, 0, 1)
