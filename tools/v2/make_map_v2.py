@@ -122,7 +122,7 @@ for bx, by, br, moat, top in BEADS:
     d = np.hypot(Xg - bx * sc, Yg - by * sc); R = br * sc
     if bx == 407 and by == 116:   # s78 flower bead: ref has a gold COLLAR out to r~66 (cut by the 6 petal gap lines), dark moat r 66..73, petals from ~74 (measured radial profile)
         Rc = R + E('COL', 8); B = B & ~((d > Rc) & (d <= np.minimum(Rc + E('FMOAT', 7), _rbp))); B = B | (d <= Rc)
-        _FS = ((_r * np.sin(np.radians(np.clip(_gd, 0, 90))) < E('CGW', 3)) & (d > R) & (d <= Rc)); _FD = np.clip((R + 2.5 - d) / 5, 0, 1)   # s79: slit mask + soft dome weight (1 inside r<=R-2.5, 0 beyond R+2.5)
+        _FS = ((_r * np.sin(np.radians(np.clip(_gd, 0, 90))) < (E('CGW', 3) + E('CGX', 9) * np.clip((d - R) / (Rc - R), 0, 1) ** E('CGP', 1.2))) & (d > R) & (d <= Rc)); _FD = np.clip((R + 2.5 - d) / 5, 0, 1)   # s79: slit mask + soft dome weight (1 inside r<=R-2.5, 0 beyond R+2.5)
         B = B & ~_FS
         B = B | (d <= R)
         continue
