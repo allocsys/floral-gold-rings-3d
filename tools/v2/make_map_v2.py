@@ -99,7 +99,7 @@ if E('BAY', 1):
     for _cx, _cy, _wr in BAYS:
         B = B | (_Rg & (np.hypot(_bx - _cx, _by - _cy) <= _wr))
     # s85 cuts: window (x, y, radius) where the map has gold but the ref has a dark crease / dark rim band: remove the ref-dark part. 'a' windows above add ref gold.
-    CUTS = [(396, 319, 26), (575, 312, 30)]
+    CUTS = [(396, 319, 26), (575, 312, 30), (519, 56, 30)]
     for _cx, _cy, _wr in CUTS:
         B = B & ~(_Dk & (np.hypot(_bx - _cx, _by - _cy) <= _wr))
     # s86 ref-shape windows (x, y, radius): inside, the map silhouette becomes the ref's own (ref gold union, minus ref-dark recess), level-set smoothed RSG. REFW=0 disables.

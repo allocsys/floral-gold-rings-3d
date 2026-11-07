@@ -1,6 +1,6 @@
 // Parametric ring geometry (mm). No dependencies: runs in the browser and in Node.
 // Both bands (band1, band2) carry the engraved floral relief (relief_band.js, derived from reference/rings_flat.png), repeated REPEATS times around the ring.
-import { RELIEF_BAND } from './relief_band.js?v=relief115';
+import { RELIEF_BAND } from './relief_band.js?v=relief116';
 import { RELIEF_SOL } from './relief_sol.js';
 export const DEFAULTS = {
   band1:     { ID: 19, w: 4.5, t: 1.5, relief: 0.4 },
