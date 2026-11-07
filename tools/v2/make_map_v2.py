@@ -113,7 +113,7 @@ if E('BAY', 1):
             B = np.where(np.hypot(_bx - _cx, _by - _cy) <= _wr, _Bs, B)
 # s93 shaded-gold grooves SHADE (x, y, r): ref dark-BROWN creases (V ~40..100, clearly brighter than bare ground V<~25) are recessed gold, not holes to the ground. Inside the window the silhouette hole is closed (disk SHC px), and the filled area gets a groove whose depth follows the ref darkness: plate *= 1 - SD * clip((SHV1 - V)/(SHV1 - SHV0), 0, 1). SHADE=0 disables.
 SHADE = [(1390, 463, 55)]; SHS = np.zeros(B.shape, bool); SHD = np.zeros(B.shape, np.float32)
-if E('SHADE', 1):
+if E('SHADE', 0):
     _ev2 = _V[:, C0:C0 + P + SEAM].copy(); _tv2 = _ev2[:, :P].copy(); _tv2[:, :SEAM] = (1 - _al) * _ev2[:, P:P + SEAM] + _al * _ev2[:, :SEAM]
     _tvr = cv2.GaussianBlur(cv2.resize(_tv2, (TW, TH), interpolation=cv2.INTER_CUBIC), (0, 0), E('SHB', 1.5))
     _k = int(E('SHC', 12)); _dk = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * _k + 1, 2 * _k + 1))
