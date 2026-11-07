@@ -1,5 +1,5 @@
 """v2 diff vs the NEW reference picture (reference/band_face.png), independent of panel_mask.png / the map's own mask.
-usage: [T=.03 map footprint threshold] [HI=150 LO=85] python3 tools/v2/diff_v2.py [map=maps/v2/band_period_v2.png] [out=/mnt/user-data/outputs/v2_diff.png]
+usage: [WIN=x,y,r extra IoU line inside a circle] [T=.03 map footprint threshold] [HI=150 LO=85] python3 tools/v2/diff_v2.py [map=maps/v2/band_period_v2.png] [out=/mnt/user-data/outputs/v2_diff.png]
 Gold in the ref = brightness hysteresis on the ref's own pixels: seeds V>HI 150 (170 missed the duller mid-tone gold of the top petals), grown into V>LO (shaded gold rims) but at most GROW px from a seed
 (blocks leaking into ground speckle), then 3x3 open, drop comps <150 px, fill holes <150 px. Tile = same cut as make_map_v2.py (ref panel rows 215..472, cols 70..2115 -> tile cols C0..C0+814,
 40 px seam cross-fade), resized to the map's 1640x520. Map footprint = H > T.
@@ -33,6 +33,8 @@ H = cv2.imread(mp, -1).astype(np.float32) / 65535; M = H > T
 yy, xx = np.mgrid[:TH, :TW]; fl = np.hypot(xx - 820, yy - 233.7) < 340
 def st(n, a, b, w):
     i = (a & b & w).sum(); u = ((a | b) & w).sum(); print(f'{n}: IoU {i / u:.4f}  both {i}  MISS {(a & ~b & w).sum()}  EXTRA {(b & ~a & w).sum()}')
+_w = os.environ.get('WIN')
+if _w: _x, _y, _r = [float(v) for v in _w.split(',')]; st('window ', R, M, np.hypot(xx - _x, yy - _y) <= _r)
 st('all    ', R, M, np.ones_like(R)); st('flower ', R, M, fl); st('outside', R, M, ~fl)
 img = (rc * .35).astype(np.uint8)
 for m, c in ((R & M, (0, 200, 0)), (R & ~M, (0, 0, 255)), (M & ~R, (255, 120, 0))): img[m] = (img[m] * .35 + np.array(c) * .65).astype(np.uint8)
