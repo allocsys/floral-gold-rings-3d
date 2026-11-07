@@ -1,6 +1,6 @@
 // Parametric ring geometry (mm). No dependencies: runs in the browser and in Node.
 // Both bands (band1, band2) carry the engraved floral relief (relief_band.js, derived from reference/rings_flat.png), repeated REPEATS times around the ring.
-import { RELIEF_BAND } from './relief_band.js?v=relief113';
+import { RELIEF_BAND } from './relief_band.js?v=relief114';
 import { RELIEF_SOL } from './relief_sol.js';
 export const DEFAULTS = {
   band1:     { ID: 19, w: 4.5, t: 1.5, relief: 0.4 },
@@ -45,7 +45,7 @@ export function reliefTex() { // D54 (b2): mip 0 of the band map as bytes (R8 te
   if (!_nmTex) { const bin = atob(RELIEF_BAND.b64), d = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) d[i] = bin.charCodeAt(i); _nmTex = { W: RELIEF_BAND.W, H: RELIEF_BAND.H, data: d }; }
   return _nmTex;
 }
-const REPEATS = 3, FADE = 0.5; // pattern repeats around the ring; relief fades to 0 over the last FADE mm before the rounded edge
+const REPEATS = 4, FADE = 0.5; // pattern repeats around the ring; relief fades to 0 over the last FADE mm before the rounded edge
 const mipCache = new Map();
 function reliefMips(R = RELIEF_BAND) {
   if (mipCache.has(R)) return mipCache.get(R);

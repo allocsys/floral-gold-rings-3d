@@ -5,7 +5,7 @@
   python3 tools/wip_v3/wire.py MAP.png            # copy MAP -> maps/band_period.png, regenerate b64, bump ?v=reliefN, run site test
   python3 tools/wip_v3/wire.py MAP.png --no-test  # same, skip `node site/test.mjs`
 
-b64 recipe: H/65535 -> cv2.resize to (1198,260) INTER_AREA -> *255 rounded -> raw uint8 row-major -> base64.
+b64 recipe (v1 2396 wide -> 1198; v2 1640 wide -> 820; also sets W in relief_band.js): H/65535 -> cv2.resize to (W/2,260) INTER_AREA -> *255 rounded -> raw uint8 row-major -> base64.
 Nothing is committed or pushed here; do that afterwards (see tools/wip_v3/push.sh).
 """
 import base64, os, re, shutil, subprocess, sys
@@ -20,8 +20,9 @@ B64_RE = re.compile(r"b64:\s*'[^']*'")
 
 def b64_of(png):
     H = cv2.imread(png, -1)
-    assert H is not None and H.dtype == np.uint16 and H.shape == (520, 2396), f'{png}: expected 16-bit 520x2396, got {None if H is None else (H.dtype, H.shape)}'
-    s = cv2.resize(H.astype(np.float32) / 65535, (1198, 260), interpolation=cv2.INTER_AREA)
+    assert H is not None and H.dtype == np.uint16 and H.shape in ((520, 2396), (520, 1640)), f'{png}: expected 16-bit 520x2396 (v1) or 520x1640 (v2), got {None if H is None else (H.dtype, H.shape)}'
+    W2 = H.shape[1] // 2   # 1198 (v1) / 820 (v2); band is always 260 rows
+    s = cv2.resize(H.astype(np.float32) / 65535, (W2, 260), interpolation=cv2.INTER_AREA)
     if os.environ.get('MESH') == '1':  # V5: default OFF (vector map is mesh-ready: bevel W=10 map px built in; the cone put banding stripes into thin grooves). Was D25 default ON: slope-limited mesh-side map (meshmap.py; CONE env = slope cap per site px; MESH=0 = plain downsample); maps/band_period.png stays ref-truth
         sys.path.insert(0, os.path.dirname(__file__)); import meshmap; s = meshmap.widen(s)
     return base64.b64encode(np.round(s * 255).astype(np.uint8).tobytes()).decode()
@@ -49,6 +50,8 @@ def main():
     if src != MAPDST:
         shutil.copyfile(src, MAPDST)
     js = open(JS).read()
+    W2 = len(base64.b64decode(new)) // 260
+    js = re.sub(r'W: \d+, H: 260', f'W: {W2}, H: 260', js, count=1)
     open(JS, 'w').write(B64_RE.sub(lambda _m: "b64: '" + new + "'", js, count=1))
     html = open(HTML).read()
     ver = re.findall(r'\?v=relief(\d+)', html)
