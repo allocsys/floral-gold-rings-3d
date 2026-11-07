@@ -25,5 +25,12 @@ T=cv2.GaussianBlur(np.abs(V-cv2.GaussianBlur(V,(0,0),1.5)),(0,0),2)
 g=ndi.binary_erosion(ndi.binary_opening(T>14,structure=np.ones((11,11))),iterations=4)   # open 11 keeps wide patches only (rims are thin); erode 4 = compensate texture-blur bleed into gold
 m=ndi.binary_opening(m&~g,structure=np.ones((5,5)))
 lab,n=ndi.label(m);sz=ndi.sum(m,lab,range(1,n+1));m=np.isin(lab,[i+1 for i,z in enumerate(sz) if z>=80])
+# edge refinement (s73): GrabCut/ground-removal edges are ragged (5-10 px wobble); the gold rim itself is a crisp bright threshold edge. Use the current mask only as the COARSE region:
+# final = (blur(V,1.2) > 95, opened) inside dilate(mask, 6)  U  erode(mask, 3)  -> crisp pointed petals/leaf tips, shaded scroll interiors kept from the coarse mask
+Vb2 = cv2.GaussianBlur(cv2.cvtColor(P, cv2.COLOR_BGR2GRAY).astype(np.float32), (0, 0), 1.2)
+T0 = ndi.binary_opening(Vb2 > 95, structure=np.ones((3, 3)))
+m = (T0 & ndi.binary_dilation(m, iterations=6)) | ndi.binary_erosion(m, iterations=3)
+m = ndi.binary_opening(m, structure=np.ones((3, 3)))
+lab, n = ndi.label(m); sz = ndi.sum(m, lab, range(1, n + 1)); m = np.isin(lab, [i + 1 for i, z in enumerate(sz) if z >= 80])
 cv2.imwrite('maps/v2/panel_mask.png',(m*255).astype(np.uint8))
 # periodicity: IoU of mask vs mask shifted by period for shifts around 813 (x offset 70 removed)

@@ -20,37 +20,46 @@ mt = periodic(mask)
 V = cv2.cvtColor(ref, cv2.COLOR_BGR2GRAY).astype(np.float32); Vt = periodic(V)
 rs = lambda a: cv2.resize(a, (TW, TH), interpolation=cv2.INTER_CUBIC)
 sg = lambda a, s: ndi.gaussian_filter(a, s, mode=('nearest', 'wrap'))
-B = sg(rs(sg(mt, .8)), SIG) > .5
-lab, n = ndi.label(B); ar = np.bincount(lab.ravel())
+def tri(a): return np.tile(a, (1, 3))
+def sdf_of(Bm): return (ndi.distance_transform_edt(tri(Bm))[:, TW:2 * TW] - ndi.distance_transform_edt(~tri(Bm))[:, TW:2 * TW]).astype(np.float32)
+B = sg(rs(sg(mt, .8)), 1.5) > .5
+for ss in (SIG, SIG * .8):                       # D-v2 s73: level-set smoothing = smooth the signed distance, re-threshold at 0 (kills the ref stair-steps, keeps tips)
+    B = sg(sdf_of(B), ss) > 0
+lab, n = ndi.label(B); ar = np.bincount(lab.ravel(), minlength=n + 1)
 B = np.isin(lab, [i for i in range(1, n + 1) if ar[i] >= 150])
 hl, hn = ndi.label(~B); ha = np.bincount(hl.ravel(), minlength=hn + 1)
 B = B | np.isin(hl, [i for i in range(1, hn + 1) if ha[i] < 150])   # fill small holes
-def tri(a): return np.tile(a, (1, 3))
-d_in = ndi.distance_transform_edt(tri(B))[:, TW:2 * TW]; d_out = ndi.distance_transform_edt(~tri(B))[:, TW:2 * TW]
-sdf = sg((d_in - d_out).astype(np.float32), 1.0)
-lab3, n3 = ndi.label(tri(B)); labm = lab3[:, TW:2 * TW]
-level = np.zeros(B.shape, np.float32)
-fcx, fcy = (1015 - C0) * TW / P, 116 * TH / 258
-Rmax = {}
-for i in np.unique(labm[B]):
-    r = labm == i; A = int((lab3 == i).sum()); R = float(sdf[r].max()); Rmax[i] = (A, R)
-    bead = A < 9000 and np.pi * R * R / A > .72
-    if not bead: continue
-    s = np.clip(sdf / R, 0, 1); top = FBEAD if np.hypot(*(np.argwhere(r).mean(0)[::-1] - (fcx, fcy))) < 40 else BEAD
-    level[r] = (.3 + (top - .3) * np.sqrt(np.clip(1 - (1 - s) ** 2, 0, 1)))[r]
-big = B & (level == 0)
+# thin-gap narrowing: background strips < 12 map px wide (petal gaps, slits) are wider than the ref's hairlines -> grow gold GN px into them from both sides
+rr = 6; yy_, xx_ = np.mgrid[-rr:rr + 1, -rr:rr + 1]; disc = (yy_ ** 2 + xx_ ** 2) <= rr * rr
+opn = ndi.binary_opening(tri(~B), structure=disc)[:, TW:2 * TW]
+thin = ~B & ~opn
+B = B | (thin & (ndi.distance_transform_edt(~tri(B))[:, TW:2 * TW] <= E('GN', 2.5)))
+# beads (ring-template matched on the ref, tile px x,y,r, moat?, top): carve moat ring, stamp disc
+sc = TW / P; Yg, Xg = np.mgrid[:TH, :TW]
+BEADS = [(407, 116, 29, 1, FBEAD), (593, 151, 22, 1, BEAD), (80, 214, 27, 1, BEAD), (530, 33, 10, 1, BEAD), (302, 224, 9, 1, BEAD), (593, 36, 18, 0, BEAD), (228, 145, 21, 0, .78)]
+dist_b = np.full(B.shape, 1e9, np.float32)
+for bx, by, br, moat, top in BEADS:
+    d = np.hypot(Xg - bx * sc, Yg - by * sc); R = br * sc
+    if moat: B = B & ~((d > R) & (d <= R + E('MOAT', 8)))
+    B = B | (d <= R)
+sdf = sg(sdf_of(B), 1.0)
+level = np.zeros(B.shape, np.float32); isbead = np.zeros(B.shape, bool)
+for bx, by, br, moat, top in BEADS:
+    d = np.hypot(Xg - bx * sc, Yg - by * sc); R = br * sc; r_ = d <= R
+    level[r_] = (.3 + (top - .3) * np.sqrt(np.clip(1 - (d / R) ** 2, 0, 1)))[r_]; isbead |= r_
+big = B & ~isbead
 yy, xx = np.mgrid[-30:31, -30:31]; fp = (yy ** 2 + xx ** 2) <= 900
 Rloc = sg(ndi.maximum_filter(tri(np.maximum(sdf, 0)), footprint=fp, mode='nearest')[:, TW:2 * TW], 14)   # tiled x3 so the round footprint wraps
 dn = sg(np.clip(sdf / np.maximum(Rloc, 8), 0, 1), 4)
 plate = .58 * (1 - PL * (1 - dn) ** 2)
 if GR > 0:   # thin dark hairlines inside gold (black-hat of ref luminance); wide dark bands are reflections, not grooves -> thin + elongated comps only
     Vb = cv2.GaussianBlur(Vt, (0, 0), 1.0); bh = cv2.morphologyEx(Vb, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)) - Vb
-    g = rs(((bh > 22)).astype(np.float32)) > .5
-    g &= ndi.binary_erosion(B, iterations=14)
+    g = rs(((bh > E('GT', 30))).astype(np.float32)) > .5
+    g &= ndi.binary_erosion(B & ~isbead, iterations=14)
     gl, gn = ndi.label(g, structure=np.ones((3, 3))); keep = np.zeros_like(g)
     for k, sl in enumerate(ndi.find_objects(gl), 1):
         h_, w_ = sl[0].stop - sl[0].start, sl[1].stop - sl[1].start
-        if max(h_, w_) >= 30: keep |= gl == k
+        if max(h_, w_) >= 40: keep |= gl == k
     plate = plate * (1 - GD * sg(keep.astype(np.float32), 1.3) / max(sg(keep.astype(np.float32), 1.3).max(), 1e-3))
 level = np.where(big, plate, level)
 bev = np.clip(sdf / W, 0, 1); bev = bev * bev * (3 - 2 * bev)
@@ -60,4 +69,4 @@ cv2.imwrite(OUT, (H * 65535).astype(np.uint16))
 m_ = H; gy, gx = np.gradient(m_ * 40); nn = np.dstack([-gx, -gy, np.ones_like(gx)]); nn /= np.linalg.norm(nn, axis=2, keepdims=True)
 hs = np.clip(nn @ np.array([-1, -1, 1.2]) / np.linalg.norm([-1, -1, 1.2]), 0, 1); hs = hs / hs.max()
 cv2.imwrite(OUT.replace('.png', '_hillshade.png'), (hs * 255).astype(np.uint8))
-print('wrote', OUT, H.shape, 'beads:', sum(1 for i, (a, R) in Rmax.items() if a < 9000 and np.pi * R * R / a > .72), 'coverage %.3f' % B.mean())
+print('wrote', OUT, H.shape, 'beads:', len(BEADS), 'coverage %.3f' % B.mean())
