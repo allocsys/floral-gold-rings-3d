@@ -63,7 +63,7 @@ for _t, _hw in zip(FAX, FHW):
     if _n < 2: continue
     _k = 1 + int(np.argmax(_st[1:, cv2.CC_STAT_AREA])); _pts = cv2.findNonZero((_l == _k).astype(np.uint8))
     _hm = np.zeros(B.shape, np.uint8); cv2.fillConvexPoly(_hm, cv2.convexHull(_pts), 1)
-    B = B | ((_hm > 0) & _sec) | (_sec & (_dB <= _e))   # hull + wedge fill toward the gap lines (distance-limited, fades with r)
+    B = B | ((_hm > 0) & _sec & (_r < E('HR', 1e9))) | (_sec & (_dB <= _e))   # s85 HR: hull fill only for r<HR (the hull overreaches where the ref petal rim is concave)   # hull + wedge fill toward the gap lines (distance-limited, fades with r)
 B = B & ~((_r < _rbp) & (_r > 40))
 _B2 = sg(sdf_of(B), E('BSG', 2.5)) > 0
 B = np.where((_r > 55) & (_r < 130), _B2, B)
@@ -84,7 +84,7 @@ _l2, _n2 = ndi.label(B); _a2 = np.bincount(_l2.ravel(), minlength=_n2 + 1); B = 
 _nx, _ny = np.meshgrid(np.arange(TW), np.arange(TH)); _nd = np.hypot(_nx - E('NCX', 821), _ny - E('NCY', 72)); _nw = 1 - np.clip((_nd - E('NCR', 14)) / 8, 0, 1)
 B = np.where(_nw > .5, sg(sdf_of(B), E('NSG', 3)) > 0, B)
 # s84 bay fills: where a dark crease next to a leaf edge was cut out of the mask it opened a bite / left a shaded tail out (diff MISS blobs, x y window radius). Inside these soft windows the map takes the union with the ref's own gold (brightness hysteresis, same detector as diff_v2.py: seeds V>HI 150 grown <=6 px into V>85, opened 3x3, comps/holes <150 dropped), opened 5x5 to drop rim noise. BAY=0 disables.
-BAYS = [(146, 74, 34), (1377, 492, 44)]
+BAYS = [(146, 74, 34), (1377, 492, 44), (612, 108, 26), (525, 40, 36)]   # s85 + right petal tip (612,108) and scroll top strip (525,40)
 if E('BAY', 1):
     _ref = cv2.imread('reference/band_face.png')[215:473, 70:2116]
     _V = cv2.GaussianBlur(cv2.cvtColor(_ref, cv2.COLOR_BGR2GRAY).astype(np.float32), (0, 0), 1.0)
@@ -95,11 +95,18 @@ if E('BAY', 1):
     _t[:, :SEAM] = (1 - _al) * _e[:, P:P + SEAM] + _al * _e[:, :SEAM]
     _Rg = ndi.binary_opening(cv2.resize(_t, (TW, TH), interpolation=cv2.INTER_CUBIC) > .5, np.ones((5, 5)))
     _bx, _by = np.meshgrid(np.arange(TW), np.arange(TH))
+    _Dk = ndi.binary_opening(cv2.resize(_t, (TW, TH), interpolation=cv2.INTER_CUBIC) <= .5, np.ones((5, 5)))   # ref NON-gold (dark crease / ground), opened 5x5
     for _cx, _cy, _wr in BAYS:
         B = B | (_Rg & (np.hypot(_bx - _cx, _by - _cy) <= _wr))
+    # s85 cuts: window (x, y, radius) where the map has gold but the ref has a dark crease / dark rim band: remove the ref-dark part. 'a' windows above add ref gold.
+    CUTS = [(396, 319, 26), (575, 312, 30)]
+    for _cx, _cy, _wr in CUTS:
+        B = B & ~(_Dk & (np.hypot(_bx - _cx, _by - _cy) <= _wr))
 # beads (ring-template matched on the ref, tile px x,y,r, moat?, top): carve moat ring, stamp disc
 sc = TW / P; Yg, Xg = np.mgrid[:TH, :TW]
 BEADS = [(407, 116, 29, 1, FBEAD), (593, 151, 22, 1, BEAD), (80, 214, 27, 1, BEAD), (530, 33, 10, 1, BEAD), (302, 224, 9, 1, BEAD), (593, 36, 18, 0, BEAD), (228, 145, 21, 0, .78)]
+if E('BFIT', 1):   # s85 circles refitted (robust LSQ) to the ref gold outline, edge px with ground outside; only beads with >=33/36 angular bins covered (the (302,224) and curl-ball (228,145) fits were contaminated, kept)
+    BEADS[1] = (592.7, 151.9, 22.29, 1, BEAD); BEADS[2] = (81.0, 214.1, 27.2, 1, BEAD); BEADS[3] = (530.9, 34.0, 9.93, 1, BEAD); BEADS[5] = (592.8, 36.4, 18.31, 0, BEAD)
 dist_b = np.full(B.shape, 1e9, np.float32)
 for bx, by, br, moat, top in BEADS:
     d = np.hypot(Xg - bx * sc, Yg - by * sc); R = br * sc
