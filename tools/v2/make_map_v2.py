@@ -71,7 +71,8 @@ for bx, by, br, moat, top in BEADS:
     d = np.hypot(Xg - bx * sc, Yg - by * sc); R = br * sc
     if bx == 407 and by == 116:   # s78 flower bead: ref has a gold COLLAR out to r~66 (cut by the 6 petal gap lines), dark moat r 66..73, petals from ~74 (measured radial profile)
         Rc = R + E('COL', 8); B = B & ~((d > Rc) & (d <= Rc + E('FMOAT', 7))); B = B | (d <= Rc)
-        B = B & ~((_r * np.sin(np.radians(np.clip(_gd, 0, 90))) < E('CGW', 3)) & (d > R) & (d <= Rc))
+        _FS = ((_r * np.sin(np.radians(np.clip(_gd, 0, 90))) < E('CGW', 3)) & (d > R) & (d <= Rc)); _FD = np.clip((R + 2.5 - d) / 5, 0, 1)   # s79: slit mask + soft dome weight (1 inside r<=R-2.5, 0 beyond R+2.5)
+        B = B & ~_FS
         B = B | (d <= R)
         continue
     if moat: B = B & ~((d > R) & (d <= R + E('MOAT', 8)))
@@ -125,7 +126,14 @@ if _LUM > 0:   # s76 faint shape-from-shading: ref luminance (blurred) relative 
 plate = plate - VG
 level = np.where(big, plate, level)
 bev = np.clip(sdf / W, 0, 1); bev = bev * bev * (3 - 2 * bev)
+# s79 collar slit pockets: the bevel of the flower dome ignores the 6 collar slits (distance to the moat only), so slit ends no longer scoop round pockets out of the dome edge
+_sf = sg(sdf_of(B | _FS), 1.0); _bf = np.clip(_sf / W, 0, 1); _bf = _bf * _bf * (3 - 2 * _bf)
+bev = _FD * _bf + (1 - _FD) * bev
 H = np.clip(level * bev, 0, 1) * np.clip(B + (sdf > -.3), 0, 1)
+# s79 collar slit ends: light Gaussian of H in a soft window around the 6 collar slits (r 53..69, within SLW px of the gap line) removes the stair-stepped teeth where the slits meet the dome edge
+_slw = E('SLW', 9); _wr = np.clip(np.minimum(_r - (29 * sc - 5), (29 * sc + E('COL', 8) + 2.5) - _r) / 3, 0, 1)
+_wa = np.clip((_slw - _r * np.sin(np.radians(np.clip(_gd, 0, 90)))) / 3, 0, 1); _ws = _wr * _wa
+H = np.clip(_ws * sg(H, E('SLG', 1.3)) + (1 - _ws) * H, 0, 1)
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 cv2.imwrite(OUT, (H * 65535).astype(np.uint16))
 m_ = H; gy, gx = np.gradient(m_ * 40); nn = np.dstack([-gx, -gy, np.ones_like(gx)]); nn /= np.linalg.norm(nn, axis=2, keepdims=True)
