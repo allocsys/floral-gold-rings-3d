@@ -177,7 +177,11 @@ if GR > 0:   # thin dark hairlines inside gold (black-hat of ref luminance); wid
     for k, sl in enumerate(ndi.find_objects(gl), 1):
         h_, w_ = sl[0].stop - sl[0].start, sl[1].stop - sl[1].start
         if max(h_, w_) >= 40: keep |= gl == k
-    plate = plate * (1 - GD * sg(keep.astype(np.float32), 1.3) / max(sg(keep.astype(np.float32), 1.3).max(), 1e-3))
+    if E('GSOFT', 1):   # s100 the binary groove mask (threshold, resample, >.5) leaves 1-px stair-steps along the thin scroll creases (dashed look in the hillshade, ridged in 3D). GSOFT=1: same components (keep), but the weight inside them is the ref's own soft black-hat response (graded, not thresholded), blurred GSS px. GSOFT=0 = prior behaviour.
+        _soft = rs(np.clip((bh - E('GT', 30) * .7) / (E('GT', 30) * .6), 0, 1).astype(np.float32)) * ndi.binary_dilation(keep, iterations=2)
+        _sk = sg(_soft.astype(np.float32), E('GSS', 1.6)); plate = plate * (1 - GD * _sk / max(_sk.max(), 1e-3))
+    else:
+        plate = plate * (1 - GD * sg(keep.astype(np.float32), 1.3) / max(sg(keep.astype(np.float32), 1.3).max(), 1e-3))
 # D-v2 s74 petal veins: per petal ONE rib + 2 diverging hairlines (clean, evenly tapered), straight along the petal axis; replaces the ref's reflection-dependent dark lines
 VR, VH, VW, VO, VS, VE = E('VR', .05), E('VH', .035), E('VW', 1.4), E('VO', 9), E('VS', 80), E('VE', .86)
 VG = np.zeros(B.shape, np.float32)
