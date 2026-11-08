@@ -205,6 +205,13 @@ if E('NOCURL', 1) and E('CB', .25) > 0:   # s86: gentle rounded swell on the scr
     _dc = np.hypot(Xg - 228 * sc, Yg - 145 * sc) / (E('CBR', 1.15) * 21 * sc); plate = plate + E('CB', .25) * (1 - np.clip(_dc, 0, 1) ** 2) ** 2
 level = np.where(big, plate, level)
 _sb = sg(sdf, E('SBS', 2.0)) if E('SBS', 2.0) > 0 else sdf   # s79 rim faceting: bevel ramp from a smoother SDF (binary-mask staircase made stripes on the rims)
+# s99 SBC: rim scalloping on the big scroll/leaf shapes only (silhouette wiggles wider than SBS survive into the bevel foot): bevel ramp from a smoother SDF (sigma SBC) there. Class = silhouette components of area >= 5000 not containing the flower centre, dilated 8 px, soft edge. Flower, beads, collar and gap lips keep SBS. SBC=0 disables (reproduces prior map).
+if E('SBC', 3) > 0:
+    _lc, _nc = ndi.label(B); _ac = np.bincount(_lc.ravel(), minlength=_nc + 1)
+    _cc = ndi.center_of_mass(B, _lc, range(1, _nc + 1))   # petals are separate components too: keep only shapes centred > 300 px from the flower centre
+    _scm = np.isin(_lc, [i for i in range(1, _nc + 1) if _ac[i] >= 5000 and np.hypot(_cc[i - 1][1] - 820, _cc[i - 1][0] - 234) > 300]).astype(np.float32)
+    _scm = np.clip(sg(ndi.binary_dilation(_scm > 0, iterations=8).astype(np.float32), 2.0), 0, 1)
+    _sb = _scm * sg(sdf, E('SBC', 3)) + (1 - _scm) * _sb
 bev = np.clip(_sb / W, 0, 1); bev = bev * bev * (3 - 2 * bev)
 # s79 collar slit pockets: the bevel of the flower dome ignores the 6 collar slits (distance to the moat only), so slit ends no longer scoop round pockets out of the dome edge
 _sf = sg(sdf_of(B | _FS), 1.0); _bf = np.clip(_sf / W, 0, 1); _bf = _bf * _bf * (3 - 2 * _bf)
