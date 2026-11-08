@@ -224,6 +224,17 @@ if _crs > 0:
     _xi = np.clip(np.round(_mx).astype(int), 0, TW - 1); _yi = np.clip(np.round(_my).astype(int), 0, TH - 1)
     np.add.at(_dH, (_yi, _xi), _d); np.add.at(_cnt, (_yi, _xi), 1)
     _ok = _cnt > 0; H = np.clip(H + np.where(_ok, _dH / np.maximum(_cnt, 1), 0), 0, 1)
+# s97 ground texture GAMP: the ref ground is stippled (crackle, ~6-12 px features); the map ground was perfectly flat (H=0). Raised micro-relief taken straight from the ref's own ground brightness (high-pass of V, bright = raised, positive only so the base level stays 0), only where the ground is >= GCLR px from any gold (full strength after +GRAMP px) and inside the panel rows GY0..GY1. Gold pixels are never touched. GAMP=0 disables (reproduces prior map).
+_gamp = E('GAMP', .015)
+if _gamp > 0:
+    _ev3 = _V[:, C0:C0 + P + SEAM].copy(); _tv3 = _ev3[:, :P].copy(); _tv3[:, :SEAM] = (1 - _al) * _ev3[:, P:P + SEAM] + _al * _ev3[:, :SEAM]
+    _g = cv2.resize(_tv3, (TW, TH), interpolation=cv2.INTER_CUBIC).astype(np.float32)
+    _hp = cv2.GaussianBlur(_g, (0, 0), E('GSG', .9)) - cv2.GaussianBlur(_g, (0, 0), E('GLP', 7))
+    _tex = np.clip(_hp / E('GSC', 25), 0, 1)
+    _gd = cv2.distanceTransform((H <= .01).astype(np.uint8), cv2.DIST_L2, 5)
+    _gw = np.clip((_gd - E('GCLR', 12)) / E('GRAMP', 6), 0, 1) * np.clip(np.minimum(np.arange(TH) - E('GY0', 12), E('GY1', 496) - np.arange(TH)) / 6, 0, 1)[:, None]
+    _gw = _gw * (H <= .01)
+    H = np.clip(H + _gamp * _tex * _gw, 0, 1)
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 cv2.imwrite(OUT, (H * 65535).astype(np.uint16))
 m_ = H; gy, gx = np.gradient(m_ * 40); nn = np.dstack([-gx, -gy, np.ones_like(gx)]); nn /= np.linalg.norm(nn, axis=2, keepdims=True)
