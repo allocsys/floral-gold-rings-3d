@@ -102,6 +102,12 @@ if E('BAY', 1):
     CUTS = [(396, 319, 26), (575, 312, 30), (519, 56, 30)]
     for _cx, _cy, _wr in CUTS:
         B = B & ~(_Dk & (np.hypot(_bx - _cx, _by - _cy) <= _wr))
+    # s98 scroll/leaf outline smoothing SCS (extra level-set sigma, px): only the big scroll/leaf components of the silhouette (area >= SCA, not the flower: component must not contain the flower centre (820,234)); flower, beads and the later REFW/GAPL windows are untouched. SCS=0 disables (reproduces prior map).
+    if E('SCS', 0) > 0:
+        _ls, _ns = ndi.label(B); _as = np.bincount(_ls.ravel(), minlength=_ns + 1); _fl = _ls[234, 820]
+        _sc = np.isin(_ls, [i for i in range(1, _ns + 1) if _as[i] >= E('SCA', 5000) and i != _fl])
+        _Bsm = sg(sdf_of(B), E('SCS', 0)) > 0
+        B = np.where(ndi.binary_dilation(_sc, iterations=6), _Bsm, B)
     # s86 ref-shape windows (x, y, radius): inside, the map silhouette becomes the ref's own (ref gold union, minus ref-dark recess), level-set smoothed RSG. REFW=0 disables.
     REFW = [(1495, 395, 75), (438, 258, 16), (396, 319, 34), (142, 80, 30)]   # bottom-right pointed leaf recess; curl-head groove pocket; gap beside the curl; s91 scroll slit (142,80)
     if E('REFW', 1):
