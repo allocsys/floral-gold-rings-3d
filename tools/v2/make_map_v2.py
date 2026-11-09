@@ -364,7 +364,7 @@ if _knb > 0:
     _s4 = np.clip(cv2.GaussianBlur(_m4.astype(np.float32), (0, 0), E('KNS', 1.5)) * 1.0, 0, 1) * _win
     H = np.maximum(H, _knb * _s4)
 # s110 FSH: shift the whole flower (petals+bead, gold comps within r<=FSR of 820,234, area>5000) along u by FSH map px (+ = screen down on the ring view; 20 balances top/bottom clearance 42/45 px, was 23/60). Old footprint (halo FSM px) is ground-filled from nearest outside ground; the small bead below-left stays. FSH=0 reverts.
-_fsh = int(E('FSH', 20))
+_fsh = int(E('FSH', 4))
 if _fsh:
     _l5, _n5 = ndi.label(H > .03); _yy5, _xx5 = np.mgrid[:TH, :TW]; _F5 = np.zeros((TH, TW), bool)
     for _i5 in range(1, _n5 + 1):
@@ -388,7 +388,7 @@ if _fsv or _fss != 1:
     _R6 = ndi.binary_dilation(_F6, structure=np.ones((3, 3)), iterations=int(E('FSM', 10)))
     _ix6 = ndi.distance_transform_edt(_R6, return_distances=False, return_indices=True)
     _Hb = H.copy(); _Hb[_R6] = H[_ix6[0], _ix6[1]][_R6]
-    _cx0, _cy0 = E('FSX', 840.), E('FSY', 233.5)
+    _cx0, _cy0 = E('FSX', 820. + _fsh), E('FSY', 233.5)
     _M6 = np.float32([[_fss, 0, _cx0 - _fss * _cx0], [0, _fss, _cy0 + _fsv - _fss * _cy0]])
     _Hw = cv2.warpAffine((H * _R6).astype(np.float32), _M6, (TW, TH), flags=cv2.INTER_CUBIC)
     _Wm = cv2.warpAffine(_R6.astype(np.float32), _M6, (TW, TH), flags=cv2.INTER_LINEAR) > .5
