@@ -319,6 +319,20 @@ if _gamp > 0:
     _gw = np.clip((_gd - E('GCLR', 12)) / E('GRAMP', 6), 0, 1) * np.clip(np.minimum(np.arange(TH) - E('GY0', 12), E('GY1', 496) - np.arange(TH)) / 6, 0, 1)[:, None]
     _gw = _gw * (H <= .01)
     H = np.clip(H + _gamp * _tex * _gw, 0, 1)
+# s106 KNB bright gold knobs in the ground (~1057,450 / 1080,447): ref shows two raised bright gold shapes (V>KNT) that the map had as faint bumps. Inside windows KNW 'x,y,r;..' take ref V>KNT (map space), drop specks < KNA px, soften the edge by KNS px sigma and raise H to at least KNB*mask (plateau level). Everything outside the windows untouched. KNB=0 disables (reproduces prior map).
+_knb = E('KNB', .35)
+if _knb > 0:
+    _ev4 = _V[:, C0:C0 + P + SEAM].copy(); _tv4 = _ev4[:, :P].copy(); _tv4[:, :SEAM] = (1 - _al) * _ev4[:, P:P + SEAM] + _al * _ev4[:, :SEAM]
+    _g4 = cv2.GaussianBlur(cv2.resize(_tv4, (TW, TH), interpolation=cv2.INTER_CUBIC).astype(np.float32), (0, 0), 1.0)
+    _yy4, _xx4 = np.mgrid[:TH, :TW]; _win = np.zeros((TH, TW), bool)
+    for _w4 in os.environ.get('KNW', '1074,447,34').split(';'):
+        _a4 = [float(v) for v in _w4.split(',')]; _win |= np.hypot(_xx4 - _a4[0], _yy4 - _a4[1]) < _a4[2]
+    _m4 = (_g4 > E('KNT', 130)) & _win
+    _l4, _n4 = ndi.label(_m4); _ar4 = np.bincount(_l4.ravel(), minlength=_n4 + 1)
+    _m4 = np.isin(_l4, [i for i in range(1, _n4 + 1) if _ar4[i] >= E('KNA', 30)])
+    _m4 = ndi.binary_closing(_m4, np.ones((3, 3))); _m4 = ndi.binary_fill_holes(_m4)
+    _s4 = np.clip(cv2.GaussianBlur(_m4.astype(np.float32), (0, 0), E('KNS', 1.5)) * 1.0, 0, 1) * _win
+    H = np.maximum(H, _knb * _s4)
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 cv2.imwrite(OUT, (H * 65535).astype(np.uint16))
 m_ = H; gy, gx = np.gradient(m_ * 40); nn = np.dstack([-gx, -gy, np.ones_like(gx)]); nn /= np.linalg.norm(nn, axis=2, keepdims=True)
