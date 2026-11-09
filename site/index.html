@@ -80,12 +80,13 @@ const gem = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roug
 const seat = gold.clone(); seat.color.set(0xd6dae6); seat.envMapIntensity = 0.8; // D41: neutral white-metal basket cup under the stone (gem transmission otherwise refracts the bright gold seat = yellow stone); viewer only, STL ignores kind
 const group = new THREE.Group(); scene.add(group);
 
-// D80 (Meshy): band tabs use the Meshy image-to-3D strip (site/band_meshy.glb, 3 flower repeats, flat slab x=length y=width z=relief) bent into a ring. ?src=old = previous parametric band.
+// D80 (Meshy): band tabs use the Meshy image-to-3D strip (site/band_meshy_tile.glb = one seamless repeat cut from the Meshy strip at matched columns, flat slab x=length y=width z=relief) bent into a ring. ?src=old = previous parametric band.
 const MESHY_ON = new URLSearchParams(location.search).get('src') !== 'old';
 let meshySrc = null, meshyFail = false;
 const isMeshy = () => MESHY_ON && !meshyFail && (kind === 'band1' || kind === 'band2');
-if (MESHY_ON) new GLTFLoader().load('band_meshy.glb', g => {
+if (MESHY_ON) new GLTFLoader().load('band_meshy_tile.glb', g => {
   let m = null; g.scene.traverse(o => { if (o.isMesh && !m) m = o; });
+  if (!m.geometry.attributes.normal) m.geometry.computeVertexNormals();
   m.geometry.computeBoundingBox();
   const mat = new THREE.MeshStandardMaterial({ map: m.material.map, normalMap: m.material.normalMap, color: 0xffffff, metalness: 0.85, roughness: 0.4 });
   if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
@@ -95,7 +96,7 @@ if (MESHY_ON) new GLTFLoader().load('band_meshy.glb', g => {
 function buildMeshy(ID) { // wrap the slab: x -> angle (N tiles round the ring), y -> ring axis, z -> radius; uniform scale k so arc length at the relief face = slab length
   const { geo, mat, b } = meshySrc, L = b.max.x - b.min.x, W = b.max.y - b.min.y, dz = b.max.z - b.min.z, Ri = ID / 2, c = 0.7, T = Math.PI * 2;
   const kN = n => (T * Ri / n) / (L - T * c * dz / n);
-  let N = 2; if (Math.abs(kN(3) * W - 4.5) < Math.abs(kN(2) * W - 4.5)) N = 3;
+  let N = 2; for (let n = 3; n <= 12; n++) if (Math.abs(kN(n) * W - 4.5) < Math.abs(kN(N) * W - 4.5)) N = n; // tile count whose derived width is nearest 4.5 mm
   const k = kN(N), P = geo.attributes.position, Nr = geo.attributes.normal, meshes = [];
   for (let t = 0; t < N; t++) {
     const g = geo.clone(), pa = g.attributes.position.array, na = g.attributes.normal.array;
