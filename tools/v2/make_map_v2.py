@@ -228,7 +228,7 @@ if GR > 0:   # thin dark hairlines inside gold (black-hat of ref luminance); wid
         if max(h_, w_) >= 40: keep |= gl == k
     if E('GSOFT', 1):   # s100 the binary groove mask (threshold, resample, >.5) leaves 1-px stair-steps along the thin scroll creases (dashed look in the hillshade, ridged in 3D). GSOFT=1: same components (keep), but the weight inside them is the ref's own soft black-hat response (graded, not thresholded), blurred GSS px. GSOFT=0 = prior behaviour.
         _soft = rs(np.clip((bh - E('GT', 30) * .7) / (E('GT', 30) * .6), 0, 1).astype(np.float32)) * ndi.binary_dilation(keep, iterations=2)
-        _sk = sg(_soft.astype(np.float32), E('GSS', 1.6)); plate = plate * (1 - GD * _sk / max(_sk.max(), 1e-3))
+        _sk = sg(_soft.astype(np.float32), E('GSS', 2.0)); plate = plate * (1 - GD * _sk / max(_sk.max(), 1e-3))
     else:
         plate = plate * (1 - GD * sg(keep.astype(np.float32), 1.3) / max(sg(keep.astype(np.float32), 1.3).max(), 1e-3))
 # D-v2 s74 petal veins: per petal ONE rib + 2 diverging hairlines (clean, evenly tapered), straight along the petal axis; replaces the ref's reflection-dependent dark lines
@@ -256,7 +256,15 @@ if E('RID', .12) > 0:
     _rl, _rn = ndi.label(_rb, structure=np.ones((3, 3))); _rk = np.zeros_like(_rb)
     for _k, _sl in enumerate(ndi.find_objects(_rl), 1):
         if max(_sl[0].stop - _sl[0].start, _sl[1].stop - _sl[1].start) >= 2 * E('RIL', 14): _rk |= _rl == _k
-    _rs = sg((_rg * ndi.binary_dilation(_rk, iterations=2)).astype(np.float32), E('RIS', 1.6))
+    _rm = (_rg * ndi.binary_dilation(_rk, iterations=2)).astype(np.float32)
+    if E('LS', 15) > 0:   # s108 oriented line smoothing: average the ridge map along each of LSN directions with a line kernel (length LS px, 0.8 px wide), keep the per-pixel max -> fills the gaps/dashes in a continuous line, dims isolated specks; LS=0 off
+        _L = int(E('LS', 15)) | 1; _o = np.zeros_like(_rm)
+        for _a in range(int(E('LSN', 16))):
+            _t = np.pi * _a / int(E('LSN', 16)); _kk = np.zeros((_L, _L), np.float32); _c0 = _L // 2
+            cv2.line(_kk, (int(round(_c0 - _c0 * np.cos(_t))), int(round(_c0 - _c0 * np.sin(_t)))), (int(round(_c0 + _c0 * np.cos(_t))), int(round(_c0 + _c0 * np.sin(_t)))), 1, 1)
+            _kk = cv2.GaussianBlur(_kk, (0, 0), .8); _kk /= _kk.sum(); _o = np.maximum(_o, cv2.filter2D(_rm, -1, _kk))
+        _rm = _o
+    _rs = sg(_rm, E('RIS', 2.0))
     plate = plate + E('RID', .12) * _rs / max(_rs.max(), 1e-3)
 _LUM = E('LUM', 0)
 if _LUM > 0:   # s76 faint shape-from-shading: ref luminance (blurred) relative to its local gold mean -> +-LUM height; flower disc excluded (procedural veins)
