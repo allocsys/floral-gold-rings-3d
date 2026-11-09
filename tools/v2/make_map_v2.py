@@ -130,7 +130,13 @@ if E('BAY', 1):
             if len(_c) < 12: continue
             _d = np.r_[0, np.cumsum(np.hypot(*np.diff(_c, axis=0).T))]; _n = max(int(_d[-1]), 8); _u = np.linspace(0, _d[-1], _n, endpoint=False)
             _q = np.c_[np.interp(_u, _d, _c[:, 0]), np.interp(_u, _d, _c[:, 1])]
-            if np.hypot(*(_c[0] - _c[-1])) < 1.5 and _n > 20: _q = ndi.gaussian_filter1d(_q, E('SPC', 6), axis=0, mode='wrap')
+            if np.hypot(*(_c[0] - _c[-1])) < 1.5 and _n > 20:
+                _sm_ = ndi.gaussian_filter1d(_q, E('SPC', 6), axis=0, mode='wrap')
+                if E('SPB2', 12) > E('SPC', 6):   # s106 adaptive: where the long-sigma curve stays within ~SPD px of the short-sigma curve the deviation is ripple -> use the long sigma; at tips/corners/tight bends it deviates more -> keep the short sigma
+                    _bg_ = ndi.gaussian_filter1d(_q, E('SPB2', 12), axis=0, mode='wrap'); _dv_ = np.hypot(*(_bg_ - _sm_).T)
+                    _w_ = np.clip((_dv_ - E('SPD', 1.2)) / E('SPD2', 2.0), 0, 1); _w_ = ndi.gaussian_filter1d(_w_, 4, mode='wrap')
+                    _q = _bg_ + _w_[:, None] * (_sm_ - _bg_)
+                else: _q = _sm_
             _lst.append(_q)
         _pts = [np.round(np.c_[q[:, 1], q[:, 0]] * _S + _S / 2).astype(np.int32) for q in _lst]
         _ar = [abs(cv2.contourArea(q)) for q in _pts]
