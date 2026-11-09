@@ -395,7 +395,7 @@ if _fsh:
     _Hf = H[_ix[0], _ix[1]]; _Hn = H.copy(); _Hn[_Rg] = _Hf[_Rg]
     _Rs = np.roll(_Rg, _fsh, axis=1); _Hn[_Rs] = np.roll(H, _fsh, axis=1)[_Rs]; H = _Hn
 # s111 FSV/FSS: centre the flower across the band (rows = v). Bead row -> map middle (FSV rows shift, + = toward larger row), flower scaled by FSS about the bead so the longer petal side keeps a rim margin. FSV=0 FSS=1 reverts.
-_fsv = int(E('FSV', 26)); _fss = E('FSS', .88)
+_fsv = int(E('FSV', 10)); _fss = E('FSS', .88)
 if _fsv or _fss != 1:
     _l6, _n6 = ndi.label(H > .03); _F6 = np.zeros((TH, TW), bool)
     for _i6 in range(1, _n6 + 1):
