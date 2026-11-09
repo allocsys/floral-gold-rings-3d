@@ -1,6 +1,6 @@
 // Parametric ring geometry (mm). No dependencies: runs in the browser and in Node.
 // Both bands (band1, band2) carry the engraved floral relief (relief_band.js, derived from reference/rings_flat.png), repeated REPEATS times around the ring.
-import { RELIEF_BAND } from './relief_band.js?v=relief136';
+import { RELIEF_BAND } from './relief_band.js?v=relief137';
 import { RELIEF_SOL } from './relief_sol.js';
 export const DEFAULTS = {
   band1:     { ID: 19, w: 4.5, t: 1.5, relief: 0.4 },
@@ -45,7 +45,7 @@ export function reliefTex() { // D54 (b2): mip 0 of the band map as bytes (R8 te
   if (!_nmTex) { const bin = atob(RELIEF_BAND.b64), d = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) d[i] = bin.charCodeAt(i); _nmTex = { W: RELIEF_BAND.W, H: RELIEF_BAND.H, data: d }; }
   return _nmTex;
 }
-const REPEATS = 4, FADE = 0.5; // pattern repeats around the ring; relief fades to 0 over the last FADE mm before the rounded edge
+const REPEATS = 4, FADE = 0.5, FADE_B = 0.2; // D-edge: FADE_B = fade length for band tabs (0.5 = old); solitaire keeps FADE // pattern repeats around the ring; relief fades to 0 over the last FADE mm before the rounded edge
 const mipCache = new Map();
 function reliefMips(R = RELIEF_BAND) {
   if (mipCache.has(R)) return mipCache.get(R);
@@ -106,7 +106,7 @@ function band(p, solitaire, quality) {
       const zn = (-1 + (2 * j) / (Mo - 1)) * zt;
       let R = Ro + DOME * (1 - zn * zn);
       if (lv) { // engraved relief: peaks keep the nominal radius, recesses cut down by `rel` mm, fading out at the rounded edges
-        const zf = Math.min(1, (hwid - rf - Math.abs(zn * hwid)) / FADE), fade = zf * zf * (3 - 2 * zf);
+        const zf = Math.min(1, (hwid - rf - Math.abs(zn * hwid)) / (solitaire ? FADE : FADE_B)), fade = zf * zf * (3 - 2 * zf);
         const mu = solitaire ? Math.min((2 / Math.PI) * Math.atan(0.884 * Math.tan(Math.min(d, 3.14159) / 2)), 0.99999) : mod((i / NT) * REPEATS, 1), mv = (zn / zt + 1) / 2;
         const hv = sampleRelief(lv, mu, mv); { const uo = (i * Mt + j) * 3; UVF[uo] = mu; UVF[uo + 1] = mv; UVF[uo + 2] = fade; }
         R -= rel * fade * (1 - hv);
