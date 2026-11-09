@@ -138,7 +138,7 @@ if E('BAY', 1):
                     _q = _bg_ + _w_[:, None] * (_sm_ - _bg_)
                 else: _q = _sm_
             if E('SPWS', 30) > 0 and len(_q) > 20:   # s107 local strong smoothing windows SPW='x,y,r[,sigma];...' (map coords): inside a window the contour gets sigma (default SPWS; smooth-step weight by distance); SPWS=0 off
-                for _wd in os.environ.get('SPW', '577,59,24;200,325,45,20;735,60,75,14,3.5;890,55,75,14,3.5').split(';'):
+                for _wd in os.environ.get('SPW', '577,59,24;200,325,45,20;735,60,75,14,3.5;890,55,75,14,3.5;783,312,40,9,1.5;875,322,40,9,1.5').split(';'):
                     _wv = [float(v) for v in _wd.split(',')]; _wx, _wy, _wr = _wv[:3]; _wsg = _wv[3] if len(_wv) > 3 else E('SPWS', 30)
                     _dd = np.hypot((_q[:, 1] % TW) - _wx, _q[:, 0] - _wy) / _wr; _ww_ = np.clip(1.6 - 1.6 * _dd, 0, 1)
                     if _ww_.max() > 0: _ww_ = ndi.gaussian_filter1d(_ww_, 3, mode='wrap'); _q = _q + _ww_[:, None] * (ndi.gaussian_filter1d(_q, _wsg, axis=0, mode='wrap') - _q)
@@ -157,7 +157,7 @@ if E('BAY', 1):
         _Bc = cv2.resize(_cv[:, TW * _S:2 * TW * _S].astype(np.float32), (TW, TH), interpolation=cv2.INTER_AREA) > .5
         _yy, _xx = np.mgrid[:TH, :TW]; _zf2 = np.hypot(_xx - 820, _yy - 234) > E('SPF', 340)
         if E('SPWS', 30) > 0:   # s107 smoothing windows also lift the flower-disc exclusion locally (the frond tip near 575,57 is inside r<=340)
-            for _wd in os.environ.get('SPW', '577,59,24;200,325,45,20;735,60,75,14,3.5;890,55,75,14,3.5').split(';'):
+            for _wd in os.environ.get('SPW', '577,59,24;200,325,45,20;735,60,75,14,3.5;890,55,75,14,3.5;783,312,40,9,1.5;875,322,40,9,1.5').split(';'):
                 _wx, _wy, _wr = [float(v) for v in _wd.split(',')[:3]]; _zf2 |= np.hypot(_xx - _wx, _yy - _wy) <= _wr + 8
         if E('FPC', 0):   # s113 FPC: petal class. Petal gold comps (area>=SCA, not the bead/collar comp) outside radius FPR of 820,234 get the same adaptive contour smoothing as scrolls (SPC/SPB2; tips/corners keep short sigma); collar/slits (r<=FPR) untouched. FPC=0 reverts.
             _zf2 = _zf2 | (np.hypot(_xx - 820, _yy - 234) > E('FPR', 85))

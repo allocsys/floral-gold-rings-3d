@@ -1,6 +1,6 @@
 // Parametric ring geometry (mm). No dependencies: runs in the browser and in Node.
 // Both bands (band1, band2) carry the engraved floral relief (relief_band.js, derived from reference/rings_flat.png), repeated REPEATS times around the ring.
-import { RELIEF_BAND } from './relief_band.js?v=relief148';
+import { RELIEF_BAND } from './relief_band.js?v=relief149';
 import { RELIEF_SOL } from './relief_sol.js';
 // RIM margin (band tabs only): WD mm added to the band width; the map keeps its mm size and the extra WD/2 per side is plain ground. URL ?wd=0.3 / ?wd=0.5 to test; no param or 0 = off (prior look).
 const WD = (() => { try { const v = parseFloat(new URLSearchParams(location.search).get('wd')); return v > 0 && v <= 1.5 ? Math.round(v * 10) / 10 : 0; } catch (e) { return 0; } })();
