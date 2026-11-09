@@ -363,6 +363,19 @@ if _knb > 0:
     _m4 = ndi.binary_closing(_m4, np.ones((3, 3))); _m4 = ndi.binary_fill_holes(_m4)
     _s4 = np.clip(cv2.GaussianBlur(_m4.astype(np.float32), (0, 0), E('KNS', 1.5)) * 1.0, 0, 1) * _win
     H = np.maximum(H, _knb * _s4)
+# s110 FSH: shift the whole flower (petals+bead, gold comps within r<=FSR of 820,234, area>5000) along u by FSH map px (+ = screen down on the ring view; 20 balances top/bottom clearance 42/45 px, was 23/60). Old footprint (halo FSM px) is ground-filled from nearest outside ground; the small bead below-left stays. FSH=0 reverts.
+_fsh = int(E('FSH', 20))
+if _fsh:
+    _l5, _n5 = ndi.label(H > .03); _yy5, _xx5 = np.mgrid[:TH, :TW]; _F5 = np.zeros((TH, TW), bool)
+    for _i5 in range(1, _n5 + 1):
+        _c5 = _l5 == _i5
+        if _c5.sum() > 5000:
+            _cy5, _cx5 = ndi.center_of_mass(_c5)
+            if np.hypot(_cx5 - 820, _cy5 - 234) <= E('FSR', 250): _F5 |= _c5
+    _Rg = ndi.binary_dilation(_F5, structure=np.ones((3, 3)), iterations=int(E('FSM', 10)))
+    _ix = ndi.distance_transform_edt(_Rg, return_distances=False, return_indices=True)
+    _Hf = H[_ix[0], _ix[1]]; _Hn = H.copy(); _Hn[_Rg] = _Hf[_Rg]
+    _Rs = np.roll(_Rg, _fsh, axis=1); _Hn[_Rs] = np.roll(H, _fsh, axis=1)[_Rs]; H = _Hn
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 cv2.imwrite(OUT, (H * 65535).astype(np.uint16))
 m_ = H; gy, gx = np.gradient(m_ * 40); nn = np.dstack([-gx, -gy, np.ones_like(gx)]); nn /= np.linalg.norm(nn, axis=2, keepdims=True)
