@@ -212,7 +212,7 @@ for t in FAX:
     for sgn in (-1, 1):   # hairlines start at 0.15 L with offset 2, diverge to +-VO at the end, run to .8 L
         a0 = c + u * (VS + .15 * L1) + n_ * sgn * 2; a1 = c + u * (VS + .8 * L1) + n_ * sgn * VO
         VG = np.maximum(VG, VH * seg_field(a0, a1, .25, .4, VW))
-_LUM = E('LUM', .05)
+_LUM = E('LUM', 0)
 if _LUM > 0:   # s76 faint shape-from-shading: ref luminance (blurred) relative to its local gold mean -> +-LUM height; flower disc excluded (procedural veins)
     _Vl = sg(rs(Vt), E('LSIG', 5)); _w = (B & ~isbead).astype(np.float32)
     _mu = sg(_Vl * _w, 30) / np.maximum(sg(_w, 30), 1e-3)
