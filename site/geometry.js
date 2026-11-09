@@ -1,10 +1,12 @@
 // Parametric ring geometry (mm). No dependencies: runs in the browser and in Node.
 // Both bands (band1, band2) carry the engraved floral relief (relief_band.js, derived from reference/rings_flat.png), repeated REPEATS times around the ring.
-import { RELIEF_BAND } from './relief_band.js?v=relief139';
+import { RELIEF_BAND } from './relief_band.js?v=relief140';
 import { RELIEF_SOL } from './relief_sol.js';
+// RIM margin (band tabs only): WD mm added to the band width; the map keeps its mm size and the extra WD/2 per side is plain ground. URL ?wd=0.3 / ?wd=0.5 to test; no param or 0 = off (prior look).
+const WD = (() => { try { const v = parseFloat(new URLSearchParams(location.search).get('wd')); return v > 0 && v <= 1.5 ? Math.round(v * 10) / 10 : 0; } catch (e) { return 0; } })();
 export const DEFAULTS = {
-  band1:     { ID: 19, w: 4.5, t: 1.5, relief: 0.4 },
-  band2:     { ID: 17, w: 4.0, t: 1.4, relief: 0.4 },
+  band1:     { ID: 19, w: +(4.5 + WD).toFixed(1), t: 1.5, relief: 0.4 },
+  band2:     { ID: 17, w: +(4.0 + WD).toFixed(1), t: 1.4, relief: 0.4 },
   solitaire: { ID: 17, w: 2.6, t: 1.3, relief: 0.3, stone: 5.2, prongs: 6 },
   plaque:    { L: 22.6, w: 4.9, t: 1.2, relief: 0.45 }, // D63 (S1): flat plaque = the band pattern unrolled once (frame: flat rails + square end blocks, recessed stippled ground)
 };
@@ -82,12 +84,12 @@ function band(p, solitaire, quality) {
   const step = quality === 'draft' ? 0.12 : rel ? (quality === 'ultra' ? ULTRA_STEP : 0.04) : 0.055; // 'ultra' = relief walls need >= ~6 cells (D26: .04 step leaves them 3 cells -> sawtooth hatching)
   const Ri = p.ID / 2, Ro = Ri + p.t;
   const NT = Math.max(240, Math.ceil(TAU * Ro / step));
-  const rf = 0.32, Kf = quality === 'draft' ? 4 : 8, Wn = 5, Mi = 10;
+  const rf = 0.32, SV = solitaire || !WD ? 1 : (p.w - 2 * rf) / Math.max(0.5, p.w - WD - 2 * rf), Kf = quality === 'draft' ? 4 : 8, Wn = 5, Mi = 10;
   const Mo = Math.max(24, Math.ceil(((solitaire ? p.w * 1.3 : p.w) - 2 * rf) / step));
   const S = 2 * Kf + Wn, Mt = Mo + Mi + 2 * S;
   let lv = null;
   if (rel) { // pick the mip level whose pixel size matches the mesh spacing (box prefilter, no aliasing)
-    const ms = reliefMips(RS), pxU = (solitaire ? Math.PI * Ro : TAU * Ro / REPEATS) / RS.W, pxV = (solitaire ? p.w * 1.14 : p.w) / RS.H;
+    const ms = reliefMips(RS), pxU = (solitaire ? Math.PI * Ro : TAU * Ro / REPEATS) / RS.W, pxV = (solitaire ? p.w * 1.14 : p.w / SV) / RS.H;
     lv = ms[Math.min(ms.length - 1, Math.max(0, Math.floor(Math.log2(Math.max(TAU * Ro / NT / pxU, (2 * (p.w / 2 - rf)) / (Mo - 1) / pxV)))))];
   }
   const P = new Float32Array(NT * Mt * 3);
@@ -107,7 +109,7 @@ function band(p, solitaire, quality) {
       let R = Ro + DOME * (1 - zn * zn);
       if (lv) { // engraved relief: peaks keep the nominal radius, recesses cut down by `rel` mm, fading out at the rounded edges
         const zf = Math.min(1, (hwid - rf - Math.abs(zn * hwid)) / (solitaire ? FADE : FADE_B)), fade = zf * zf * (3 - 2 * zf);
-        const mu = solitaire ? Math.min((2 / Math.PI) * Math.atan(0.884 * Math.tan(Math.min(d, 3.14159) / 2)), 0.99999) : mod((i / NT) * REPEATS, 1), mv = (zn / zt + 1) / 2;
+        const mu = solitaire ? Math.min((2 / Math.PI) * Math.atan(0.884 * Math.tan(Math.min(d, 3.14159) / 2)), 0.99999) : mod((i / NT) * REPEATS, 1), mv = Math.min(1, Math.max(0, 0.5 + (zn / zt) * SV / 2));
         const hv = sampleRelief(lv, mu, mv); { const uo = (i * Mt + j) * 3; UVF[uo] = mu; UVF[uo + 1] = mv; UVF[uo + 2] = fade; }
         R -= rel * fade * (1 - hv);
         const s = Math.min(1, Math.max(0, (hv - GROUND_LO) / (GROUND_HI - GROUND_LO))), k = s * s * (3 - 2 * s), c = (i * Mt + j) * 3;
@@ -129,7 +131,7 @@ function band(p, solitaire, quality) {
     for (let k = S - 1; k >= 0; k--) put(edge[k][1], -edge[k][0]);
   }
   const shell = torus(P, NT, Mt); if (C) shell.col = C; if (UVF) shell.uvf = UVF;
-  if (UVF && !solitaire) shell.nm = { rel, su: TAU * Ro / REPEATS, sv: 2 * (p.w / 2 - rf), step }; // D54 (b2): mm per map-u unit, mm per map-v unit, mesh step (mm) for the shader normal map (band only)
+  if (UVF && !solitaire) shell.nm = { rel, su: TAU * Ro / REPEATS, sv: 2 * (p.w / 2 - rf) / SV, step }; // D54 (b2): mm per map-u unit, mm per map-v unit, mesh step (mm) for the shader normal map (band only)
   return { shell, top: Ro + DOME };
 }
 // D63 (S1): flat plaque. Frame = flat rails (RW) along the long edges + square end blocks (EB) at full height; inside, the band map (u along x, v along y) cuts the ground down by `relief` mm, dark stippled ground.
