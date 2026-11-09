@@ -320,7 +320,7 @@ if _gamp > 0:
     _gw = _gw * (H <= .01)
     H = np.clip(H + _gamp * _tex * _gw, 0, 1)
 # s106 BSS bulb interior smoothing: the bulb (~460,280) is a smooth dome in the ref but the RID ridge / GK groove terms put lumps and a step into its interior. Inside windows BSW 'x,y,r;..' replace H by a normalized-convolution gaussian (sigma BSS, gold only so the moat does not pull it down), blended in only where the pixel is >= BSD px inside the footprint (ramp BSR) so the rim/bevel is untouched. BSS=0 disables (reproduces prior map).
-_bss = E('BSS', 5)
+_bss = E('BSS', 5); _bwin = np.zeros((TH, TW), np.float32)
 if _bss > 0:
     _yy5, _xx5 = np.mgrid[:TH, :TW]; _w5 = np.zeros((TH, TW), np.float32)
     for _q in os.environ.get('BSW', '460,280,45').split(';'):
@@ -328,8 +328,27 @@ if _bss > 0:
     _mk5 = (H > .03).astype(np.float32)
     _hs5 = cv2.GaussianBlur(H * _mk5, (0, 0), _bss) / np.maximum(cv2.GaussianBlur(_mk5, (0, 0), _bss), 1e-4)
     _de5 = cv2.distanceTransform(_mk5.astype(np.uint8), cv2.DIST_L2, 5)
+    _bwin = np.clip(_w5 * 1.0, 0, 1)
     _w5 = _w5 * np.clip((_de5 - E('BSD', 4)) / E('BSR', 14), 0, 1)
     H = H * (1 - _w5) + _hs5 * _w5
+# s107 FRA procedural frond ridges (user-approved creative step): the ref scroll bodies carry parallel leaf bands with thin bright highlight lines; the map plateaus were comparatively smooth. Adds FRK narrow ridges (gaussian cross-section sigma FRW, height FRA) running parallel to the outline at inner distances FR0 + k*FRP px from the footprint edge (d from distanceTransform of H>.03, slightly warped by low-frequency noise FRJ px so the spacing is not mechanical). Faded out near the medial axis of each band (hw = local max inscribed distance; ridge weight ramps to 0 within FRM px of it) so ridges never cross, only on big scroll bodies (components > FRB px, outside the flower disc r<FRD, outside the bulb smoothing window). Footprint and rim untouched. FRA=0 disables (reproduces prior map).
+_fra = E('FRA', .025)
+if _fra > 0:
+    _mk6 = (H > .03).astype(np.uint8); _d6 = cv2.distanceTransform(_mk6, cv2.DIST_L2, 5)
+    _hw6 = cv2.dilate(_d6, np.ones((E('FRH', 41).__int__(), E('FRH', 41).__int__()), np.uint8))
+    _rs6 = np.random.RandomState(7); _nz6 = cv2.GaussianBlur(_rs6.randn(TH, TW).astype(np.float32), (0, 0), 25); _nz6 = _nz6 / max(np.abs(_nz6).max(), 1e-6)
+    _dj6 = _d6 + E('FRJ', 2.0) * _nz6
+    _rg6 = np.zeros((TH, TW), np.float32)
+    for _k6 in range(int(E('FRK', 2))):
+        _rg6 += np.exp(-0.5 * ((_dj6 - (E('FR0', 9) + _k6 * E('FRP', 10))) / E('FRW', 2.2)) ** 2)
+    _wm6 = np.clip((_hw6 - _d6 - E('FRM', 5)) / 6, 0, 1)
+    _l6, _n6 = ndi.label(_mk6); _a6 = np.bincount(_l6.ravel(), minlength=_n6 + 1)
+    _big6 = np.isin(_l6, [i for i in range(1, _n6 + 1) if _a6[i] >= E('FRB', 14000)]).astype(np.float32)
+    _yy6, _xx6 = np.mgrid[:TH, :TW]; _fd6 = np.clip((np.hypot(_xx6 - 820, _yy6 - 233.7) - E('FRD', 345)) / 8, 0, 1)
+    _nm6 = cv2.GaussianBlur(np.random.RandomState(11).randn(TH, TW).astype(np.float32), (0, 0), E('FRL', 40)); _nm6 = _nm6 / max(np.abs(_nm6).max(), 1e-6)
+    _am6 = np.clip(E('FRB0', .6) + E('FRB1', 1.4) * _nm6, E('FRMN', .15), 1)
+    _rw6 = cv2.GaussianBlur(_big6, (0, 0), 2) * _fd6 * (1 - _bwin) * _am6
+    H = np.clip(H + _fra * _rg6 * _wm6 * _rw6, 0, 1)
 # s106 KNB bright gold knobs in the ground (~1057,450 / 1080,447): ref shows two raised bright gold shapes (V>KNT) that the map had as faint bumps. Inside windows KNW 'x,y,r;..' take ref V>KNT (map space), drop specks < KNA px, soften the edge by KNS px sigma and raise H to at least KNB*mask (plateau level). Everything outside the windows untouched. KNB=0 disables (reproduces prior map).
 _knb = E('KNB', 0)
 if _knb > 0:
