@@ -319,6 +319,17 @@ if _gamp > 0:
     _gw = np.clip((_gd - E('GCLR', 12)) / E('GRAMP', 6), 0, 1) * np.clip(np.minimum(np.arange(TH) - E('GY0', 12), E('GY1', 496) - np.arange(TH)) / 6, 0, 1)[:, None]
     _gw = _gw * (H <= .01)
     H = np.clip(H + _gamp * _tex * _gw, 0, 1)
+# s106 BSS bulb interior smoothing: the bulb (~460,280) is a smooth dome in the ref but the RID ridge / GK groove terms put lumps and a step into its interior. Inside windows BSW 'x,y,r;..' replace H by a normalized-convolution gaussian (sigma BSS, gold only so the moat does not pull it down), blended in only where the pixel is >= BSD px inside the footprint (ramp BSR) so the rim/bevel is untouched. BSS=0 disables (reproduces prior map).
+_bss = E('BSS', 5)
+if _bss > 0:
+    _yy5, _xx5 = np.mgrid[:TH, :TW]; _w5 = np.zeros((TH, TW), np.float32)
+    for _q in os.environ.get('BSW', '460,280,45').split(';'):
+        _a5 = [float(v) for v in _q.split(',')]; _w5 = np.maximum(_w5, np.clip((_a5[2] - np.hypot(_xx5 - _a5[0], _yy5 - _a5[1])) / 6, 0, 1))
+    _mk5 = (H > .03).astype(np.float32)
+    _hs5 = cv2.GaussianBlur(H * _mk5, (0, 0), _bss) / np.maximum(cv2.GaussianBlur(_mk5, (0, 0), _bss), 1e-4)
+    _de5 = cv2.distanceTransform(_mk5.astype(np.uint8), cv2.DIST_L2, 5)
+    _w5 = _w5 * np.clip((_de5 - E('BSD', 4)) / E('BSR', 14), 0, 1)
+    H = H * (1 - _w5) + _hs5 * _w5
 # s106 KNB bright gold knobs in the ground (~1057,450 / 1080,447): ref shows two raised bright gold shapes (V>KNT) that the map had as faint bumps. Inside windows KNW 'x,y,r;..' take ref V>KNT (map space), drop specks < KNA px, soften the edge by KNS px sigma and raise H to at least KNB*mask (plateau level). Everything outside the windows untouched. KNB=0 disables (reproduces prior map).
 _knb = E('KNB', .35)
 if _knb > 0:
