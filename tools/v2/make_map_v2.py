@@ -115,6 +115,8 @@ if E('BAY', 1):
         _Vs = cv2.GaussianBlur(rs(Vt), (0, 0), E('SPB', .8)); _Rv = _Vs > E('SPT', 70)
         _zn = ndi.binary_dilation(_sc, iterations=int(E('SPR', 5)))
         _Rv = ndi.binary_opening(_Rv, structure=np.ones((3, 3)))
+        if E('SPG', 2) > 0:   # grow the crisp V>SPT contour outward by <=SPG px where V>SPL (rim foot; bevel eats ~2 px of footprint): uniform band, so ground speckle cannot scallop the edge
+            _Rv = _Rv | (ndi.binary_dilation(_Rv, iterations=int(E('SPG', 2))) & (_Vs > E('SPL', 35)))
         _Bn = (_Rv & _zn) | ndi.binary_erosion(B & _zn, iterations=int(E('SPR', 5)))
         _hl, _hn = ndi.label(~_Bn); _ha = np.bincount(_hl.ravel(), minlength=_hn + 1); _Bn = _Bn | np.isin(_hl, [i for i in range(1, _hn + 1) if _ha[i] < 150])
         _yy, _xx = np.mgrid[:TH, :TW]; _zf = np.hypot(_xx - 820, _yy - 234) > E('SPF', 340)   # SPF>0 leaves the flower disc (r<=SPF around 820,234) untouched
