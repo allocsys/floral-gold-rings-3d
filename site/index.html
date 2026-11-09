@@ -82,13 +82,15 @@ const group = new THREE.Group(); scene.add(group);
 
 // D80 (Meshy): band tabs use the Meshy image-to-3D strip (site/band_meshy_tile.glb = one seamless repeat cut from the Meshy strip at matched columns, flat slab x=length y=width z=relief) bent into a ring. ?src=old = previous parametric band.
 const MESHY_ON = new URLSearchParams(location.search).get('src') !== 'old';
+const MR_ON = new URLSearchParams(location.search).get('mr') !== '0';
 let meshySrc = null, meshyFail = false;
 const isMeshy = () => MESHY_ON && !meshyFail && (kind === 'band1' || kind === 'band2');
 if (MESHY_ON) new GLTFLoader().load('band_meshy_tile.glb', g => {
   let m = null; g.scene.traverse(o => { if (o.isMesh && !m) m = o; });
   if (!m.geometry.attributes.normal) m.geometry.computeVertexNormals();
   m.geometry.computeBoundingBox();
-  const mat = new THREE.MeshStandardMaterial({ map: m.material.map, normalMap: m.material.normalMap, color: 0xffffff, metalness: 0.85, roughness: 0.4 });
+  const mrm = m.material.metalnessMap; // original Meshy metal/roughness map (G = roughness, B = metal); ?mr=0 = flat metalness .85 / roughness .4 as before
+  const mat = new THREE.MeshStandardMaterial({ map: m.material.map, normalMap: m.material.normalMap, color: 0xffffff, ...(MR_ON && mrm ? { metalnessMap: mrm, roughnessMap: mrm, metalness: 1, roughness: 1 } : { metalness: 0.85, roughness: 0.4 }) });
   if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
   meshySrc = { geo: m.geometry, mat, b: m.geometry.boundingBox };
   if (isMeshy()) queue('fine');
