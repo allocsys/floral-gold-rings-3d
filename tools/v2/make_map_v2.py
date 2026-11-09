@@ -121,6 +121,27 @@ if E('BAY', 1):
         _hl, _hn = ndi.label(~_Bn); _ha = np.bincount(_hl.ravel(), minlength=_hn + 1); _Bn = _Bn | np.isin(_hl, [i for i in range(1, _hn + 1) if _ha[i] < 150])
         _yy, _xx = np.mgrid[:TH, :TW]; _zf = np.hypot(_xx - 820, _yy - 234) > E('SPF', 340)   # SPF>0 leaves the flower disc (r<=SPF around 820,234) untouched
         B = np.where(ndi.binary_dilation(_sc, iterations=6) & _zf, _Bn, B)
+    # s105 SPC contour-tangent smoothing (not an image blur): trace the silhouette as a sub-pixel closed curve, resample at 1 px, Gaussian-smooth the point sequence ALONG the curve (sigma SPC px), re-rasterise at 4x with holes. Removes the 1-2 px ripple that the ref's pixel-stepped rim leaves (it scallops the lit bevel); same zone as SPX (scroll comps, flower disc untouched). SPC=0 disables (reproduces prior map).
+    if E('SPC', 6) > 0:
+        from skimage import measure
+        _T3 = tri(B.astype(np.float32)); _T3 = cv2.GaussianBlur(_T3, (0, 0), .8); _cs = measure.find_contours(_T3, .5); _S = 4; _cv = np.zeros((TH * _S, 3 * TW * _S), np.uint8)
+        _lst = []
+        for _c in _cs:
+            if len(_c) < 12: continue
+            _d = np.r_[0, np.cumsum(np.hypot(*np.diff(_c, axis=0).T))]; _n = max(int(_d[-1]), 8); _u = np.linspace(0, _d[-1], _n, endpoint=False)
+            _q = np.c_[np.interp(_u, _d, _c[:, 0]), np.interp(_u, _d, _c[:, 1])]
+            if np.hypot(*(_c[0] - _c[-1])) < 1.5 and _n > 20: _q = ndi.gaussian_filter1d(_q, E('SPC', 6), axis=0, mode='wrap')
+            _lst.append(_q)
+        _pts = [np.round(np.c_[q[:, 1], q[:, 0]] * _S + _S / 2).astype(np.int32) for q in _lst]
+        _ar = [abs(cv2.contourArea(q)) for q in _pts]
+        # fill with even-odd via XOR of per-contour fills (holes toggle)
+        for q in _pts:
+            _t = np.zeros_like(_cv); cv2.fillPoly(_t, [q], 1); _cv ^= _t
+        _Bc = cv2.resize(_cv[:, TW * _S:2 * TW * _S].astype(np.float32), (TW, TH), interpolation=cv2.INTER_AREA) > .5
+        _yy, _xx = np.mgrid[:TH, :TW]; _zf2 = np.hypot(_xx - 820, _yy - 234) > E('SPF', 340)
+        _ls2, _ns2 = ndi.label(B); _as2 = np.bincount(_ls2.ravel(), minlength=_ns2 + 1); _fl2 = _ls2[234, 820]
+        _sc2 = np.isin(_ls2, [i for i in range(1, _ns2 + 1) if _as2[i] >= E('SCA', 5000) and i != _fl2])
+        B = np.where(ndi.binary_dilation(_sc2, iterations=6) & _zf2, _Bc, B)
     # s86 ref-shape windows (x, y, radius): inside, the map silhouette becomes the ref's own (ref gold union, minus ref-dark recess), level-set smoothed RSG. REFW=0 disables.
     REFW = [(1495, 395, 75), (438, 258, 16), (396, 319, 34), (142, 80, 30)]   # bottom-right pointed leaf recess; curl-head groove pocket; gap beside the curl; s91 scroll slit (142,80)
     if E('REFW', 1):
