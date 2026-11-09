@@ -209,7 +209,7 @@ dn = sg(np.clip(sdf / np.maximum(Rloc, 8), 0, 1), 4)
 plate = .58 * (1 - PL * (1 - dn) ** 2)
 if SHS.any(): plate = plate * (1 - E('SD', .45) * SHD)   # s93 shaded-gold groove depth (follows ref darkness)
 if GR > 0:   # thin dark hairlines inside gold (black-hat of ref luminance); wide dark bands are reflections, not grooves -> thin + elongated comps only
-    Vb = cv2.GaussianBlur(Vt, (0, 0), 1.0); bh = cv2.morphologyEx(Vb, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)) - Vb
+    Vb = cv2.GaussianBlur(Vt, (0, 0), 1.0); bh = cv2.morphologyEx(Vb, cv2.MORPH_CLOSE, np.ones((int(E('GK', 11)),) * 2, np.uint8)) - Vb   # s105 GK kernel (5 = thin hairlines only, prior behaviour; 11 default s105, GCgold scroll .309->.328; ~11-15 also catches broad creases between leaf bands)
     g = rs(((bh > E('GT', 30))).astype(np.float32)) > .5
     g &= ndi.binary_erosion(B & ~isbead, iterations=14)
     g &= ~(_r < 335)   # flower petals get procedural veins instead (s74)
