@@ -153,6 +153,8 @@ if E('BAY', 1):
         if E('SPWS', 30) > 0:   # s107 smoothing windows also lift the flower-disc exclusion locally (the frond tip near 575,57 is inside r<=340)
             for _wd in os.environ.get('SPW', '577,59,24;200,325,45,20').split(';'):
                 _wx, _wy, _wr = [float(v) for v in _wd.split(',')[:3]]; _zf2 |= np.hypot(_xx - _wx, _yy - _wy) <= _wr + 8
+        if E('FPC', 0):   # s113 FPC: petal class. Petal gold comps (area>=SCA, not the bead/collar comp) outside radius FPR of 820,234 get the same adaptive contour smoothing as scrolls (SPC/SPB2; tips/corners keep short sigma); collar/slits (r<=FPR) untouched. FPC=0 reverts.
+            _zf2 = _zf2 | (np.hypot(_xx - 820, _yy - 234) > E('FPR', 85))
         _ls2, _ns2 = ndi.label(B); _as2 = np.bincount(_ls2.ravel(), minlength=_ns2 + 1); _fl2 = _ls2[234, 820]
         _sc2 = np.isin(_ls2, [i for i in range(1, _ns2 + 1) if _as2[i] >= E('SCA', 5000) and i != _fl2])
         B = np.where(ndi.binary_dilation(_sc2, iterations=6) & _zf2, _Bc, B)
@@ -413,6 +415,8 @@ if _fsv or _fss != 1:
                 _cur[_t] = _blk[:_hh, :_ww][_t]
     _f6 = np.where(_Wm & (H > .03))
     print('flower rows', _f6[0].min(), _f6[0].max(), 'bead row target', _cy0 + _fsv)
+# s113 CLP: cubic warp (FSS) undershoots <0 at the gold edge; uint16 cast wrapped it to 1.0 = 1-px wall = dotted outline. Clip H to [0,1] before writing. CLP=0 reverts.
+if int(E('CLP', 1)): H = np.clip(H, 0, 1)
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 cv2.imwrite(OUT, (H * 65535).astype(np.uint16))
 m_ = H; gy, gx = np.gradient(m_ * 40); nn = np.dstack([-gx, -gy, np.ones_like(gx)]); nn /= np.linalg.norm(nn, axis=2, keepdims=True)
