@@ -331,7 +331,7 @@ if _bss > 0:
     _w5 = _w5 * np.clip((_de5 - E('BSD', 4)) / E('BSR', 14), 0, 1)
     H = H * (1 - _w5) + _hs5 * _w5
 # s106 KNB bright gold knobs in the ground (~1057,450 / 1080,447): ref shows two raised bright gold shapes (V>KNT) that the map had as faint bumps. Inside windows KNW 'x,y,r;..' take ref V>KNT (map space), drop specks < KNA px, soften the edge by KNS px sigma and raise H to at least KNB*mask (plateau level). Everything outside the windows untouched. KNB=0 disables (reproduces prior map).
-_knb = E('KNB', .35)
+_knb = E('KNB', 0)
 if _knb > 0:
     _ev4 = _V[:, C0:C0 + P + SEAM].copy(); _tv4 = _ev4[:, :P].copy(); _tv4[:, :SEAM] = (1 - _al) * _ev4[:, P:P + SEAM] + _al * _ev4[:, :SEAM]
     _g4 = cv2.GaussianBlur(cv2.resize(_tv4, (TW, TH), interpolation=cv2.INTER_CUBIC).astype(np.float32), (0, 0), 1.0)
