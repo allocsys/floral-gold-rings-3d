@@ -376,6 +376,25 @@ if _fsh:
     _ix = ndi.distance_transform_edt(_Rg, return_distances=False, return_indices=True)
     _Hf = H[_ix[0], _ix[1]]; _Hn = H.copy(); _Hn[_Rg] = _Hf[_Rg]
     _Rs = np.roll(_Rg, _fsh, axis=1); _Hn[_Rs] = np.roll(H, _fsh, axis=1)[_Rs]; H = _Hn
+# s111 FSV/FSS: centre the flower across the band (rows = v). Bead row -> map middle (FSV rows shift, + = toward larger row), flower scaled by FSS about the bead so the longer petal side keeps a rim margin. FSV=0 FSS=1 reverts.
+_fsv = int(E('FSV', 26)); _fss = E('FSS', .88)
+if _fsv or _fss != 1:
+    _l6, _n6 = ndi.label(H > .03); _F6 = np.zeros((TH, TW), bool)
+    for _i6 in range(1, _n6 + 1):
+        _c6 = _l6 == _i6
+        if _c6.sum() > 5000:
+            _cy6, _cx6 = ndi.center_of_mass(_c6)
+            if np.hypot(_cx6 - 840, _cy6 - 234) <= E('FSR', 250): _F6 |= _c6
+    _R6 = ndi.binary_dilation(_F6, structure=np.ones((3, 3)), iterations=int(E('FSM', 10)))
+    _ix6 = ndi.distance_transform_edt(_R6, return_distances=False, return_indices=True)
+    _Hb = H.copy(); _Hb[_R6] = H[_ix6[0], _ix6[1]][_R6]
+    _cx0, _cy0 = E('FSX', 840.), E('FSY', 233.5)
+    _M6 = np.float32([[_fss, 0, _cx0 - _fss * _cx0], [0, _fss, _cy0 + _fsv - _fss * _cy0]])
+    _Hw = cv2.warpAffine((H * _R6).astype(np.float32), _M6, (TW, TH), flags=cv2.INTER_CUBIC)
+    _Wm = cv2.warpAffine(_R6.astype(np.float32), _M6, (TW, TH), flags=cv2.INTER_LINEAR) > .5
+    H = np.where(_Wm, _Hw, _Hb)
+    _f6 = np.where(_Wm & (H > .03))
+    print('flower rows', _f6[0].min(), _f6[0].max(), 'bead row target', _cy0 + _fsv)
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 cv2.imwrite(OUT, (H * 65535).astype(np.uint16))
 m_ = H; gy, gx = np.gradient(m_ * 40); nn = np.dstack([-gx, -gy, np.ones_like(gx)]); nn /= np.linalg.norm(nn, axis=2, keepdims=True)
