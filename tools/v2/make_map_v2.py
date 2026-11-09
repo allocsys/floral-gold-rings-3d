@@ -137,12 +137,11 @@ if E('BAY', 1):
                     _w_ = np.clip((_dv_ - E('SPD', 1.2)) / E('SPD2', 2.0), 0, 1); _w_ = ndi.gaussian_filter1d(_w_, 4, mode='wrap')
                     _q = _bg_ + _w_[:, None] * (_sm_ - _bg_)
                 else: _q = _sm_
-            if E('SPWS', 30) > 0 and len(_q) > 20:   # s107 local strong smoothing windows 'x,y,r;...' (map coords, SPW env): inside a window the contour gets sigma SPWS (smooth-step weight by distance) -> removes a notch/ripple the ref mask has there; SPWS=0 off; default 30 at 577,59,24 (s107 frond tip upper edge)
-                _vl_ = ndi.gaussian_filter1d(_q, E('SPWS', 30), axis=0, mode='wrap'); _ww_ = np.zeros(len(_q))
-                for _wd in os.environ.get('SPW', '577,59,24').split(';'):
-                    _wx, _wy, _wr = [float(v) for v in _wd.split(',')]
-                    _dd = np.hypot((_q[:, 1] % TW) - _wx, _q[:, 0] - _wy) / _wr; _ww_ = np.maximum(_ww_, np.clip(1.6 - 1.6 * _dd, 0, 1))
-                _ww_ = ndi.gaussian_filter1d(_ww_, 3, mode='wrap'); _q = _q + _ww_[:, None] * (_vl_ - _q)
+            if E('SPWS', 30) > 0 and len(_q) > 20:   # s107 local strong smoothing windows SPW='x,y,r[,sigma];...' (map coords): inside a window the contour gets sigma (default SPWS; smooth-step weight by distance); SPWS=0 off
+                for _wd in os.environ.get('SPW', '577,59,24;200,325,45,20').split(';'):
+                    _wv = [float(v) for v in _wd.split(',')]; _wx, _wy, _wr = _wv[:3]; _wsg = _wv[3] if len(_wv) > 3 else E('SPWS', 30)
+                    _dd = np.hypot((_q[:, 1] % TW) - _wx, _q[:, 0] - _wy) / _wr; _ww_ = np.clip(1.6 - 1.6 * _dd, 0, 1)
+                    if _ww_.max() > 0: _ww_ = ndi.gaussian_filter1d(_ww_, 3, mode='wrap'); _q = _q + _ww_[:, None] * (ndi.gaussian_filter1d(_q, _wsg, axis=0, mode='wrap') - _q)
             _lst.append(_q)
         _pts = [np.round(np.c_[q[:, 1], q[:, 0]] * _S + _S / 2).astype(np.int32) for q in _lst]
         _ar = [abs(cv2.contourArea(q)) for q in _pts]
@@ -152,8 +151,8 @@ if E('BAY', 1):
         _Bc = cv2.resize(_cv[:, TW * _S:2 * TW * _S].astype(np.float32), (TW, TH), interpolation=cv2.INTER_AREA) > .5
         _yy, _xx = np.mgrid[:TH, :TW]; _zf2 = np.hypot(_xx - 820, _yy - 234) > E('SPF', 340)
         if E('SPWS', 30) > 0:   # s107 smoothing windows also lift the flower-disc exclusion locally (the frond tip near 575,57 is inside r<=340)
-            for _wd in os.environ.get('SPW', '577,59,24').split(';'):
-                _wx, _wy, _wr = [float(v) for v in _wd.split(',')]; _zf2 |= np.hypot(_xx - _wx, _yy - _wy) <= _wr + 8
+            for _wd in os.environ.get('SPW', '577,59,24;200,325,45,20').split(';'):
+                _wx, _wy, _wr = [float(v) for v in _wd.split(',')[:3]]; _zf2 |= np.hypot(_xx - _wx, _yy - _wy) <= _wr + 8
         _ls2, _ns2 = ndi.label(B); _as2 = np.bincount(_ls2.ravel(), minlength=_ns2 + 1); _fl2 = _ls2[234, 820]
         _sc2 = np.isin(_ls2, [i for i in range(1, _ns2 + 1) if _as2[i] >= E('SCA', 5000) and i != _fl2])
         B = np.where(ndi.binary_dilation(_sc2, iterations=6) & _zf2, _Bc, B)
