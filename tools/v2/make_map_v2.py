@@ -74,11 +74,20 @@ SLITS = {0: (-0.4, [(74, 30), (82, 24), (90, 12), (120, 11), (130, 5), (140, 4),
          1: (-0.8, [(74, 28), (82, 22), (90, 14), (100, 13), (106, 6), (112, 0)]),
          2: (-1.5, [(74, 16), (90, 14), (110, 14), (120, 12), (130, 10), (142, 10), (152, 0)]),
          5: (0.3, [(74, 16), (90, 12), (130, 12), (142, 10), (152, 10), (162, 0)])}
+_grv = np.zeros((TH, TW), np.float32)   # s114 GRO: groove weight for the lower-petal ribs (entries 0,1)
 if E('SLIT', 1):
     for _i, (_off, _pr) in SLITS.items():
         _pr = np.array(_pr, float); _wr = np.interp(_r, _pr[:, 0], _pr[:, 1], right=0) * E('SLW', 1.0)
         _dth = np.abs((_a - (FAX[_i] + _off) + 180) % 360 - 180)
-        B = B & ~((_r * np.sin(np.radians(np.clip(_dth, 0, 90))) < _wr / 2) & (_dth < 40) & (_r >= RB - 4))
+        _px = _r * np.sin(np.radians(np.clip(_dth, 0, 90)))
+        # s114 GRO: the ref's lower-petal rib (entries 0,1) is black only ~12-16 px next to the collar, then a brown groove with gold ribs on both sides (not a through-cut to ground). Through-cut only for r < SLR0 (tapered to a point), beyond it the footprint stays gold and the rib becomes a shallow groove (H *= 1 - GRD*weight). GRO=0 reverts.
+        if E('GRO', 1) and _i in (0, 1):
+            _wc = _wr * np.clip((E('SLR0', 96) + 6 - _r) / 12, 0, 1)
+            B = B & ~((_px < _wc / 2) & (_dth < 40) & (_r >= RB - 4))
+            _gw = np.clip(1 - (_px / np.maximum(_wr * E('GRW', 1.0) / 2, .5)) ** 2, 0, 1) * np.clip((_r - (E('SLR0', 96) - 6)) / 14, 0, 1) * (_dth < 40) * (_wr > 0)
+            _grv = np.maximum(_grv, _gw.astype(np.float32))
+        else:
+            B = B & ~((_px < _wr / 2) & (_dth < 40) & (_r >= RB - 4))
 _l2, _n2 = ndi.label(B); _a2 = np.bincount(_l2.ravel(), minlength=_n2 + 1); B = np.isin(_l2, [i for i in range(1, _n2 + 1) if _a2[i] >= 150])   # drop slivers left by the gap cut
 # s79 local corner round: the top-right petal's rim meets its gap line in a tiny hook at map (820,72); SDF-smooth B in a soft window (NCX,NCY,NCR) so only that corner rounds
 _nx, _ny = np.meshgrid(np.arange(TW), np.arange(TH)); _nd = np.hypot(_nx - E('NCX', 821), _ny - E('NCY', 72)); _nw = 1 - np.clip((_nd - E('NCR', 14)) / 8, 0, 1)
@@ -296,6 +305,7 @@ bev = np.clip(_sb / W, 0, 1); bev = bev * bev * (3 - 2 * bev)
 _sf = sg(sdf_of(B | _FS), 1.0); _bf = np.clip(_sf / W, 0, 1); _bf = _bf * _bf * (3 - 2 * _bf)
 bev = _FD * _bf + (1 - _FD) * bev
 H = np.clip(level * bev, 0, 1) * np.clip(B + (sdf > -.3), 0, 1)
+if E('GRO', 1): H = H * (1 - E('GRD', .7) * np.clip(sg(_grv, 1.2), 0, 1))   # s114 shallow rib grooves (see SLITS)
 # s79 collar slit ends: light Gaussian of H in a soft window around the 6 collar slits (r 53..69, within SLW px of the gap line) removes the stair-stepped teeth where the slits meet the dome edge
 _slw = E('SLW', 9); _wr = np.clip(np.minimum(_r - (29 * sc - 5), (29 * sc + E('COL', 8) + 2.5) - _r) / 3, 0, 1)
 _wa = np.clip((_slw - _r * np.sin(np.radians(np.clip(_gd, 0, 90)))) / 3, 0, 1); _ws = _wr * _wa
