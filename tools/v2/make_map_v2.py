@@ -392,7 +392,25 @@ if _fsv or _fss != 1:
     _M6 = np.float32([[_fss, 0, _cx0 - _fss * _cx0], [0, _fss, _cy0 + _fsv - _fss * _cy0]])
     _Hw = cv2.warpAffine((H * _R6).astype(np.float32), _M6, (TW, TH), flags=cv2.INTER_CUBIC)
     _Wm = cv2.warpAffine(_R6.astype(np.float32), _M6, (TW, TH), flags=cv2.INTER_LINEAR) > .5
+    _g0 = ndi.distance_transform_edt(~(H > .03)) > E('FSD0', 14)
+    _H0 = H.copy()
     H = np.where(_Wm, _Hw, _Hb)
+    # s112 FSQ: moved/scaled flower leaves a stipple-free ring (old footprint + 12 px margin) = dotted seam. Refill with block-copied real ground stipple wherever now >= FSQD px from gold (design margin was 12).
+    if int(E('FSQ', 1)):
+        _dn = ndi.distance_transform_edt(~(H > .03))
+        _T = (_R6 | _Wm) & (_dn > E('FSQD', 12)) & (H < .03)
+        _ok = ndi.binary_erosion(_g0 & (_H0 < .016), structure=np.ones((8, 8)))
+        _src = np.argwhere(_ok); _rg = np.random.RandomState(7)
+        _ys, _xs = np.where(_R6 | _Wm)
+        for _by in range(_ys.min(), _ys.max() + 1, 8):
+            for _bx in range(_xs.min(), _xs.max() + 1, 8):
+                _t = _T[_by:_by + 8, _bx:_bx + 8]
+                if not _t.any(): continue
+                _sy, _sx = _src[_rg.randint(len(_src))] - 4
+                _blk = _H0[_sy:_sy + 8, _sx:_sx + 8]
+                _hh, _ww = _t.shape
+                _cur = H[_by:_by + 8, _bx:_bx + 8]
+                _cur[_t] = _blk[:_hh, :_ww][_t]
     _f6 = np.where(_Wm & (H > .03))
     print('flower rows', _f6[0].min(), _f6[0].max(), 'bead row target', _cy0 + _fsv)
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
