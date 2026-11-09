@@ -54,7 +54,19 @@ const key = new THREE.DirectionalLight(0xfff1dc, 2.2); key.position.set(-10, 20,
 const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 300);
 camera.position.set(6, 16, 34);
 const controls = new OrbitControls(camera, canvas);
-controls.enableDamping = true; controls.autoRotate = true; controls.autoRotateSpeed = 1.5;
+controls.enableRotate = false; controls.enableDamping = true; controls.screenSpacePanning = true; // D-ctl: OrbitControls only zooms/pans; rotation = free trackball on the ring (no pole clamp)
+let spinOn = true, dragging = false, vel = new THREE.Vector2(), HOME = camera.position.clone();
+const ptrs = new Map(), _q = new THREE.Quaternion(), _ax = new THREE.Vector3();
+function rotView(dx, dy) { // screen-space drag -> rotate ring about camera up/right axes (any direction, no roll lock)
+  const a = Math.hypot(dx, dy); if (a < 1e-6) return;
+  _ax.set(dy, dx, 0).normalize().applyQuaternion(camera.quaternion);
+  group.quaternion.premultiply(_q.setFromAxisAngle(_ax, a * 0.008));
+}
+canvas.addEventListener('pointerdown', e => { ptrs.set(e.pointerId, e); if (ptrs.size === 1 && e.button === 0) { dragging = true; vel.set(0, 0); canvas.setPointerCapture(e.pointerId); } else dragging = false; });
+canvas.addEventListener('pointermove', e => { const p = ptrs.get(e.pointerId); if (!p) return; const dx = e.clientX - p.clientX, dy = e.clientY - p.clientY; ptrs.set(e.pointerId, e); if (dragging && ptrs.size === 1) { rotView(dx, dy); vel.set(dx, dy); } });
+const up = e => { ptrs.delete(e.pointerId); if (!ptrs.size) dragging = false; };
+canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
+canvas.addEventListener('dblclick', () => { camera.position.copy(HOME); controls.target.set(0, 0, 0); group.quaternion.identity(); vel.set(0, 0); });
 const gold = new THREE.MeshStandardMaterial({ color: 0xf5c657, metalness: 1, roughness: 0.42 });
 const goldVC = gold.clone(); goldVC.vertexColors = true; goldVC.color.set(0xf2b93c); goldVC.roughness = 0.58; /* D38: deeper base colour wins back the saturation lost at .58 */ // D34: 0.42 reflects the RoomEnvironment light panels as horizontal bands on relief walls
 // D64 (S1b): plaque material = goldVC with per-vertex roughness/metalness from the vertex colour: dark ground (r<.15) matte + dielectric-ish, raised gold glossy mirror
@@ -140,7 +152,7 @@ function renderUI() {
   tabs.innerHTML = ''; sliders.innerHTML = '';
   for (const k of Object.keys(DEFAULTS)) {
     const b = document.createElement('button'); b.textContent = LABELS[k]; b.className = k === kind ? 'on' : '';
-    b.onclick = () => { kind = k; if (k === 'plaque') { camera.position.set(0, -4, 31); controls.target.set(0, 0, 0); controls.autoRotate = false; } else if (controls.autoRotate === false && camera.position.z > 25 && Math.abs(camera.position.x) < 1) { camera.position.set(6, 16, 34); controls.autoRotate = true; } spin.textContent = 'Spin: ' + (controls.autoRotate ? 'on' : 'off'); renderUI(); queue('fine'); }; tabs.appendChild(b);
+    b.onclick = () => { kind = k; if (k === 'plaque') { camera.position.set(0, -4, 31); controls.target.set(0, 0, 0); group.quaternion.identity(); spinOn = false; } else if (spinOn === false && camera.position.z > 25 && Math.abs(camera.position.x) < 1) { camera.position.copy(HOME); group.quaternion.identity(); spinOn = true; } spin.textContent = 'Spin: ' + (spinOn ? 'on' : 'off'); renderUI(); queue('fine'); }; tabs.appendChild(b);
   }
   for (const [key, label, min, max, step, only] of CONTROLS) {
     if (only && ![].concat(only).includes(kind)) continue;
@@ -153,7 +165,7 @@ function renderUI() {
 }
 document.getElementById('reset').onclick = () => { state[kind] = { ...DEFAULTS[kind] }; renderUI(); queue('fine'); };
 const spin = document.getElementById('spin');
-spin.onclick = () => { controls.autoRotate = !controls.autoRotate; spin.textContent = 'Spin: ' + (controls.autoRotate ? 'on' : 'off'); };
+spin.onclick = () => { spinOn = !spinOn; spin.textContent = 'Spin: ' + (spinOn ? 'on' : 'off'); };
 document.getElementById('dl').onclick = () => {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([toSTL(buildRing(kind, state[kind], 'fine'))], { type: 'model/stl' }));
@@ -166,6 +178,6 @@ setCollapsed(innerWidth < 720); // start collapsed on phones so the ring is full
 function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize(); renderUI();
 // relief bands refine to 'ultra' (.02 mm step) once the view has been idle for 700 ms
-renderer.setAnimationLoop(() => { if (dirty) { const q = dirty; dirty = false; rebuild(q); if (q === 'fine' && (ULTRA_OK || MID_OK)) ultraTimer = setTimeout(() => queue('ultra'), 700); } controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(() => { if (dirty) { const q = dirty; dirty = false; rebuild(q); if (q === 'fine' && (ULTRA_OK || MID_OK)) ultraTimer = setTimeout(() => queue('ultra'), 700); } if (!dragging) { if (vel.lengthSq() > 0.01) { rotView(vel.x, vel.y); vel.multiplyScalar(0.94); } else if (spinOn && !ptrs.size) group.rotateY(0.004); } controls.update(); renderer.render(scene, camera); });
 </script>
 </body></html>
