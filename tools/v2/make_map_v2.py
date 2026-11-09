@@ -108,6 +108,17 @@ if E('BAY', 1):
         _sc = np.isin(_ls, [i for i in range(1, _ns + 1) if _as[i] >= E('SCA', 5000) and i != _fl])
         _Bsm = sg(sdf_of(B), E('SCS', 0)) > 0
         B = np.where(ndi.binary_dilation(_sc, iterations=6), _Bsm, B)
+    # s104 SPX sub-pixel scroll outline (precision mapping, not smoothing): on scroll/leaf components only (same selection as SCS), the edge is re-traced from the ref's own crisp gold rim: cubic-upsampled ref gray (map res) thresholded at SPT (rim is a sharp orange edge; V 50..95 give the same contour). Kept only within SPR px of the current silhouette (rejects ground speckle), no SDF smoothing. SPX=0 disables (reproduces prior map).
+    if E('SPX', 1):
+        _ls, _ns = ndi.label(B); _as = np.bincount(_ls.ravel(), minlength=_ns + 1); _fl = _ls[234, 820]
+        _sc = np.isin(_ls, [i for i in range(1, _ns + 1) if _as[i] >= E('SCA', 5000) and i != _fl])
+        _Vs = cv2.GaussianBlur(rs(Vt), (0, 0), E('SPB', .8)); _Rv = _Vs > E('SPT', 70)
+        _zn = ndi.binary_dilation(_sc, iterations=int(E('SPR', 5)))
+        _Rv = ndi.binary_opening(_Rv, structure=np.ones((3, 3)))
+        _Bn = (_Rv & _zn) | ndi.binary_erosion(B & _zn, iterations=int(E('SPR', 5)))
+        _hl, _hn = ndi.label(~_Bn); _ha = np.bincount(_hl.ravel(), minlength=_hn + 1); _Bn = _Bn | np.isin(_hl, [i for i in range(1, _hn + 1) if _ha[i] < 150])
+        _yy, _xx = np.mgrid[:TH, :TW]; _zf = np.hypot(_xx - 820, _yy - 234) > E('SPF', 340)   # SPF>0 leaves the flower disc (r<=SPF around 820,234) untouched
+        B = np.where(ndi.binary_dilation(_sc, iterations=6) & _zf, _Bn, B)
     # s86 ref-shape windows (x, y, radius): inside, the map silhouette becomes the ref's own (ref gold union, minus ref-dark recess), level-set smoothed RSG. REFW=0 disables.
     REFW = [(1495, 395, 75), (438, 258, 16), (396, 319, 34), (142, 80, 30)]   # bottom-right pointed leaf recess; curl-head groove pocket; gap beside the curl; s91 scroll slit (142,80)
     if E('REFW', 1):
