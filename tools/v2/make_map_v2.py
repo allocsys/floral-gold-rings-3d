@@ -239,6 +239,16 @@ for t in FAX:
     for sgn in (-1, 1):   # hairlines start at 0.15 L with offset 2, diverge to +-VO at the end, run to .8 L
         a0 = c + u * (VS + .15 * L1) + n_ * sgn * 2; a1 = c + u * (VS + .8 * L1) + n_ * sgn * VO
         VG = np.maximum(VG, VH * seg_field(a0, a1, .25, .4, VW))
+# s107 RID crest ridges: thin bright lines inside scroll gold (white-hot highlight lines = rolled leaf edges / ridge crests; top-hat of ref luminance, width < 5 ref px, elongated >= RIL ref px) raise the plate by RID along the line (soft, blurred RIS map px). Scroll class only (flower disc r<335, beads, 8 px of the rim excluded). RID=0 disables (reproduces prior map).
+if E('RID', .12) > 0:
+    _Vr = cv2.GaussianBlur(Vt, (0, 0), 1.0); _th = _Vr - cv2.morphologyEx(_Vr, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    _rg = rs(np.clip((_th - E('RIT', 12)) / E('RIT2', 25), 0, 1).astype(np.float32))
+    _rb = (_rg > .3) & ndi.binary_erosion(B & ~isbead, iterations=int(E('RIE', 8))) & ~(_r < 335)
+    _rl, _rn = ndi.label(_rb, structure=np.ones((3, 3))); _rk = np.zeros_like(_rb)
+    for _k, _sl in enumerate(ndi.find_objects(_rl), 1):
+        if max(_sl[0].stop - _sl[0].start, _sl[1].stop - _sl[1].start) >= 2 * E('RIL', 14): _rk |= _rl == _k
+    _rs = sg((_rg * ndi.binary_dilation(_rk, iterations=2)).astype(np.float32), E('RIS', 1.6))
+    plate = plate + E('RID', .12) * _rs / max(_rs.max(), 1e-3)
 _LUM = E('LUM', 0)
 if _LUM > 0:   # s76 faint shape-from-shading: ref luminance (blurred) relative to its local gold mean -> +-LUM height; flower disc excluded (procedural veins)
     _Vl = sg(rs(Vt), E('LSIG', 5)); _w = (B & ~isbead).astype(np.float32)
