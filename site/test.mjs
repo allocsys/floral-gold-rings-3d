@@ -1,5 +1,5 @@
-import { DEFAULTS, buildRing, toSTL } from './geometry.js';
-for (const k of Object.keys(DEFAULTS)) {
+import { DEFAULTS, GLB_KINDS, buildRing, toSTL } from './geometry.js';
+for (const k of Object.keys(DEFAULTS).filter(k => !GLB_KINDS.includes(k))) {
   const t0 = Date.now();
   const sh = buildRing(k, DEFAULTS[k], 'draft');
   let nt = 0;

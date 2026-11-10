@@ -9,7 +9,9 @@ Everything here built the hand-made band relief (`maps/band_period.png` -> `site
 | `tools/v2/`, `tools/band_heightmap.py` | Even older map generators |
 | `maps/` | Height maps and previews (`band_period.png` = last committed relief map, `band_raster_src.png` = input of the vec pipeline) |
 
-Still live and untouched in `site/`: `relief_band.js` (used by `?src=old`) and `relief_sol.js` (Solitaire).
+Still live in `site/`: `relief_band.js` (used by `?src=old`).
+
+`relief_sol.js` = the relief map of the old parametric solitaire (moved here when the Solitaire tab was replaced by the Meshy model `site/solitaire_meshy.glb`). The old parametric solitaire code (stone, prongs, basket) was removed from `site/geometry.js`; the last commit that has it is `3597c30`.
 
 ## Running it again
 The scripts use repo-root-relative paths (`tools/wip_v3/...`, `maps/...`), which changed when they moved here. To run them exactly as they were:

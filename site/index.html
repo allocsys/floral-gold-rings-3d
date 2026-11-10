@@ -76,8 +76,6 @@ plq.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader
   .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nfloat gk = smoothstep(0.12, 0.55, vColor.r); roughnessFactor = mix(0.9, 0.3, gk);')
   .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(0.15, 1.0, gk);')
   .replace('#include <opaque_fragment>', 'outgoingLight *= mix(0.5, 1.0, gk);\n#include <opaque_fragment>'); }; // D74: ground reflected the room env as grey-brown; dim it toward the near-black matte of the ref
-const gem = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0, transmission: 1, thickness: 3, ior: 2.4, specularIntensity: 1, envMapIntensity: 0.06, side: THREE.DoubleSide, attenuationColor: 0xe2e6f2, attenuationDistance: 1.6 }); // D40: env 3.5->.06 (table reflected the RoomEnvironment ceiling panel = 46% clipped white), attenuation 12->1.6 for depth
-const seat = gold.clone(); seat.color.set(0xd6dae6); seat.envMapIntensity = 0.8; // D41: neutral white-metal basket cup under the stone (gem transmission otherwise refracts the bright gold seat = yellow stone); viewer only, STL ignores kind
 const group = new THREE.Group(); scene.add(group);
 
 // D80 (Meshy): band tabs use the Meshy image-to-3D strip (site/band_meshy_tile.glb = one seamless repeat cut from the Meshy strip at matched columns, flat slab x=length y=width z=relief) bent into a ring. ?src=old = previous parametric band.
@@ -121,6 +119,15 @@ function buildMeshy(ID, wt, tt) { // wrap the slab: x -> angle (N tiles round th
   return { meshes, N, w: ky * W, t: kz * dz, stretch: ky / k };
 }
 
+// Solitaire (D81): Meshy GLB (reference/meshy/solitaire_3.glb, copied to site/solitaire_meshy.glb), used as is with its own textures. Scaled so the bore (circle fitted to the model: centre (SOL_CX, SOL_CY), radius SOL_R in model units) has the chosen inner diameter, and re-centred on the origin. Ring axis = z, stone at +y. The old parametric solitaire is gone (last in commit 3597c30).
+const SOL_CX = -0.0001, SOL_CY = -0.0865, SOL_R = 0.7714;
+let solSrc = null, solFail = false;
+new GLTFLoader().load('solitaire_meshy.glb', g => {
+  let m = null; g.scene.traverse(o => { if (o.isMesh && !m) m = o; });
+  solSrc = { geo: m.geometry, mat: m.material }; if (kind === 'solitaire') queue('fine');
+}, undefined, e => { console.error('solitaire glb failed', e); solFail = true; queue('fine'); });
+function buildSol(ID) { const k = (ID / 2) / SOL_R, mesh = new THREE.Mesh(solSrc.geo, solSrc.mat); mesh.scale.setScalar(k); mesh.position.set(-SOL_CX * k, -SOL_CY * k, 0); mesh.userData.shared = true; return mesh; }
+
 let kind = 'solitaire';
 const state = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { ...v }]));
 let shells = [], dirty = 'fine', fineTimer = 0;
@@ -159,6 +166,13 @@ function makeNM(s) {
 
 function rebuild(quality) {
   for (const m of [...group.children]) { if (!m.userData.shared) m.geometry.dispose(); if (m.material.userData?.nm) m.material.dispose(); group.remove(m); }
+  if (kind === 'solitaire') {
+    scene.background.set(0x4a3b30);
+    if (solFail) { document.getElementById('info').textContent = 'solitaire model failed to load'; return; }
+    if (!solSrc) { document.getElementById('info').textContent = 'loading solitaire…'; return; }
+    group.add(buildSol(state[kind].ID));
+    document.getElementById('info').textContent = `Solitaire (Meshy) · Ø ${state[kind].ID} mm inner`; return;
+  }
   if (isMeshy()) {
     scene.background.set(0x4a3b30);
     if (!meshySrc) { document.getElementById('info').textContent = 'loading Meshy band…'; return; }
@@ -191,7 +205,7 @@ function rebuild(quality) {
         nA.set(nB);
       }
     }
-    group.add(new THREE.Mesh(g, s.kind === 'stone' ? gem : s.kind === 'seat' ? seat : s.col ? (kind === 'plaque' || kind === 'band1' || kind === 'band2' ? plq : NM && s.nm && quality !== 'draft' ? makeNM(s) : goldVC) : gold));
+    group.add(new THREE.Mesh(g, s.col ? (kind === 'plaque' || kind === 'band1' || kind === 'band2' ? plq : NM && s.nm && quality !== 'draft' ? makeNM(s) : goldVC) : gold));
   }
   const p = state[kind];
   document.getElementById('info').textContent = `Ø ${p.ID} mm inner · ${quality === 'draft' ? 'draft preview while dragging' : quality === 'ultra' ? 'ultra detail' : 'full detail'} · mm`;
@@ -204,9 +218,10 @@ function renderUI() {
     const b = document.createElement('button'); b.textContent = LABELS[k]; b.className = k === kind ? 'on' : '';
     b.onclick = () => { kind = k; if (k === 'plaque') { camera.position.set(0, -4, 31); controls.target.set(0, 0, 0); group.quaternion.identity(); spinOn = false; } else if (spinOn === false && camera.position.z > 25 && Math.abs(camera.position.x) < 1) { camera.position.copy(HOME); group.quaternion.identity(); spinOn = true; } spin.textContent = 'Spin: ' + (spinOn ? 'on' : 'off'); renderUI(); queue('fine'); }; tabs.appendChild(b);
   }
-  document.getElementById('dl').style.display = isMeshy() ? 'none' : '';
+  document.getElementById('dl').style.display = isMeshy() || kind === 'solitaire' ? 'none' : '';
   for (const [key, label, min, max, step, only] of CONTROLS) {
     if (only && ![].concat(only).includes(kind)) continue;
+    if (kind === 'solitaire' && key !== 'ID') continue;
     if (isMeshy() && key !== 'ID' && key !== 'w' && key !== 't') continue;
     const mw = isMeshy() && (key === 'w' || key === 't'), mu = key === 'w' ? meshyW : meshyT, lo = mw && key === 'w' ? 3 : min, hi = mw && key === 'w' ? 7 : max, val = mw ? Math.min(hi, Math.max(lo, mu[kind] ?? (key === 'w' ? meshyLastW : meshyLastT)[kind])).toFixed(key === 'w' ? 1 : 2) : state[kind][key]; // Meshy band: width 3-7 mm (repeat count chosen to fit, only the ring-axis scale stretches), thickness 0.8-3 mm (only the radial relief scale changes)
     const row = document.createElement('div'); row.className = 'row';
