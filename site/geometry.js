@@ -7,11 +7,12 @@ export const DEFAULTS = {
   band1:     { ID: 19, w: +(4.5 + WD).toFixed(1), t: 1.5, relief: 0.4 },
   band2:     { ID: 17, w: +(4.0 + WD).toFixed(1), t: 1.4, relief: 0.4 },
   solitaire: { ID: 17 }, // Meshy GLB (site/solitaire_meshy.glb, loaded by index.html): only the inner diameter is adjustable; no parametric geometry
+  solitaire2: { ID: 17 }, // second Meshy GLB (site/solitaire2_meshy.glb = reference/meshy/solitaire_4_symmetrical.glb), same: only the inner diameter
   plaque:    { L: 22.6, w: 4.9, t: 1.2, relief: 0.45 }, // D63 (S1): flat plaque = the band pattern unrolled once (frame: flat rails + square end blocks, recessed stippled ground)
 };
-export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire', plaque: 'Plaque' };
+export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire', solitaire2: 'Solitaire 2', plaque: 'Plaque' };
 export const CONTROLS = [
-  ['ID', 'Inner diameter', 14, 24, 0.1, ['band1', 'band2', 'solitaire']],
+  ['ID', 'Inner diameter', 14, 24, 0.1, ['band1', 'band2', 'solitaire', 'solitaire2']],
   ['L', 'Length', 12, 40, 0.1, 'plaque'],
   ['w', 'Width', 1.5, 8, 0.1],
   ['t', 'Thickness', 0.8, 3, 0.05],
@@ -190,7 +191,7 @@ function fixWinding(sh) {
   return sh;
 }
 
-export const GLB_KINDS = ['solitaire']; // tabs whose model is a GLB loaded by the viewer
+export const GLB_KINDS = ['solitaire', 'solitaire2']; // tabs whose model is a GLB loaded by the viewer
 // returns [{pos, idx, kind:'metal', col?}]; quality 'fine' (export) or 'draft' (live dragging)
 export function buildRing(kind, p, quality = 'fine') {
   if (GLB_KINDS.includes(kind)) throw new Error(`${kind} is a Meshy GLB model (see index.html), it has no parametric geometry`);

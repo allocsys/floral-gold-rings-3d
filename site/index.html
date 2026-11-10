@@ -120,13 +120,13 @@ function buildMeshy(ID, wt, tt) { // wrap the slab: x -> angle (N tiles round th
 }
 
 // Solitaire (D81): Meshy GLB (reference/meshy/solitaire_3.glb, copied to site/solitaire_meshy.glb), used as is with its own textures. Scaled so the bore (circle fitted to the model: centre (SOL_CX, SOL_CY), radius SOL_R in model units) has the chosen inner diameter, and re-centred on the origin. Ring axis = z, stone at +y. The old parametric solitaire is gone (last in commit 3597c30).
-const SOL_CX = -0.0001, SOL_CY = -0.0865, SOL_R = 0.7714;
-let solSrc = null, solFail = false;
-new GLTFLoader().load('solitaire_meshy.glb', g => {
+// Solitaire 2 (D82): second Meshy GLB (reference/meshy/solitaire_4_symmetrical.glb -> site/solitaire2_meshy.glb), same handling; bore fitted the same way (innermost vertex per 3 deg, lower part, circle fit): centre (0.0006, -0.0911), R 0.7626.
+const SOLS = { solitaire: { file: 'solitaire_meshy.glb', cx: -0.0001, cy: -0.0865, r: 0.7714, label: 'Solitaire' }, solitaire2: { file: 'solitaire2_meshy.glb', cx: 0.0006, cy: -0.0911, r: 0.7626, label: 'Solitaire 2' } };
+for (const [key, S] of Object.entries(SOLS)) new GLTFLoader().load(S.file, g => {
   let m = null; g.scene.traverse(o => { if (o.isMesh && !m) m = o; });
-  solSrc = { geo: m.geometry, mat: m.material }; if (kind === 'solitaire') queue('fine');
-}, undefined, e => { console.error('solitaire glb failed', e); solFail = true; queue('fine'); });
-function buildSol(ID) { const k = (ID / 2) / SOL_R, mesh = new THREE.Mesh(solSrc.geo, solSrc.mat); mesh.scale.setScalar(k); mesh.position.set(-SOL_CX * k, -SOL_CY * k, 0); mesh.userData.shared = true; return mesh; }
+  S.src = { geo: m.geometry, mat: m.material }; if (kind === key) queue('fine');
+}, undefined, e => { console.error(key + ' glb failed', e); S.fail = true; queue('fine'); });
+function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; return mesh; }
 
 let kind = 'solitaire';
 const state = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { ...v }]));
@@ -166,12 +166,12 @@ function makeNM(s) {
 
 function rebuild(quality) {
   for (const m of [...group.children]) { if (!m.userData.shared) m.geometry.dispose(); if (m.material.userData?.nm) m.material.dispose(); group.remove(m); }
-  if (kind === 'solitaire') {
-    scene.background.set(0x4a3b30);
-    if (solFail) { document.getElementById('info').textContent = 'solitaire model failed to load'; return; }
-    if (!solSrc) { document.getElementById('info').textContent = 'loading solitaire…'; return; }
-    group.add(buildSol(state[kind].ID));
-    document.getElementById('info').textContent = `Solitaire (Meshy) · Ø ${state[kind].ID} mm inner`; return;
+  if (SOLS[kind]) {
+    const S = SOLS[kind]; scene.background.set(0x4a3b30);
+    if (S.fail) { document.getElementById('info').textContent = S.label + ' model failed to load'; return; }
+    if (!S.src) { document.getElementById('info').textContent = 'loading ' + S.label.toLowerCase() + '…'; return; }
+    group.add(buildSol(kind, state[kind].ID));
+    document.getElementById('info').textContent = `${S.label} (Meshy) · Ø ${state[kind].ID} mm inner`; return;
   }
   if (isMeshy()) {
     scene.background.set(0x4a3b30);
@@ -218,10 +218,10 @@ function renderUI() {
     const b = document.createElement('button'); b.textContent = LABELS[k]; b.className = k === kind ? 'on' : '';
     b.onclick = () => { kind = k; if (k === 'plaque') { camera.position.set(0, -4, 31); controls.target.set(0, 0, 0); group.quaternion.identity(); spinOn = false; } else if (spinOn === false && camera.position.z > 25 && Math.abs(camera.position.x) < 1) { camera.position.copy(HOME); group.quaternion.identity(); spinOn = true; } spin.textContent = 'Spin: ' + (spinOn ? 'on' : 'off'); renderUI(); queue('fine'); }; tabs.appendChild(b);
   }
-  document.getElementById('dl').style.display = isMeshy() || kind === 'solitaire' ? 'none' : '';
+  document.getElementById('dl').style.display = isMeshy() || SOLS[kind] ? 'none' : '';
   for (const [key, label, min, max, step, only] of CONTROLS) {
     if (only && ![].concat(only).includes(kind)) continue;
-    if (kind === 'solitaire' && key !== 'ID') continue;
+    if (SOLS[kind] && key !== 'ID') continue;
     if (isMeshy() && key !== 'ID' && key !== 'w' && key !== 't') continue;
     const mw = isMeshy() && (key === 'w' || key === 't'), mu = key === 'w' ? meshyW : meshyT, lo = mw && key === 'w' ? 3 : min, hi = mw && key === 'w' ? 7 : max, val = mw ? Math.min(hi, Math.max(lo, mu[kind] ?? (key === 'w' ? meshyLastW : meshyLastT)[kind])).toFixed(key === 'w' ? 1 : 2) : state[kind][key]; // Meshy band: width 3-7 mm (repeat count chosen to fit, only the ring-axis scale stretches), thickness 0.8-3 mm (only the radial relief scale changes)
     const row = document.createElement('div'); row.className = 'row';
