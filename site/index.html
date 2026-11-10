@@ -32,7 +32,7 @@
   <div class="hd"><div class="tabs" id="tabs"></div><button id="tog" aria-label="Toggle settings" aria-expanded="true">▾</button></div>
   <div id="body">
     <div id="sliders"></div>
-    <div class="act"><button id="reset">Reset</button><button id="spin">Spin: on</button><button id="dl">Download STL</button></div>
+    <div class="act"><button id="reset">Reset</button><button id="spin">Spin: off</button><button id="dl">Download STL</button></div>
     <div id="info"></div>
   </div>
 </div>
@@ -56,7 +56,7 @@ const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 300);
 camera.position.set(6, 16, 34);
 const controls = new OrbitControls(camera, canvas);
 controls.enableRotate = false; controls.enableDamping = true; controls.screenSpacePanning = true; // D-ctl: OrbitControls only zooms/pans; rotation = free trackball on the ring (no pole clamp)
-let spinOn = true, dragging = false, vel = new THREE.Vector2(), HOME = camera.position.clone();
+let spinOn = false, dragging = false, vel = new THREE.Vector2(), HOME = camera.position.clone();
 const ptrs = new Map(), _q = new THREE.Quaternion(), _ax = new THREE.Vector3();
 function rotView(dx, dy) { // screen-space drag -> rotate ring about camera up/right axes (any direction, no roll lock)
   const a = Math.hypot(dx, dy); if (a < 1e-6) return;
