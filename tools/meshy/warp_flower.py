@@ -8,7 +8,7 @@ PK = np.array([10., 140., 190., 250., 330.]); RK = np.array([0.112, 0.115, 0.130
 LT = 0.115                                              # target tip radius for all petals
 import os
 RF, RE, SIG, RB = float(os.environ.get('RF', 0.11)), float(os.environ.get('RE', 0.32)), float(os.environ.get('SIG', 12.0)), 0.03              # full warp inside RF, zero beyond RE; angular blend width (deg); bead radius kept unscaled
-d = 72.0 * np.arange(5) - PK; d = (d + 180) % 360 - 180; c = d.mean(); DEL = d - c   # rotation of each lobe: even 72 deg spacing, mean rotation 0
+d = 72.0 * np.arange(5) - PK; d = (d + 180) % 360 - 180; c = d.mean(); AN = float(os.environ.get('AN', 0.0)); c = (1 - AN) * c + AN * d[0]; DEL = d - c   # AN 0 = mean rotation 0; AN 1 = lobe 0 (touches the vine) not rotated   # rotation of each lobe: even 72 deg spacing, mean rotation 0
 SK = np.where(np.arange(5) == 0, 1.0, LT / RK)          # lobe 0 (10 deg) touches the vine, radius not trustworthy: keep
 print('lobe peaks', PK.tolist(), '-> targets', (PK + DEL).tolist(), ' rotations', np.round(DEL, 1).tolist(), ' radius scale', np.round(SK, 3).tolist())
 b = open(src, 'rb').read(); jl, _ = struct.unpack('<II', b[12:20]); j = json.loads(b[20:20 + jl]); BIN = bytearray(b[20 + jl + 8:])
