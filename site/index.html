@@ -101,23 +101,24 @@ if (MESHY_ON) new GLTFLoader().load('band_meshy_tile.glb', g => {
   meshySrc = { geo, mat, mats: [mat, bore], b: geo.boundingBox };
   if (isMeshy()) queue('fine');
 }, undefined, e => { console.error('meshy glb failed', e); meshyFail = true; queue('fine'); });
-function buildMeshy(ID) { // wrap the slab: x -> angle (N tiles round the ring), y -> ring axis, z -> radius; uniform scale k so arc length at the relief face = slab length
+const meshyW = { band1: null, band2: null }, meshyLastW = { band1: 5.4, band2: 5.4 }; // user-chosen width in mm per band tab; null = auto (natural width of the best-fit repeat count, as before the slider existed)
+function buildMeshy(ID, wt) { // wrap the slab: x -> angle (N tiles round the ring), y -> ring axis, z -> radius; scale k (x, z) so the N tiles close exactly round the ring; wt = target width in mm (null = auto): N = repeat count whose natural width k*W is nearest wt, then only the ring-axis scale is stretched to hit wt exactly
   const { geo, b } = meshySrc, L = b.max.x - b.min.x, W = b.max.y - b.min.y, dz = b.max.z - b.min.z, Ri = ID / 2, c = 0.7, T = Math.PI * 2;
-  const kN = n => (T * Ri / n) / (L - T * c * dz / n);
-  let N = 2; for (let n = 3; n <= 12; n++) if (Math.abs(kN(n) * W - 4.5) < Math.abs(kN(N) * W - 4.5)) N = n; // tile count whose derived width is nearest 4.5 mm
-  const k = kN(N), P = geo.attributes.position, Nr = geo.attributes.normal, meshes = [];
+  const kN = n => (T * Ri / n) / (L - T * c * dz / n), tgt = wt || 4.5;
+  let N = 2; for (let n = 3; n <= 12; n++) if (Math.abs(Math.log(kN(n) * W / tgt)) < Math.abs(Math.log(kN(N) * W / tgt))) N = n;
+  const k = kN(N), ky = wt ? wt / W : k, P = geo.attributes.position, Nr = geo.attributes.normal, meshes = [];
   for (let t = 0; t < N; t++) {
     const g = geo.clone(), pa = g.attributes.position.array, na = g.attributes.normal.array;
     for (let i = 0; i < P.count; i++) {
       const th = (((P.getX(i) - b.min.x) / L) + t) / N * T, r = Ri + (P.getZ(i) - b.min.z) * k, ct = Math.cos(th), st = Math.sin(th);
-      pa[i * 3] = r * ct; pa[i * 3 + 1] = r * st; pa[i * 3 + 2] = (P.getY(i) - (b.min.y + b.max.y) / 2) * k;
-      const nx = Nr.getX(i), ny = Nr.getY(i), nz = Nr.getZ(i); // (theta, axis, radial) -> world
-      na[i * 3] = nz * ct - nx * st; na[i * 3 + 1] = nz * st + nx * ct; na[i * 3 + 2] = ny;
+      pa[i * 3] = r * ct; pa[i * 3 + 1] = r * st; pa[i * 3 + 2] = (P.getY(i) - (b.min.y + b.max.y) / 2) * ky;
+      const nx = Nr.getX(i), nz = Nr.getZ(i), ny = Nr.getY(i) * (k / ky), l = Math.hypot(nx, ny, nz) || 1; // axis stretch ky/k: normal's axis component scales by k/ky (inverse-transpose), then renormalise
+      na[i * 3] = (nz * ct - nx * st) / l; na[i * 3 + 1] = (nz * st + nx * ct) / l; na[i * 3 + 2] = ny / l; // (theta, axis, radial) -> world
     }
     g.attributes.position.needsUpdate = true; g.attributes.normal.needsUpdate = true; g.computeBoundingSphere();
     meshes.push(new THREE.Mesh(g, meshySrc.mats));
   }
-  return { meshes, N, w: k * W, t: k * dz };
+  return { meshes, N, w: ky * W, t: k * dz, stretch: ky / k };
 }
 
 let kind = 'solitaire';
@@ -161,8 +162,10 @@ function rebuild(quality) {
   if (isMeshy()) {
     scene.background.set(0x4a3b30);
     if (!meshySrc) { document.getElementById('info').textContent = 'loading Meshy band…'; return; }
-    const r = buildMeshy(state[kind].ID); for (const m of r.meshes) group.add(m);
-    document.getElementById('info').textContent = `Meshy band · Ø ${state[kind].ID} mm inner · ${r.N} repeats · ${r.w.toFixed(1)} mm wide · ${r.t.toFixed(1)} mm thick`; return;
+    const r = buildMeshy(state[kind].ID, meshyW[kind]); for (const m of r.meshes) group.add(m);
+    meshyLastW[kind] = r.w;
+    if (meshyW[kind] == null) { const wi = sliders.querySelector('input[data-k="w"]'); if (wi) { wi.value = r.w.toFixed(1); wi.nextElementSibling.textContent = (+wi.value).toFixed(1); } } // auto width: the slider follows the natural width (e.g. when the diameter changes)
+    document.getElementById('info').textContent = `Meshy band · Ø ${state[kind].ID} mm inner · ${r.N} repeats · ${r.w.toFixed(1)} mm wide${Math.abs(r.stretch - 1) > 0.005 ? ` (${r.stretch > 1 ? 'stretched' : 'squeezed'} ${Math.round(Math.abs(r.stretch - 1) * 100)}% across)` : ''} · ${r.t.toFixed(1)} mm thick`; return;
   }
   scene.background.set(kind === 'plaque' ? 0x2a2119 : 0x4a3b30);
   shells = buildRing(kind, state[kind], quality);
@@ -204,15 +207,16 @@ function renderUI() {
   document.getElementById('dl').style.display = isMeshy() ? 'none' : '';
   for (const [key, label, min, max, step, only] of CONTROLS) {
     if (only && ![].concat(only).includes(kind)) continue;
-    if (isMeshy() && key !== 'ID') continue;
+    if (isMeshy() && key !== 'ID' && key !== 'w') continue;
+    const mw = isMeshy() && key === 'w', lo = mw ? 3 : min, hi = mw ? 7 : max, val = mw ? Math.min(hi, Math.max(lo, meshyW[kind] ?? meshyLastW[kind])).toFixed(1) : state[kind][key]; // Meshy band: width 3-7 mm (the repeat count is chosen to fit; only the ring-axis scale stretches)
     const row = document.createElement('div'); row.className = 'row';
-    row.innerHTML = `<label>${label}</label><input type="range" min="${min}" max="${max}" step="${step}" value="${state[kind][key]}"><output>${state[kind][key]}</output>`;
+    row.innerHTML = `<label>${label}</label><input type="range" data-k="${key}" min="${lo}" max="${hi}" step="${step}" value="${val}"><output>${val}</output>`;
     const inp = row.querySelector('input'), out = row.querySelector('output');
-    inp.oninput = () => { state[kind][key] = +inp.value; out.textContent = inp.value; queue('draft'); clearTimeout(fineTimer); fineTimer = setTimeout(() => queue('fine'), 350); };
+    inp.oninput = () => { state[kind][key] = +inp.value; if (mw) meshyW[kind] = +inp.value; out.textContent = inp.value; queue('draft'); clearTimeout(fineTimer); fineTimer = setTimeout(() => queue('fine'), 350); };
     sliders.appendChild(row);
   }
 }
-document.getElementById('reset').onclick = () => { state[kind] = { ...DEFAULTS[kind] }; renderUI(); queue('fine'); };
+document.getElementById('reset').onclick = () => { state[kind] = { ...DEFAULTS[kind] }; if (kind in meshyW) meshyW[kind] = null; renderUI(); queue('fine'); };
 const spin = document.getElementById('spin');
 spin.onclick = () => { spinOn = !spinOn; spin.textContent = 'Spin: ' + (spinOn ? 'on' : 'off'); };
 document.getElementById('dl').onclick = () => {
