@@ -92,11 +92,17 @@ if (MESHY_ON) new GLTFLoader().load('band_meshy_tile.glb', g => {
   const mrm = m.material.metalnessMap; // original Meshy metal/roughness map (G = roughness, B = metal); ?mr=0 = flat metalness .85 / roughness .4 as before
   const mat = new THREE.MeshStandardMaterial({ map: m.material.map, normalMap: m.material.normalMap, color: 0xffffff, ...(MR_ON && mrm ? { metalnessMap: mrm, roughnessMap: mrm, metalness: 1, roughness: 1 } : { metalness: 0.85, roughness: 0.4 }) });
   if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
-  meshySrc = { geo: m.geometry, mat, b: m.geometry.boundingBox };
+  // inside of the ring: faces whose 3 vertex normals all point straight back or straight sideways (the strip's inside and its two flat edges) get a plain polished-gold material (the Meshy texture there is baked rough relief); ?bore=0 = textured as before
+  const BORE_ON = new URLSearchParams(location.search).get('bore') !== '0';
+  const bore = new THREE.MeshStandardMaterial({ color: 0xe9b73f, metalness: 1, roughness: 0.24 });
+  const geo = m.geometry, idx = geo.index.array, nz = geo.attributes.normal.array, A = [], B = [];
+  for (let i = 0; i < idx.length; i += 3) { const flat = k => nz[idx[i + k] * 3 + 2] < -0.97 || Math.abs(nz[idx[i + k] * 3 + 1]) > 0.97; const isB = BORE_ON && flat(0) && flat(1) && flat(2); (isB ? B : A).push(idx[i], idx[i + 1], idx[i + 2]); }
+  geo.setIndex([...A, ...B]); geo.clearGroups(); geo.addGroup(0, A.length, 0); if (B.length) geo.addGroup(A.length, B.length, 1);
+  meshySrc = { geo, mat, mats: [mat, bore], b: geo.boundingBox };
   if (isMeshy()) queue('fine');
 }, undefined, e => { console.error('meshy glb failed', e); meshyFail = true; queue('fine'); });
 function buildMeshy(ID) { // wrap the slab: x -> angle (N tiles round the ring), y -> ring axis, z -> radius; uniform scale k so arc length at the relief face = slab length
-  const { geo, mat, b } = meshySrc, L = b.max.x - b.min.x, W = b.max.y - b.min.y, dz = b.max.z - b.min.z, Ri = ID / 2, c = 0.7, T = Math.PI * 2;
+  const { geo, b } = meshySrc, L = b.max.x - b.min.x, W = b.max.y - b.min.y, dz = b.max.z - b.min.z, Ri = ID / 2, c = 0.7, T = Math.PI * 2;
   const kN = n => (T * Ri / n) / (L - T * c * dz / n);
   let N = 2; for (let n = 3; n <= 12; n++) if (Math.abs(kN(n) * W - 4.5) < Math.abs(kN(N) * W - 4.5)) N = n; // tile count whose derived width is nearest 4.5 mm
   const k = kN(N), P = geo.attributes.position, Nr = geo.attributes.normal, meshes = [];
@@ -109,7 +115,7 @@ function buildMeshy(ID) { // wrap the slab: x -> angle (N tiles round the ring),
       na[i * 3] = nz * ct - nx * st; na[i * 3 + 1] = nz * st + nx * ct; na[i * 3 + 2] = ny;
     }
     g.attributes.position.needsUpdate = true; g.attributes.normal.needsUpdate = true; g.computeBoundingSphere();
-    meshes.push(new THREE.Mesh(g, mat));
+    meshes.push(new THREE.Mesh(g, meshySrc.mats));
   }
   return { meshes, N, w: k * W, t: k * dz };
 }
@@ -151,7 +157,7 @@ function makeNM(s) {
 }
 
 function rebuild(quality) {
-  for (const m of [...group.children]) { if (!m.userData.shared) m.geometry.dispose(); if (m.material.userData.nm) m.material.dispose(); group.remove(m); }
+  for (const m of [...group.children]) { if (!m.userData.shared) m.geometry.dispose(); if (m.material.userData?.nm) m.material.dispose(); group.remove(m); }
   if (isMeshy()) {
     scene.background.set(0x4a3b30);
     if (!meshySrc) { document.getElementById('info').textContent = 'loading Meshy band…'; return; }
