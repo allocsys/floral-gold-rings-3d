@@ -1,6 +1,6 @@
 # Build site/band_meshy_tile.glb from the Meshy strip (reference/meshy/model.glb).
 # usage: python3 tools/meshy/make_tile.py reference/meshy/model.glb site/band_meshy_tile.glb   (needs trimesh, shapely, scipy, numpy)
-# 1 crop ONE repeat at px 208..936 of 1904 (matched columns), blend z + weld normals across the cut
+# 1 crop ONE repeat at px 233..959 of 1904 (matched columns), blend z + weld normals across the cut
 # 2 inside (back) faces: flatten to one radius and subdivide to ~0.01 units so it bends into a smooth cylinder (viewer gives it a polished plain material)
 # 3 re-embed the ORIGINAL base/normal/metal-rough JPEG bytes unchanged
 import sys,json,struct,numpy as np,trimesh
@@ -14,7 +14,7 @@ hh=np.full((H,W),-9.0); np.maximum.at(hh,(y,x),v0[:,2]); hf=np.where(hh>-9,hh,np
 for _ in range(8):
     mx=ndi.maximum_filter(np.nan_to_num(hf,nan=-9),size=3); hf=np.where(np.isnan(hf),np.where(mx>-9,mx,np.nan),hf)
 hf=np.nan_to_num(hf,nan=np.nanmin(hf))
-L=1.9038; x0=-0.9519; X1,X2=208,936; x1=x0+X1/1903*L; x2=x0+X2/1903*L
+L=1.9038; x0=-0.9519; X1,X2=233,959; x1=x0+X1/1903*L; x2=x0+X2/1903*L
 m=g.copy().slice_plane([x1,0,0],[1,0,0],cap=False).slice_plane([x2,0,0],[-1,0,0],cap=False)
 raw=hf[:,X2]-hf[:,X1]; ok=(hf[:,X1]>0)&(hf[:,X2]>0)&(np.abs(raw)<0.03)   # rail-edge rows can hold back-plane heights at the cut columns: ignore them, interpolate D across
 D=np.interp(np.arange(H),np.where(ok)[0],raw[ok]); D=ndi.uniform_filter1d(ndi.median_filter(D,size=15),9).clip(-0.03,0.03)
