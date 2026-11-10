@@ -4,10 +4,14 @@
 # usage: [S=0.8 SZ=1.25 RP=0.14 ROT=0 ROT2=180] python3 tools/meshy/make_flower_patch.py reference/meshy/model.glb site/solitaire_meshy2.glb site/flower_patch.glb
 import sys, os, json, struct, numpy as np
 strip, sol, out = sys.argv[1:4]
-S = float(os.environ.get('S', 0.76)); SZ = float(os.environ.get('SZ', 1.4)); RP = float(os.environ.get('RP', 0.145)); RMAX = float(os.environ.get('RMAX', 0.098)); DIL = float(os.environ.get('DIL', 0.006)); DH = 0.006   # xy scale, height scale, patch radius in band units
+S = float(os.environ.get('S', 0.87)); SZ = float(os.environ.get('SZ', 1.4)); RP = float(os.environ.get('RP', 0.145)); RMAX = float(os.environ.get('RMAX', 0.125)); DIL = float(os.environ.get('DIL', 0.005)); RVINE = float(os.environ.get('RVINE', 0.104)); DH = 0.006   # xy scale, height scale, patch radius in band units
 ROT = [float(os.environ.get('ROT', 0)), float(os.environ.get('ROT2', 180))]                                          # in-plane rotation (deg) of the band flower on the +x / -x flower
 SINK = float(os.environ.get('SINK', 0.004)); R0 = 0.82; CX, CY = -0.0001, -0.1190                     # patch = band relief (z > floor+0.003, band UVs) + a flat floor disc (constant solitaire UV) sunk SINK under the solitaire's floor; the viewer removes the solitaire's own flower relief inside a mask = the solitaire flower's footprint (star-shaped, walked out from the bead until the height drops to the floor, capped at RMAX, dilated DIL), packed as a bit raster in CUTS
 FLOWERS = [(1, float(os.environ.get('U1', 0.6099)), float(os.environ.get('Z1', 0.0151))), (-1, float(os.environ.get('U2', 0.644)), float(os.environ.get('Z2', -0.006)))]   # (side, arc u at R0, z) start guesses for the bead centre
+
+GAP = int(os.environ.get('GAP', 12))                  # petal creases are short: the outline ends at the first run of GAP consecutive low samples (0.0008 apart), not at the first low one
+def first_run(low, n=None):
+    n = n or GAP; c = np.convolve(low.astype(int), np.ones(n, int), 'valid'); i = np.where(c == n)[0]; return i[0] if len(i) else None
 
 def glb(path):
     b = open(path, 'rb').read(); jl, _ = struct.unpack('<II', b[12:20]); j = json.loads(b[20:20 + jl]); BIN = b[20 + jl + 8:]
@@ -24,8 +28,29 @@ xc, yc = -0.730, 0.0132
 for _ in range(4):
     r = np.hypot(P[:, 0] - xc, P[:, 1] - yc); s = r < 0.03; hi = s & (P[:, 2] > np.percentile(P[s, 2], 85)); xc, yc = P[hi, 0].mean(), P[hi, 1].mean()
 r = np.hypot(P[:, 0] - xc, P[:, 1] - yc); ann = (r > 0.10) & (r < 0.14) & (P[:, 2] > -0.03); ZF = np.percentile(P[ann, 2], 15)   # window floor height of the band
-cen = P[F].mean(axis=1); rc = np.hypot(cen[:, 0] - xc, cen[:, 1] - yc)
-keep = (rc < RP) & (P[F][:, :, 2].min(axis=1) > ZF + 0.003)
+cen = P[F].mean(axis=1)
+# only the flower (bead + petals), not the neighbouring beads / vines: raster of the strip height, connected plateau component of the bead, bead centre = plateau centroid
+from scipy import ndimage as ndi
+RB = 0.0004; NB = 700; selb = np.hypot(P[:, 0] - xc, P[:, 1] - yc) < 0.20
+HB = np.full((NB, NB), ZF - 0.01); ixb = ((P[selb, 0] - xc + NB * RB / 2) / RB).astype(int).clip(0, NB - 1); iyb = ((P[selb, 1] - yc + NB * RB / 2) / RB).astype(int).clip(0, NB - 1)
+np.maximum.at(HB, (iyb, ixb), P[selb, 2])
+for _ in range(4): HB = np.where(HB > ZF - 0.0099, HB, ndi.maximum_filter(HB, 3))
+gb = (np.arange(NB) + .5) * RB - NB * RB / 2; GBU, GBZ = np.meshgrid(gb, gb); cu = cz = 0.0
+for R_ in [0.13] * 3 + [0.12] * 6:
+    m_ = (np.hypot(GBU - cu, GBZ - cz) < R_) & (HB > ZF + 0.03); lab, _n = ndi.label(m_); l_ = lab[int(NB / 2 + cz / RB), int(NB / 2 + cu / RB)]; mm = lab == l_ if l_ else m_; cu, cz = GBU[mm].mean(), GBZ[mm].mean()
+xc += cu; yc += cz
+HBm = ndi.binary_closing(HB > ZF + 0.012, iterations=3); _h, _hn = ndi.label(ndi.binary_fill_holes(HBm) & ~HBm); _sz = ndi.sum(np.ones_like(_h), _h, range(1, _hn + 1)); HBm |= np.isin(_h, 1 + np.where(_sz < 1500)[0])   # fill the small holes only (raster gaps inside the petals), not the gaps between petal tips and the rails      # petal mask (holes of the raster closed, gaps to the rails / beads NOT bridged)
+NAB = 180; RPb = np.zeros(NAB)                      # petal outline: walk out from the bead until the mask ends; no end before the cap (touching a rail / bead / vine) -> fixed radius RBV; polar median + +-10 deg max filter
+RBC = float(os.environ.get('RBC', 0.135)); RBV = float(os.environ.get('RBV', 0.11))
+for k in range(NAB):
+    a_ = 2 * np.pi * k / NAB; rs = np.arange(0.03, RBC + 1e-9, 0.0008); hb_ = HBm[((cz + rs * np.sin(a_) + NB * RB / 2) / RB).astype(int).clip(0, NB - 1), ((cu + rs * np.cos(a_) + NB * RB / 2) / RB).astype(int).clip(0, NB - 1)]
+    i_ = first_run(~hb_); RPb[k] = rs[i_] if i_ is not None else RBV
+RPb = ndi.maximum_filter(ndi.median_filter(RPb, size=3, mode='wrap'), size=11, mode='wrap') + 0.010; RPET = RPb.max()
+print('  band petal outline radius per 30 deg:', np.round(RPb[::15], 3).tolist())
+cxb = (cen[:, 0] - (xc - cu)); cyb = (cen[:, 1] - (yc - cz)); ab = np.arctan2(cyb, cxb) % (2 * np.pi); rb_ = np.hypot(cxb, cyb)
+petal = None
+keep = (rb_ <= np.interp(ab, 2 * np.pi * np.arange(NAB + 1) / NAB, np.r_[RPb, RPb[0]])) & (np.abs(cyb) <= float(os.environ.get('YMAX', 0.105))) & (P[F][:, :, 2].min(axis=1) > ZF + 0.005)   # |y| clip: the rails of the strip start at y 0.1075, the petal tips end at 0.1025
+print('band flower: bead centre shifted by %.4f %.4f, petal component radius %.4f (x S %.2f = %.4f)' % (cu, cz, RPET, S, RPET * S))
 f = F[keep]; used, inv = np.unique(f, return_inverse=True); f = inv.reshape(-1, 3)
 bp, bn, buv = P[used], N[used], UV[used]
 print('band flower centre %.4f %.4f floor z %.4f bead z %.4f; patch tris %d verts %d' % (xc, yc, ZF, P[hi, 2].mean(), len(f), len(bp)))
@@ -38,11 +63,15 @@ TEX = np.asarray(Image.open(io.BytesIO(_b[20 + _jl + 8:][_bv['byteOffset']:_bv['
 X = SP[:, 0] - CX; Y = SP[:, 1] - CY; Z = SP[:, 2]; rho = np.hypot(X, Y); th = np.arctan2(X, Y)
 V, NN, UU, FF = [], [], [], []; FV, FN, FU, FF2 = [], [], [], []; cuts = []; base = 0; fbase = 0
 import base64
-from scipy import ndimage as ndi
 for (sg, u0, z0), rot in zip(FLOWERS, ROT):
     t = sg * th
-    for _ in range(6):                                   # refine the bead centre (top vertices within 0.03)
-        rr = np.hypot(R0 * t - u0, Z - z0); s = rr < 0.03; hh = s & (rho > np.percentile(rho[s], 80)); u0 = (R0 * t[hh]).mean(); z0 = Z[hh].mean()
+    NC = 480; RC = 0.0006; selc = (np.hypot(R0 * t - u0, Z - z0) < 0.18) & (rho > 0.70)      # flower centre = centroid of the plateau (rho > 0.835) component around the start guess, iterated
+    HC = np.zeros((NC, NC)); ixc = ((R0 * t[selc] - u0 + NC * RC / 2) / RC).astype(int).clip(0, NC - 1); izc = ((Z[selc] - z0 + NC * RC / 2) / RC).astype(int).clip(0, NC - 1); np.maximum.at(HC, (izc, ixc), rho[selc])
+    for _ in range(4): HC = np.where(HC > 0, HC, ndi.maximum_filter(HC, 3))
+    gc = (np.arange(NC) + .5) * RC - NC * RC / 2; GCU, GCZ = np.meshgrid(gc, gc); cu = cz = 0.0
+    for R_ in [0.10] * 3 + [0.085] * 8:
+        m_ = (np.hypot(GCU - cu, GCZ - cz) < R_) & (HC > 0.835); lab, _n = ndi.label(m_); l_ = lab[int(NC / 2 + cz / RC), int(NC / 2 + cu / RC)]; mm = lab == l_ if l_ else m_; cu, cz = GCU[mm].mean(), GCZ[mm].mean()
+    print('  centre moved by %.4f %.4f from the start guess' % (cu, cz)); u0 += cu; z0 += cz
     rr = np.hypot(R0 * t - u0, Z - z0); ann = (rr > 0.10) & (rr < 0.15) & (rho > 0.74)
     ua, za, ra = (R0 * t - u0)[ann], (Z - z0)[ann], rho[ann]; w = np.ones(len(ra), bool)
     for _ in range(6):                                   # plane fit rho = c0 + c1 u + c2 z of the window floor (robust: the low half of the points)
@@ -57,8 +86,8 @@ for (sg, u0, z0), rot in zip(FLOWERS, ROT):
     for k in range(NA):
         a = 2 * np.pi * k / NA; rs = np.arange(0.032, RMAX + 1e-9, 0.001); pu = rs * np.cos(a); pz = rs * np.sin(a)
         hi_ = H[((pz + NR * RES / 2) / RES).astype(int).clip(0, NR - 1), ((pu + NR * RES / 2) / RES).astype(int).clip(0, NR - 1)]
-        th_ = c[0] + c[1] * pu + c[2] * pz + 0.016; low = np.where(hi_ < th_)[0]; Rp[k] = rs[low[0]] if len(low) else RMAX
-    Rp = np.maximum(Rp, 0.032); Rp = np.minimum(np.minimum(Rp, np.roll(Rp, 1)), np.roll(Rp, -1)) * 0 + ndi.median_filter(Rp, size=3, mode='wrap')   # 3-sample median: drops 1-sample spikes
+        th_ = c[0] + c[1] * pu + c[2] * pz + 0.016; i_ = first_run(hi_ < th_); Rp[k] = rs[i_] if i_ is not None else RVINE
+    Rp = np.maximum(Rp, 0.032); Rp = ndi.maximum_filter(ndi.median_filter(Rp, size=3, mode='wrap'), size=7, mode='wrap')   # median drops 1-sample spikes, then a +-18 deg max filter so the gaps between petals are cut as far as the neighbouring petals (no petal remnants left)
     GR = np.hypot(GU, GZ); GA = np.arctan2(GZ, GU) % (2 * np.pi); Rg = np.interp(GA, 2 * np.pi * np.arange(NA + 1) / NA, np.r_[Rp, Rp[0]])
     mask = GR <= Rg; mask = ndi.binary_dilation(mask, structure=np.ones((3, 3), bool), iterations=max(1, int(round(DIL / RES))))
     MR = 2; mask_s = mask[::1, ::1]
@@ -87,7 +116,11 @@ for (sg, u0, z0), rot in zip(FLOWERS, ROT):
     if (sgn > 0).mean() < 0.5: ff = ff[:, ::-1]
     V.append(pos); NN.append(nw); UU.append(buv); FF.append(ff + base); base += len(pos)
     # flat floor disc under the cut (rings x segments), constant UV of a solitaire floor vertex
-    RD = RMAX + DIL + 0.012; rings = np.linspace(0, RD, 13); NSEG = 48; dpts = [(0.0, 0.0)] + [(r_ * np.cos(2 * np.pi * s_ / NSEG), r_ * np.sin(2 * np.pi * s_ / NSEG)) for r_ in rings[1:] for s_ in range(NSEG)]
+    Rd = np.interp(2 * np.pi * np.arange(NSEG := 48) / NSEG, 2 * np.pi * np.arange(NA + 1) / NA, np.r_[Rp, Rp[0]]) + DIL + 0.004   # disc outline = the footprint (so no flat sheet sticks out past the cut)
+    fr = np.linspace(0, 1, 13); dpts = [(0.0, 0.0)] + [(fr_ * Rd[s_] * np.cos(2 * np.pi * s_ / NSEG), fr_ * Rd[s_] * np.sin(2 * np.pi * s_ / NSEG)) for fr_ in fr[1:] for s_ in range(NSEG)]; dtri = [(0, 1 + s_, 1 + (s_ + 1) % NSEG) for s_ in range(NSEG)]
+    for r_ in range(1, 12):
+        for s_ in range(NSEG):
+            a0 = 1 + (r_ - 1) * NSEG + s_; a1 = 1 + (r_ - 1) * NSEG + (s_ + 1) % NSEG; b0 = 1 + r_ * NSEG + s_; b1 = 1 + r_ * NSEG + (s_ + 1) % NSEG; dtri += [(a0, b0, b1), (a0, b1, a1)]
     dpts = np.array(dpts); dtri = [(0, 1 + s_, 1 + (s_ + 1) % NSEG) for s_ in range(NSEG)]
     for r_ in range(1, 12):
         for s_ in range(NSEG):
