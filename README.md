@@ -1,6 +1,6 @@
 # Floral Gold Rings – 3D
 
-Parametric 3D model of a floral-engraved gold ring set: a wide band, a band and a solitaire. The two bands and the solitaire are Meshy image-to-3D models (`site/band_meshy_tile.glb` tiled round the ring, `site/solitaire_meshy.glb` used as is, source `reference/meshy/solitaire_3.glb`); only the plaque is still parametric. Units are millimetres.
+Parametric 3D model of a floral-engraved gold ring set: a wide band, a band and two solitaires. The two bands and the solitaire are Meshy image-to-3D models (`site/band_meshy_tile.glb` tiled round the ring, `site/solitaire_meshy.glb` used as is, source `reference/meshy/solitaire_3.glb`); only the plaque is still parametric. Units are millimetres.
 
 ## Status
 The two bands use the **Meshy image-to-3D model** of the floral engraving (`site/band_meshy_tile.glb`): one seamless repeat, tiled round the ring and bent into a cylinder by the viewer, with a smooth polished inside and plain gold side edges. The Solitaire is still the parametric model (stone, basket, prongs). No STLs are checked in.
@@ -11,7 +11,7 @@ URL switches in the viewer: `?src=old` previous hand-built relief band, `?mr=0` 
 | Path | Purpose |
 |---|---|
 | `site/index.html` | three.js viewer (tabs, sliders, GLB loader + ring bending for the Meshy bands) |
-| `site/geometry.js` | Parametric geometry (Solitaire, plaque, old relief bands), browser + Node |
+| `site/geometry.js` | Parametric geometry (old relief bands; unused plaque code), browser + Node |
 | `site/band_meshy_tile.glb` | The Meshy band tile (31.6 MB, original textures byte-identical) |
 | `site/test.mjs` | Smoke test (runs in CI before every Pages deploy) |
 | `reference/meshy/model.glb` | The original Meshy output (3-repeat flat strip, 38 MB) |

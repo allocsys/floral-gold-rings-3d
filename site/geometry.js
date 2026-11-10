@@ -8,15 +8,13 @@ export const DEFAULTS = {
   band2:     { ID: 17, w: +(4.0 + WD).toFixed(1), t: 1.4, relief: 0.4 },
   solitaire: { ID: 17 }, // Meshy GLB (site/solitaire_meshy.glb, loaded by index.html): only the inner diameter is adjustable; no parametric geometry
   solitaire2: { ID: 17 }, // second Meshy GLB (site/solitaire2_meshy.glb = reference/meshy/solitaire_4_symmetrical.glb), same: only the inner diameter
-  plaque:    { L: 22.6, w: 4.9, t: 1.2, relief: 0.45 }, // D63 (S1): flat plaque = the band pattern unrolled once (frame: flat rails + square end blocks, recessed stippled ground)
 };
-export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire', solitaire2: 'Solitaire 2', plaque: 'Plaque' };
+export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire', solitaire2: 'Solitaire 2' };
 export const CONTROLS = [
   ['ID', 'Inner diameter', 14, 24, 0.1, ['band1', 'band2', 'solitaire', 'solitaire2']],
-  ['L', 'Length', 12, 40, 0.1, 'plaque'],
   ['w', 'Width', 1.5, 8, 0.1],
   ['t', 'Thickness', 0.8, 3, 0.05],
-  ['relief', 'Relief depth', 0, 0.8, 0.05, ['band1', 'band2', 'plaque']],
+  ['relief', 'Relief depth', 0, 0.8, 0.05, ['band1', 'band2']],
 ];
 
 const TAU = Math.PI * 2;
@@ -131,7 +129,7 @@ function band(p, quality) {
   if (UVF) shell.nm = { rel, su: TAU * Ro / REPEATS, sv: 2 * (p.w / 2 - rf) / SV, step }; // D54 (b2): mm per map-u unit, mm per map-v unit, mesh step (mm) for the shader normal map (band only)
   return { shell, top: Ro + DOME };
 }
-// D63 (S1): flat plaque. Frame = flat rails (RW) along the long edges + square end blocks (EB) at full height; inside, the band map (u along x, v along y) cuts the ground down by `relief` mm, dark stippled ground.
+// UNUSED since D83 (Plaque tab removed; last live in 5197588, git history): D63 (S1): flat plaque. Frame = flat rails (RW) along the long edges + square end blocks (EB) at full height; inside, the band map (u along x, v along y) cuts the ground down by `relief` mm, dark stippled ground.
 const PLQ_GROUND = [0.016, 0.014, 0.012];
 const h2 = (i, j) => { const n = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return n - Math.floor(n); };
 function plaque(p, quality) {
