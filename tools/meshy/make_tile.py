@@ -16,7 +16,8 @@ for _ in range(8):
 hf=np.nan_to_num(hf,nan=np.nanmin(hf))
 L=1.9038; x0=-0.9519; X1,X2=208,936; x1=x0+X1/1903*L; x2=x0+X2/1903*L
 m=g.copy().slice_plane([x1,0,0],[1,0,0],cap=False).slice_plane([x2,0,0],[-1,0,0],cap=False)
-D=ndi.median_filter(hf[:,X2]-hf[:,X1],size=15); D=ndi.uniform_filter1d(D,9).clip(-0.03,0.03)
+raw=hf[:,X2]-hf[:,X1]; ok=(hf[:,X1]>0)&(hf[:,X2]>0)&(np.abs(raw)<0.03)   # rail-edge rows can hold back-plane heights at the cut columns: ignore them, interpolate D across
+D=np.interp(np.arange(H),np.where(ok)[0],raw[ok]); D=ndi.uniform_filter1d(ndi.median_filter(D,size=15),9).clip(-0.03,0.03)
 v=np.array(m.vertices); uv=np.array(m.visual.uv); f=np.array(m.faces); d=0.03
 row=((v[:,1]+0.1522)/0.3045*(H-1)).clip(0,H-1).round().astype(int)
 sm=lambda t:(lambda u:u*u*(3-2*u))(np.clip(t,0,1))
