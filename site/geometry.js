@@ -6,7 +6,7 @@ const WD = (() => { try { const v = parseFloat(new URLSearchParams(location.sear
 export const DEFAULTS = {
   band1:     { ID: 19, w: +(4.5 + WD).toFixed(1), t: 1.5, relief: 0.4 },
   band2:     { ID: 17, w: +(4.0 + WD).toFixed(1), t: 1.4, relief: 0.4 },
-  solitaire: { ID: 17 }, // Meshy GLB (site/solitaire_meshy.glb, loaded by index.html): only the inner diameter is adjustable; no parametric geometry
+  solitaire: { ID: 17 }, // Meshy GLB (site/solitaire_meshy2.glb = reference/meshy/solitaire_5.glb, loaded by index.html): only the inner diameter is adjustable; no parametric geometry
 };
 export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire' };
 export const CONTROLS = [

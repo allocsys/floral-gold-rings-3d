@@ -42,7 +42,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep, reliefTex } from './geometry.js?v=relief152';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep, reliefTex } from './geometry.js?v=relief153';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -119,8 +119,8 @@ function buildMeshy(ID, wt, tt) { // wrap the slab: x -> angle (N tiles round th
   return { meshes, N, w: ky * W, t: kz * dz, stretch: ky / k };
 }
 
-// Solitaire (D81): Meshy GLB (reference/meshy/solitaire_3.glb, copied to site/solitaire_meshy.glb), used as is with its own textures. Scaled so the bore (circle fitted to the model: centre (SOL_CX, SOL_CY), radius SOL_R in model units) has the chosen inner diameter, and re-centred on the origin. Ring axis = z, stone at +y. The old parametric solitaire is gone (last in commit 3597c30).
-const SOLS = { solitaire: { file: 'solitaire_meshy.glb', cx: -0.0001, cy: -0.0865, r: 0.7714, label: 'Solitaire' } }; // Solitaire 2/3/4 removed (last in commit cf918b7); next solitaire = new Meshy GLB
+// Solitaire (D81): Meshy GLB (reference/meshy/solitaire_5.glb, copied to site/solitaire_meshy2.glb; the first Solitaire was solitaire_3.glb), used as is with its own textures. Scaled so the bore (circle fitted to the model: centre (SOL_CX, SOL_CY), radius SOL_R in model units) has the chosen inner diameter, and re-centred on the origin. Ring axis = z, stone at +y. The old parametric solitaire is gone (last in commit 3597c30).
+const SOLS = { solitaire: { file: 'solitaire_meshy2.glb', cx: -0.0001, cy: -0.1190, r: 0.7256, label: 'Solitaire' } }; // Solitaire 2/3/4 removed (last in commit cf918b7); next solitaire = new Meshy GLB
 for (const [key, S] of Object.entries(SOLS)) new GLTFLoader().load(S.file, g => {
   let m = null; g.scene.traverse(o => { if (o.isMesh && !m) m = o; });
   S.src = { geo: m.geometry, mat: m.material }; if (kind === key) queue('fine');
