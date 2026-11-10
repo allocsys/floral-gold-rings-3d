@@ -1,4 +1,4 @@
-# usage: serve site/ on :8765 (python3 -m http.server 8765 in site/), three@0.160.0 in /tmp/viewer (npm i), then python3 live_shot.py OUT.png TAB(1 wide band,2 band,3 solitaire); env SUB='old=>new;;..' (replace text in index.html for the shot only), CAM=x,y,z TGT=x,y,z (camera pos / orbit target, default 0,23,0 / 0,9.9,0), DSF=2 CLIP=x,y,w,h for a zoom
+# usage (from repo root): serve site/ on :8765 (python3 -m http.server 8765 in site/), three@0.160.0 in /tmp/viewer (npm i), then python3 tools/live_shot.py OUT.png TAB(1 wide band,2 band,3 solitaire); env SUB='old=>new;;..' (replace text in index.html for the shot only), CAM=x,y,z TGT=x,y,z (camera pos / orbit target, default 0,23,0 / 0,9.9,0), DSF=2 CLIP=x,y,w,h for a zoom
 import asyncio,sys,subprocess,os
 from playwright.async_api import async_playwright
 OUT=sys.argv[1] if len(sys.argv)>1 else '/tmp/live.png'

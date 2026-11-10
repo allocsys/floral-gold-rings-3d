@@ -1,5 +1,5 @@
-# Build site/band_meshy_tile.glb from the Meshy strip (reference/meshy/model.glb in git history @1432eb2).
-# usage: python3 tools/meshy/make_tile.py /path/model.glb site/band_meshy_tile.glb   (needs trimesh, shapely, scipy, numpy)
+# Build site/band_meshy_tile.glb from the Meshy strip (reference/meshy/model.glb).
+# usage: python3 tools/meshy/make_tile.py reference/meshy/model.glb site/band_meshy_tile.glb   (needs trimesh, shapely, scipy, numpy)
 # 1 crop ONE repeat at px 208..936 of 1904 (matched columns), blend z + weld normals across the cut
 # 2 inside (back) faces: flatten to one radius and subdivide to ~0.01 units so it bends into a smooth cylinder (viewer gives it a polished plain material)
 # 3 re-embed the ORIGINAL base/normal/metal-rough JPEG bytes unchanged

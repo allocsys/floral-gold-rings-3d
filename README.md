@@ -3,23 +3,28 @@
 Parametric 3D model of a floral-engraved gold ring set: a wide band, a band and a solitaire. Units are millimetres.
 
 ## Status
-The bands are **plain polished** for now; the engraving is being rebuilt from `reference/rings_flat.png`. The solitaire stone, basket and prongs are complete. No STLs are checked in; generate them when needed (below).
+The two bands use the **Meshy image-to-3D model** of the floral engraving (`site/band_meshy_tile.glb`): one seamless repeat, tiled round the ring and bent into a cylinder by the viewer, with a smooth polished inside and plain gold side edges. The Solitaire is still the parametric model (stone, basket, prongs). No STLs are checked in.
 
-Next: build rounded height maps from `reference/*.png`, wrap them around each band, and feed them into `band()` in `site/geometry.js`.
+URL switches in the viewer: `?src=old` previous hand-built relief band, `?mr=0` flat metal/roughness instead of Meshy's map, `?bore=0` Meshy's textured inside/edges.
 
 ## Layout
 | Path | Purpose |
 |---|---|
-| `site/geometry.js` | Single source of truth for all geometry (browser + Node, no dependencies) |
-| `site/index.html` | three.js viewer: pick a ring, adjust sliders, orbit, Download STL |
-| `site/test.mjs` | Smoke test (finite coordinates, positive volume, STL size) |
-| `tools/export_stl.mjs` | Writes full-detail STLs to `models/` |
-| `reference/` | `rings_flat.png`: straight-on view of the three rings (wide band, band, solitaire) |
+| `site/index.html` | three.js viewer (tabs, sliders, GLB loader + ring bending for the Meshy bands) |
+| `site/geometry.js` | Parametric geometry (Solitaire, plaque, old relief bands), browser + Node |
+| `site/band_meshy_tile.glb` | The Meshy band tile (31.6 MB, original textures byte-identical) |
+| `site/test.mjs` | Smoke test (runs in CI before every Pages deploy) |
+| `reference/meshy/model.glb` | The original Meshy output (3-repeat flat strip, 38 MB) |
+| `reference/band_face.png` | The image the Meshy model was generated from (Image to 3D, Standard, 4K geometry, glb) |
+| `tools/meshy/make_tile.py` | `model.glb` -> `site/band_meshy_tile.glb` (crop one repeat at matched columns, weld ends, rebuild the inside, re-embed original JPEGs). Reproducible: output is byte-identical to the committed tile |
+| `tools/live_shot.py` | Headless 3D screenshot of the live viewer (docs in the file header) |
+| `tools/export_stl.mjs` | Writes STLs of the parametric rings to `models/` |
+| `legacy/` | All pre-Meshy relief-map work, kept but not used (see `legacy/README.md`) |
 
 ## Commands
 ```
-node site/test.mjs          # smoke test
-node tools/export_stl.mjs   # writes models/*.stl
+python3 tools/meshy/make_tile.py reference/meshy/model.glb site/band_meshy_tile.glb   # needs trimesh shapely scipy numpy pillow
+node site/test.mjs                  # smoke test
 cd site && python3 -m http.server   # local viewer at http://localhost:8000
 ```
 After changing `geometry.js`, bump the `?v=` on its import in `site/index.html` (browsers cache it).
