@@ -6,7 +6,8 @@ src, dst = sys.argv[1], sys.argv[2]
 THC, CZ, RG = 0.5492 / 0.8, 0.0073, 0.83
 PK = np.array([10., 140., 190., 250., 330.]); RK = np.array([0.112, 0.115, 0.130, 0.107, 0.110])   # measured lobe peak angle (deg in the (u,v) plane) and tip radius
 LT = 0.115                                              # target tip radius for all petals
-RF, RE, SIG, RB = 0.125, 0.175, 22.0, 0.03              # full warp inside RF, zero beyond RE; angular blend width (deg); bead radius kept unscaled
+import os
+RF, RE, SIG, RB = float(os.environ.get('RF', 0.11)), float(os.environ.get('RE', 0.32)), float(os.environ.get('SIG', 12.0)), 0.03              # full warp inside RF, zero beyond RE; angular blend width (deg); bead radius kept unscaled
 d = 72.0 * np.arange(5) - PK; d = (d + 180) % 360 - 180; c = d.mean(); DEL = d - c   # rotation of each lobe: even 72 deg spacing, mean rotation 0
 SK = np.where(np.arange(5) == 0, 1.0, LT / RK)          # lobe 0 (10 deg) touches the vine, radius not trustworthy: keep
 print('lobe peaks', PK.tolist(), '-> targets', (PK + DEL).tolist(), ' rotations', np.round(DEL, 1).tolist(), ' radius scale', np.round(SK, 3).tolist())
@@ -22,8 +23,18 @@ u = RG * (th - THC); v = WP[:, 2] - CZ; r = np.hypot(u, v); ph = np.degrees(np.a
 reg = (WP[:, 1] > 0.3) & (r < RE) & (th > 0.2) & (th < 1.2)
 def ss(x): x = np.clip(x, 0, 1); return x * x * (3 - 2 * x)
 f = 1 - ss((r - RF) / (RE - RF))                        # radial feather
-ad = np.abs((ph[:, None] - PK[None, :] + 180) % 360 - 180); W = np.exp(-(ad / SIG) ** 2) + 1e-6; W /= W.sum(1, keepdims=True)
-rot = f * (W @ DEL); scl = 1 + f * ss((r - RB) / 0.02) * ((W @ SK) - 1)
+import os as _o
+HL, HH = float(_o.environ.get('HL', 0)), float(_o.environ.get('HH', 0))
+if HH > HL: f = f * ss((rho - HL) / (HH - HL))          # optional height mask: only the raised flower moves, vines/ground (rho low) stay
+# angular map: monotone piecewise-linear through (lobe peak -> target), displacement smoothed circularly by SIG deg (no folds as long as slope stays > 0)
+o = np.argsort(PK); kx = PK[o]; kd = DEL[o]; ks = SK[o]
+kx3 = np.r_[kx - 360, kx, kx + 360]; kd3 = np.r_[kd, kd, kd]; ks3 = np.r_[ks, ks, ks]
+gr = np.arange(360.0); gd = np.interp(gr, kx3, kd3); gs = np.interp(gr, kx3, ks3)
+kk = np.exp(-0.5 * (np.minimum(gr, 360 - gr) / SIG) ** 2); kk /= kk.sum()
+sm = lambda a: np.real(np.fft.ifft(np.fft.fft(a) * np.fft.fft(kk)))
+gd, gs = sm(gd), sm(gs); gp = np.r_[gr, 360.0]; gd, gs = np.r_[gd, gd[0]], np.r_[gs, gs[0]]
+slope = 1 + np.diff(gd); print('angular map slope min %.2f max %.2f' % (slope.min(), slope.max()))
+rot = f * np.interp(ph, gp, gd); scl = 1 + f * ss((r - RB) / 0.02) * (np.interp(ph, gp, gs) - 1)
 ph2 = np.radians(ph + rot); r2 = r * scl; u2 = r2 * np.cos(ph2); v2 = r2 * np.sin(ph2)
 th2 = THC + u2 / RG; X = WP.copy(); X[:, 0] = sg * rho * np.sin(th2); X[:, 1] = rho * np.cos(th2); X[:, 2] = CZ + v2
 X[~reg] = WP[~reg]
