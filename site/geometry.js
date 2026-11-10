@@ -9,10 +9,11 @@ export const DEFAULTS = {
   solitaire: { ID: 17 }, // Meshy GLB (site/solitaire_meshy.glb, loaded by index.html): only the inner diameter is adjustable; no parametric geometry
   solitaire2: { ID: 17 }, // second Meshy GLB (site/solitaire2_meshy.glb = reference/meshy/solitaire_4_symmetrical.glb), same: only the inner diameter
   solitaire3: { ID: 17 }, // D84: Solitaire 2 (sym) with only the two flowers smoothed (site/solitaire3_smooth.glb, tools/meshy/smooth_flowers.py); ?flower=orig = unsmoothed solitaire2_sym.glb
+  solitaire4: { ID: 17 }, // D85: Solitaire 2 (sym) with the two flowers' 5 petals re-spaced to an even 72 deg (site/solitaire4_warp.glb, tools/meshy/warp_flower.py, HL=0.77 HH=0.82 RF=0.11 RE=0.20 SIG=12); ?flower=orig = unwarped solitaire2_sym.glb
 };
-export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire', solitaire2: 'Solitaire 2', solitaire3: 'Solitaire 3' };
+export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire', solitaire2: 'Solitaire 2', solitaire3: 'Solitaire 3', solitaire4: 'Solitaire 4' };
 export const CONTROLS = [
-  ['ID', 'Inner diameter', 14, 24, 0.1, ['band1', 'band2', 'solitaire', 'solitaire2', 'solitaire3']],
+  ['ID', 'Inner diameter', 14, 24, 0.1, ['band1', 'band2', 'solitaire', 'solitaire2', 'solitaire3', 'solitaire4']],
   ['w', 'Width', 1.5, 8, 0.1],
   ['t', 'Thickness', 0.8, 3, 0.05],
   ['relief', 'Relief depth', 0, 0.8, 0.05, ['band1', 'band2']],
@@ -143,7 +144,7 @@ function fixWinding(sh) {
   return sh;
 }
 
-export const GLB_KINDS = ['solitaire', 'solitaire2', 'solitaire3']; // tabs whose model is a GLB loaded by the viewer
+export const GLB_KINDS = ['solitaire', 'solitaire2', 'solitaire3', 'solitaire4']; // tabs whose model is a GLB loaded by the viewer
 // returns [{pos, idx, kind:'metal', col?}]; quality 'fine' (export) or 'draft' (live dragging)
 export function buildRing(kind, p, quality = 'fine') {
   if (GLB_KINDS.includes(kind)) throw new Error(`${kind} is a Meshy GLB model (see index.html), it has no parametric geometry`);
