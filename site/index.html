@@ -142,14 +142,11 @@ function flattenGallery(geo, F) {
     const a = N[i], b = N[i + 1], c = N[i + 2] * sg, na = a * (1 - w), nb = b * (1 - w), nc = c * (1 - w) + w, l = Math.hypot(na, nb, nc) || 1;
     N[i] = na / l; N[i + 1] = nb / l; N[i + 2] = nc / l * sg;
   }
-  // cap: a flat plain-gold plate just under ZF over the whole footprint, so the open gaps of the scroll work show gold instead of the hollow behind
-  const NX = 24, NY = 12, add = (NX + 1) * (NY + 1), nv = g.attributes.position.count, zc = (F.zf - 0.0008) * sg, idx = Array.from(g.index.array), m = 0.012;
-  const out = new THREE.BufferGeometry();
-  for (const k of Object.keys(g.attributes)) { const A = g.attributes[k], sz = A.itemSize, arr = new Float32Array((nv + add) * sz); arr.set(A.array); out.setAttribute(k, new THREE.BufferAttribute(arr, sz)); }
-  const oP = out.attributes.position.array, oN = out.attributes.normal.array, oU = out.attributes.uv.array;
-  for (let j = 0; j <= NY; j++) for (let i = 0; i <= NX; i++) { const q = nv + j * (NX + 1) + i; oP[q * 3] = F.x0 + m + (F.x1 - F.x0 - 2 * m) * i / NX; oP[q * 3 + 1] = F.y0 + m + (F.y1 - F.y0 - 2 * m) * j / NY; oP[q * 3 + 2] = zc; oN[q * 3 + 2] = sg; oU[q * 2] = ru + (oP[q * 3] - F.x0) * GS; oU[q * 2 + 1] = rv + (oP[q * 3 + 1] - F.y0) * GS; }
-  for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) { const a = nv + j * (NX + 1) + i, b = a + 1, c = a + NX + 1, d = c + 1; if (sg > 0) idx.push(a, b, d, a, d, c); else idx.push(a, d, b, a, c, d); }
-  out.setIndex(new THREE.BufferAttribute(Uint32Array.from(idx), 1)); out.computeBoundingSphere(); return out;
+  // cap: a separate flat plain-gold plate (own material) just above ZF over the footprint, so the flattened scroll vertices and the open gaps of the scroll work are covered by clean gold
+  const NX = 24, NY = 12, m = 0.004, cp = [], ci = [], zc = (F.zf + 0.0004) * sg;
+  for (let j = 0; j <= NY; j++) for (let i = 0; i <= NX; i++) cp.push(F.x0 + m + (F.x1 - F.x0 - 2 * m) * i / NX, F.y0 + m + (F.y1 - F.y0 - 2 * m) * j / NY, zc);
+  for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) { const a = j * (NX + 1) + i, b = a + 1, c = a + NX + 1, d = c + 1; if (sg > 0) ci.push(a, b, d, a, d, c); else ci.push(a, d, b, a, c, d); }
+  const cg = new THREE.BufferGeometry(); cg.setAttribute('position', new THREE.Float32BufferAttribute(cp, 3)); cg.setIndex(ci); cg.computeVertexNormals(); F.capGeo = cg; return g;
 }
 const glbP = {}, loadGLB = f => glbP[f] || (glbP[f] = new Promise((res, rej) => new GLTFLoader().load(f, res, undefined, rej)));
 function cutFlowers(geo, S) {   // removes the solitaire's own flower inside the footprint masks. Straddling triangles are subdivided first (clean edge instead of saw teeth), then every cut edge gets a wall down to the window floor plane (closes the open vine ends; PLO = 0.02 = -DH of make_flower_patch.py: f[0] is the plane minus PLO)
@@ -229,7 +226,7 @@ for (const [key, S] of Object.entries(SOLS)) Promise.all([loadGLB(S.file), S.pat
   S.src = { geo: S.cuts ? cutFlowers(m.geometry, S) : S.flat ? flattenGallery(m.geometry, S.flat) : m.geometry, mat: m.material };
   if (kind === key) queue('fine');
 }).catch(e => { console.error(key + ' glb failed', e); S.fail = true; queue('fine'); });
-function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); if (S.patchGeo && meshySrc) { mesh.add(new THREE.Mesh(S.patchGeo, meshySrc.mat)); mesh.add(new THREE.Mesh(S.floorGeo, S.src.mat)); } mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; return mesh; }
+function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); if (S.patchGeo && meshySrc) { mesh.add(new THREE.Mesh(S.patchGeo, meshySrc.mat)); mesh.add(new THREE.Mesh(S.floorGeo, S.src.mat)); } if (S.flat && S.flat.capGeo) mesh.add(new THREE.Mesh(S.flat.capGeo, new THREE.MeshStandardMaterial({ color: 0xe5ad56, metalness: 1, roughness: 0.32 }))); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; return mesh; }
 
 let kind = 'solitaire';
 const state = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { ...v }]));
