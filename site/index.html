@@ -42,7 +42,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep, reliefTex } from './geometry.js?v=relief157';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep, reliefTex } from './geometry.js?v=relief158';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -136,18 +136,18 @@ function flattenGallery(geo, F) {
     if (z <= 0) continue;
     const d = Math.min(x - F.x0, F.x1 - x, y - F.y0, F.y1 - y);
     if (d <= 0) continue;
-    const w = sm(Math.min(1, d / F.bl)), wu = w * w, k = i / 3 * 2;
+    const w = sm(Math.min(1, d / F.bl)), wu = 1, k = i / 3 * 2;   // wu = 1: the whole footprint samples the plain gold patch (a blended UV smeared the scroll texture into streaks along the border)
     UV[k] = UV[k] * (1 - wu) + (ru + (x - F.x0) * GS) * wu; UV[k + 1] = UV[k + 1] * (1 - wu) + (rv + (y - F.y0) * GS) * wu;
     if (z > F.zf) P[i + 2] = (z - w * (z - F.zf)) * sg; else continue;   // only the part standing above the plate height ZF is pressed down (the floor around the scroll is left as it is)
     const a = N[i], b = N[i + 1], c = N[i + 2] * sg, na = a * (1 - w), nb = b * (1 - w), nc = c * (1 - w) + w, l = Math.hypot(na, nb, nc) || 1;
     N[i] = na / l; N[i + 1] = nb / l; N[i + 2] = nc / l * sg;
   }
   // cap: a separate flat plain-gold plate (own material) just above ZF over the footprint, so the flattened scroll vertices and the open gaps of the scroll work are covered by clean gold
-  const NX = 40, NY = 20, m = 0.0, cp = [], ci = [], xc = (F.x0 + F.x1) / 2, yc = (F.y0 + F.y1) / 2, hx = (F.x1 - F.x0) / 2, hy = (F.y1 - F.y0) / 2;
+  const NX = 44, NY = 24, MG = 0.012, m = 0.0, cp = [], ci = [], xc = (F.x0 + F.x1) / 2, yc = (F.y0 + F.y1) / 2, hx = (F.x1 - F.x0) / 2, hy = (F.y1 - F.y0) / 2;
   const dome = (u, v) => { const e = 1 - Math.pow(Math.abs(u), 2.4), f = 1 - Math.pow(Math.abs(v), 2.4); return Math.max(0, e) * Math.max(0, f); };   // cushion: 0 at the footprint border, 1 in the middle; soft shoulders instead of a flat slab
-  for (let j = 0; j <= NY; j++) for (let i = 0; i <= NX; i++) { const x = F.x0 + (F.x1 - F.x0) * i / NX, y = F.y0 + (F.y1 - F.y0) * j / NY; cp.push(x, y, (F.zf - 0.012 + F.hd * dome((x - xc) / hx, (y - yc) / hy)) * sg); }
+  for (let j = 0; j <= NY; j++) for (let i = 0; i <= NX; i++) { const x = F.x0 - MG + (F.x1 - F.x0 + 2 * MG) * i / NX, y = F.y0 - MG + (F.y1 - F.y0 + 2 * MG) * j / NY, eg = Math.max(0, Math.max(F.x0 - x, x - F.x1, F.y0 - y, y - F.y1)) / MG; cp.push(x, y, (F.zf + 0.0005 - 0.004 * eg + F.hd * dome((x - xc) / hx, (y - yc) / hy)) * sg); }   // MG: the cap overhangs the footprint by a thin skirt that sinks, hiding the jagged triangle edge of the pressed mesh
   for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) { const a = j * (NX + 1) + i, b = a + 1, c = a + NX + 1, d = c + 1; if (sg > 0) ci.push(a, b, d, a, d, c); else ci.push(a, d, b, a, c, d); }
-  const cg = new THREE.BufferGeometry(); cg.setAttribute('position', new THREE.Float32BufferAttribute(cp, 3)); cg.setIndex(ci); cg.computeVertexNormals(); F.capGeo = cg; return g;
+  const cg = new THREE.BufferGeometry(); cg.setAttribute('position', new THREE.Float32BufferAttribute(cp, 3)); cg.setIndex(ci); cg.computeVertexNormals(); const cu = []; for (let q = 0; q < cp.length; q += 3) cu.push(ru + (cp[q] - F.x0) * GS, rv + (cp[q + 1] - F.y0) * GS); cg.setAttribute('uv', new THREE.Float32BufferAttribute(cu, 2)); F.capGeo = cg; return g;   // cap UVs sample the same smooth gold texel patch as the plate, so the cap uses the ring's own material (colour, roughness, metalness)
 }
 const glbP = {}, loadGLB = f => glbP[f] || (glbP[f] = new Promise((res, rej) => new GLTFLoader().load(f, res, undefined, rej)));
 function cutFlowers(geo, S) {   // removes the solitaire's own flower inside the footprint masks. Straddling triangles are subdivided first (clean edge instead of saw teeth), then every cut edge gets a wall down to the window floor plane (closes the open vine ends; PLO = 0.02 = -DH of make_flower_patch.py: f[0] is the plane minus PLO)
@@ -227,7 +227,7 @@ for (const [key, S] of Object.entries(SOLS)) Promise.all([loadGLB(S.file), S.pat
   S.src = { geo: S.cuts ? cutFlowers(m.geometry, S) : S.flat ? flattenGallery(m.geometry, S.flat) : m.geometry, mat: m.material };
   if (kind === key) queue('fine');
 }).catch(e => { console.error(key + ' glb failed', e); S.fail = true; queue('fine'); });
-function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); if (S.patchGeo && meshySrc) { mesh.add(new THREE.Mesh(S.patchGeo, meshySrc.mat)); mesh.add(new THREE.Mesh(S.floorGeo, S.src.mat)); } if (S.flat && S.flat.capGeo) mesh.add(new THREE.Mesh(S.flat.capGeo, new THREE.MeshStandardMaterial({ color: 0xe5ad56, metalness: 0.9, roughness: 0.42 }))); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; return mesh; }
+function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); if (S.patchGeo && meshySrc) { mesh.add(new THREE.Mesh(S.patchGeo, meshySrc.mat)); mesh.add(new THREE.Mesh(S.floorGeo, S.src.mat)); } if (S.flat && S.flat.capGeo) mesh.add(new THREE.Mesh(S.flat.capGeo, (m => { m.normalMap = null; return m; })(S.src.mat.clone()))); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; return mesh; }
 
 let kind = 'solitaire';
 const state = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { ...v }]));
