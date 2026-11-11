@@ -4,7 +4,7 @@
 # usage: [S=0.8 SZ=1.25 RP=0.14 ROT=0 ROT2=180] python3 tools/meshy/make_flower_patch.py reference/meshy/model.glb site/solitaire_meshy2.glb site/flower_patch.glb
 import sys, os, json, struct, numpy as np
 strip, sol, out = sys.argv[1:4]
-S = float(os.environ.get('S', 0.87)); SZ = float(os.environ.get('SZ', 1.4)); RP = float(os.environ.get('RP', 0.145)); RMAX = float(os.environ.get('RMAX', 0.125)); DIL = float(os.environ.get('DIL', 0.005)); RVINE = float(os.environ.get('RVINE', 0.104)); DH = 0.006   # xy scale, height scale, patch radius in band units
+S = float(os.environ.get('S', 0.87)); SZ = float(os.environ.get('SZ', 1.4)); RP = float(os.environ.get('RP', 0.145)); RMAX = float(os.environ.get('RMAX', 0.125)); DIL = float(os.environ.get('DIL', 0.005)); RVINE = float(os.environ.get('RVINE', 0.104)); DH = float(os.environ.get('DH', -0.02)); DSINK = float(os.environ.get('DSINK', 0.001))   # DH: the cut also removes the solitaire's own floor triangles in the footprint (their texture is the old flower's gold = pale plate), down to 0.02 under the window floor plane (the bore is 0.075 lower, stays); the flat disc replaces that floor at DSINK under the plane;   # xy scale, height scale, patch radius in band units
 ROT = [float(os.environ.get('ROT', 0)), float(os.environ.get('ROT2', 180))]                                          # in-plane rotation (deg) of the band flower on the +x / -x flower
 SINK = float(os.environ.get('SINK', 0.004)); R0 = 0.82; CX, CY = -0.0001, -0.1190                     # patch = band relief (z > floor+0.003, band UVs) + a flat floor disc (constant solitaire UV) sunk SINK under the solitaire's floor; the viewer removes the solitaire's own flower relief inside a mask = the solitaire flower's footprint (star-shaped, walked out from the bead until the height drops to the floor, capped at RMAX, dilated DIL), packed as a bit raster in CUTS
 FLOWERS = [(1, float(os.environ.get('U1', 0.6099)), float(os.environ.get('Z1', 0.0151))), (-1, float(os.environ.get('U2', 0.644)), float(os.environ.get('Z2', -0.006)))]   # (side, arc u at R0, z) start guesses for the bead centre
@@ -125,10 +125,11 @@ for (sg, u0, z0), rot in zip(FLOWERS, ROT):
     for r_ in range(1, 12):
         for s_ in range(NSEG):
             a0 = 1 + (r_ - 1) * NSEG + s_; a1 = 1 + (r_ - 1) * NSEG + (s_ + 1) % NSEG; b0 = 1 + r_ * NSEG + s_; b1 = 1 + r_ * NSEG + (s_ + 1) % NSEG; dtri += [(a0, b0, b1), (a0, b1, a1)]
-    dtri = np.array(dtri); uu = dpts[:, 0]; ph = th_c + uu / R0; rh = c[0] + c[1] * uu + c[2] * dpts[:, 1] - SINK; thv2 = sg * ph
+    dtri = np.array(dtri); uu = dpts[:, 0]; ph = th_c + uu / R0; rh = c[0] + c[1] * uu + c[2] * dpts[:, 1] - DSINK; thv2 = sg * ph
     dpos = np.c_[CX + rh * np.sin(thv2), CY + rh * np.cos(thv2), z0 + dpts[:, 1]]; dn = np.c_[np.sin(thv2), np.cos(thv2), np.zeros(len(thv2))]
     fn2 = np.cross(dpos[dtri[:, 1]] - dpos[dtri[:, 0]], dpos[dtri[:, 2]] - dpos[dtri[:, 0]]); 
     if (fn2 * dn[dtri].sum(axis=1)).sum() < 0: dtri = dtri[:, ::-1]
+    fn2 = np.cross(dpos[dtri[:, 1]] - dpos[dtri[:, 0]], dpos[dtri[:, 2]] - dpos[dtri[:, 0]]); dn = np.tile(fn2.sum(axis=0) / np.linalg.norm(fn2.sum(axis=0)), (len(dpos), 1))   # the disc is the tilted window-floor plane: its normal is the plane normal, not the radial direction (4 deg off -> a bright mirror reflection, the pale plate)
     fl = np.where((rr > 0.11) & (rr < 0.16) & (rho > 0.74) & (rho < c[0] + c[1] * (R0 * t - u0) + c[2] * (Z - z0) + 0.004))[0]; cols = TEX[(SUV[fl, 1] * (TEX.shape[0] - 1)).astype(int), (SUV[fl, 0] * (TEX.shape[1] - 1)).astype(int)].astype(float); k0 = fl[np.argmin(np.abs(cols - np.median(cols, axis=0)).sum(axis=1))]   # floor vertex whose texture colour is the median of the window floor
     FV.append(dpos); FN.append(dn); FU.append(np.tile(SUV[k0], (len(dpos), 1))); FF2.append(dtri + fbase); fbase += len(dpos)
     cuts.append({'sgn': sg, 'u': round(u0, 4), 'z': round(z0, 4), 'f': [round(c[0] + DH, 4), round(c[1], 4), round(c[2], 4)], 'n': NR // 2, 'res': RES2, 'm': base64.b64encode(np.packbits(m2.ravel())).decode()})   # cut triangles whose centroid (du, dz) is in the mask and rho > f0 + f1*du + f2*dz
