@@ -124,20 +124,81 @@ const CUTS = [{"sgn": 1, "u": 0.6129, "z": 0.0276, "f": [0.783, 0.0201, -0.0773]
 const SOLS = { solitaire: { file: 'solitaire_meshy2.glb', cx: -0.0001, cy: -0.1190, r: 0.7256, label: 'Solitaire' },
   solitaire2: { file: 'solitaire_meshy2.glb', cx: -0.0001, cy: -0.1190, r: 0.7256, label: 'Solitaire 2', patch: 'flower_patch.glb', R0: 0.82, cuts: CUTS } }; // Solitaire 2 = Solitaire with the solitaire's own flower triangles inside the cut circles (arc u at radius R0 x side sgn, z; radius rc; only above the window floor plane f so the floor and the bore stay) removed and the band's flower (flower_patch.glb, band UVs; drawn with the band's material) put in
 const glbP = {}, loadGLB = f => glbP[f] || (glbP[f] = new Promise((res, rej) => new GLTFLoader().load(f, res, undefined, rej)));
-function cutFlowers(geo, S) {
+function cutFlowers(geo, S) {   // removes the solitaire's own flower inside the footprint masks. Straddling triangles are subdivided first (clean edge instead of saw teeth), then every cut edge gets a wall down to the window floor plane (closes the open vine ends; PLO = 0.02 = -DH of make_flower_patch.py: f[0] is the plane minus PLO)
+  const PLO = 0.02, MAXD = 5, EMAX = 0.0009, NEAR = 0.14, PROBE = 0.0012, WALLMIN = 0.003;
   const cs = S.cuts.map(f => { const bin = atob(f.m), bits = new Uint8Array(f.n * f.n); for (let i = 0; i < bits.length; i++) bits[i] = (bin.charCodeAt(i >> 3) >> (7 - (i & 7))) & 1; return { ...f, bits }; });
-  const P = geo.attributes.position.array, I = geo.index.array, out = new Uint32Array(I.length); let n = 0;
+  const names = Object.keys(geo.attributes), A = names.map(k => geo.attributes[k]), off = {}; let stride = 0;
+  names.forEach((k, i) => { off[k] = stride; stride += A[i].itemSize; });
+  const nV = geo.attributes.position.count, I = geo.index.array, P = geo.attributes.position.array;
+  const rec = i => { const r = new Array(stride); names.forEach((k, j) => { const s = A[j].itemSize, o = off[k]; for (let q = 0; q < s; q++) r[o + q] = A[j].array[i * s + q]; }); return r; };
+  const mid = (p, q) => p.map((v, i) => (v + q[i]) / 2);
+  let near = false;
+  const wuv = S.floorGeo ? [S.floorGeo.attributes.uv.array[0], S.floorGeo.attributes.uv.array[1]] : null;   // wall colour = the flat floor disc's constant solitaire UV (a copied vine UV stretches into streaks)
+  const hit = (x, y, z) => {   // flower whose cut region contains the point (or null); near = within NEAR of a flower centre
+    x -= S.cx; y -= S.cy; const rho = Math.hypot(x, y), th = Math.atan2(x, y); let h = null; near = false;
+    for (const f of cs) {
+      const du = S.R0 * f.sgn * th - f.u, dz = z - f.z; if (Math.hypot(du, dz) < NEAR) near = true;
+      const ix = Math.floor(du / f.res + f.n / 2), iz = Math.floor(dz / f.res + f.n / 2);
+      if (!h && ix >= 0 && iz >= 0 && ix < f.n && iz < f.n && f.bits[iz * f.n + ix] && rho > f.f[0] + f.f[1] * du + f.f[2] * dz) h = f;
+    }
+    return h;
+  };
+  const hr = r => hit(r[off.position], r[off.position + 1], r[off.position + 2]);
+  const dist = (p, q) => Math.hypot(p[off.position] - q[off.position], p[off.position + 1] - q[off.position + 1], p[off.position + 2] - q[off.position + 2]);
+  const keepI = [], triR = [], wallR = [], wallT = [];
+  const o = off.position;
+  const wall = (a, b, w, f) => {   // a, b: records of a cut edge, w: third vertex position of the kept triangle, f: flower
+    const bot = r => { const x = r[o] - S.cx, y = r[o + 1] - S.cy, z = r[o + 2], rho = Math.hypot(x, y), th = Math.atan2(x, y), du = S.R0 * f.sgn * th - f.u, dz = z - f.z, pl = f.f[0] + PLO + f.f[1] * du + f.f[2] * dz, rb = pl - 0.001; const q = r.slice(); q[o] = S.cx + rb * Math.sin(th); q[o + 1] = S.cy + rb * Math.cos(th); return [q, rho - pl]; };
+    const [a2, ha] = bot(a), [b2, hb] = bot(b); if (Math.max(ha, hb) < WALLMIN) return;
+    const e = [b[o] - a[o], b[o + 1] - a[o + 1], b[o + 2] - a[o + 2]], d = [(a2[o] + b2[o] - a[o] - b[o]) / 2, (a2[o + 1] + b2[o + 1] - a[o + 1] - b[o + 1]) / 2, (a2[o + 2] + b2[o + 2] - a[o + 2] - b[o + 2]) / 2];
+    let n = [e[1] * d[2] - e[2] * d[1], e[2] * d[0] - e[0] * d[2], e[0] * d[1] - e[1] * d[0]]; const L = Math.hypot(...n); if (L < 1e-12) return; n = n.map(v => v / L);
+    const flip = n[0] * (w[0] - a[o]) + n[1] * (w[1] - a[o + 1]) + n[2] * (w[2] - a[o + 2]) > 0; if (flip) n = n.map(v => -v);
+    const sn = r => {   // wall vertex: floor UV, normal = smooth direction toward the flower centre (per-segment normals of the zig-zag edge shade as stripes)
+      if (wuv && off.uv !== undefined) { r[off.uv] = wuv[0]; r[off.uv + 1] = wuv[1]; }
+      if (off.normal !== undefined) { const x = r[o] - S.cx, y = r[o + 1] - S.cy, th = Math.atan2(x, y), du = S.R0 * f.sgn * th - f.u, dz = r[o + 2] - f.z, L = Math.hypot(du, dz) || 1, tx = f.sgn * Math.cos(th), ty = -f.sgn * Math.sin(th); r[off.normal] = -du / L * tx; r[off.normal + 1] = -du / L * ty; r[off.normal + 2] = -dz / L; }
+      return r;
+    };
+    const k = wallR.length; wallR.push(sn(a.slice()), sn(b.slice()), sn(b2), sn(a2));   // a b b2 a2
+    if (flip) wallT.push(k, k + 2, k + 1, k, k + 3, k + 2); else wallT.push(k, k + 1, k + 2, k, k + 2, k + 3);
+  };
+  const edges = (ra, rb, rc) => {   // probe outward from each edge of a kept triangle: inside a cut region = cut edge
+    const r = [ra, rb, rc], p = r.map(q => q.slice(o, o + 3)), c = [(p[0][0] + p[1][0] + p[2][0]) / 3, (p[0][1] + p[1][1] + p[2][1]) / 3, (p[0][2] + p[1][2] + p[2][2]) / 3];
+    [[0, 1, 2], [1, 2, 0], [2, 0, 1]].forEach(([i, j, k]) => {
+      const m = [(p[i][0] + p[j][0]) / 2, (p[i][1] + p[j][1]) / 2, (p[i][2] + p[j][2]) / 2], dv = [m[0] - c[0], m[1] - c[1], m[2] - c[2]], L = Math.hypot(...dv) || 1;
+      const f = hit(m[0] + dv[0] / L * PROBE, m[1] + dv[1] / L * PROBE, m[2] + dv[2] / L * PROBE); if (f) wall(r[i], r[j], p[k], f);
+    });
+  };
+  const split = (a, b, c, d) => {
+    const ab = mid(a, b), bc = mid(b, c), ca = mid(c, a), g = a.map((v, i) => (v + b[i] + c[i]) / 3);
+    const s = [a, b, c, ab, bc, ca, g].map(hr), all = s.every(v => !!v === !!s[0]);
+    if (all || d >= MAXD || Math.max(dist(a, b), dist(b, c), dist(c, a)) < EMAX) { if (!s[6]) { triR.push(a, b, c); edges(a, b, c); } return; }
+    split(a, ab, ca, d + 1); split(ab, b, bc, d + 1); split(ca, bc, c, d + 1); split(ab, bc, ca, d + 1);
+  };
   for (let i = 0; i < I.length; i += 3) {
-    const a = I[i] * 3, b = I[i + 1] * 3, c = I[i + 2] * 3, x = (P[a] + P[b] + P[c]) / 3 - S.cx, y = (P[a + 1] + P[b + 1] + P[c + 1]) / 3 - S.cy, z = (P[a + 2] + P[b + 2] + P[c + 2]) / 3, rho = Math.hypot(x, y), th = Math.atan2(x, y);
-    if (cs.some(f => { const du = S.R0 * f.sgn * th - f.u, dz = z - f.z, ix = Math.floor(du / f.res + f.n / 2), iz = Math.floor(dz / f.res + f.n / 2); return ix >= 0 && iz >= 0 && ix < f.n && iz < f.n && f.bits[iz * f.n + ix] && rho > f.f[0] + f.f[1] * du + f.f[2] * dz; })) continue;
-    out[n++] = I[i]; out[n++] = I[i + 1]; out[n++] = I[i + 2];
+    const ia = I[i], ib = I[i + 1], ic = I[i + 2], a = ia * 3, b = ib * 3, c = ic * 3;
+    const pa = [P[a], P[a + 1], P[a + 2]], pb = [P[b], P[b + 1], P[b + 2]], pc = [P[c], P[c + 1], P[c + 2]];
+    const smp = [pa, pb, pc, mid(pa, pb), mid(pb, pc), mid(pc, pa), [(pa[0] + pb[0] + pc[0]) / 3, (pa[1] + pb[1] + pc[1]) / 3, (pa[2] + pb[2] + pc[2]) / 3]];
+    const s = smp.map(p => !!hit(p[0], p[1], p[2])), nr = near, all = s.every(v => v === s[0]);
+    if (!nr) { keepI.push(ia, ib, ic); continue; }
+    if (all) { if (!s[0]) { keepI.push(ia, ib, ic); edges(rec(ia), rec(ib), rec(ic)); } continue; }
+    split(rec(ia), rec(ib), rec(ic), 0);
   }
-  const g = new THREE.BufferGeometry(); for (const k in geo.attributes) g.setAttribute(k, geo.attributes[k]); g.setIndex(new THREE.BufferAttribute(out.slice(0, n), 1)); g.computeBoundingSphere(); return g;
+  const ex = triR.concat(wallR), total = nV + ex.length, idx = keepI.slice();
+  for (let k = 0; k < triR.length; k++) idx.push(nV + k);
+  const wb = nV + triR.length; for (const t of wallT) idx.push(wb + t);
+  const g = new THREE.BufferGeometry();
+  names.forEach((k, j) => {
+    const sz = A[j].itemSize, arr = new Float32Array(total * sz); arr.set(A[j].array.subarray(0, nV * sz));
+    ex.forEach((r, e) => { for (let q = 0; q < sz; q++) arr[(nV + e) * sz + q] = r[off[k] + q]; });
+    if (k === 'normal') for (let v = nV; v < total; v++) { const l = Math.hypot(arr[v * 3], arr[v * 3 + 1], arr[v * 3 + 2]) || 1; arr[v * 3] /= l; arr[v * 3 + 1] /= l; arr[v * 3 + 2] /= l; }
+    g.setAttribute(k, new THREE.BufferAttribute(arr, sz));
+  });
+  g.setIndex(new THREE.BufferAttribute(Uint32Array.from(idx), 1)); g.computeBoundingSphere(); return g;
 }
 for (const [key, S] of Object.entries(SOLS)) Promise.all([loadGLB(S.file), S.patch ? loadGLB(S.patch + '?v=161') : null]).then(([g, pg]) => {
   let m = null; g.scene.traverse(o => { if (o.isMesh && !m) m = o; });
-  S.src = { geo: S.cuts ? cutFlowers(m.geometry, S) : m.geometry, mat: m.material };
   if (pg) pg.scene.traverse(o => { if (o.isMesh) { if (o.name === 'floor') S.floorGeo = o.geometry; else S.patchGeo = o.geometry; } });
+  S.src = { geo: S.cuts ? cutFlowers(m.geometry, S) : m.geometry, mat: m.material };
   if (kind === key) queue('fine');
 }).catch(e => { console.error(key + ' glb failed', e); S.fail = true; queue('fine'); });
 function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); if (S.patchGeo && meshySrc) { mesh.add(new THREE.Mesh(S.patchGeo, meshySrc.mat)); mesh.add(new THREE.Mesh(S.floorGeo, S.src.mat)); } mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; return mesh; }
