@@ -65,8 +65,20 @@ print('  patch relief after boundary subdivision: tris', len(F))
 cxb = (cen[:, 0] - (xc - cu)); cyb = (cen[:, 1] - (yc - cz)); ab = np.arctan2(cyb, cxb) % (2 * np.pi); rb_ = np.hypot(cxb, cyb)
 petal = None
 keep = (rb_ <= np.interp(ab, 2 * np.pi * np.arange(NAB + 1) / NAB, np.r_[RPb, RPb[0]])) & (np.abs(cyb) <= YMX) & (P[F][:, :, 2].min(axis=1) > ZF + 0.005)   # |y| clip: the rails of the strip start at y 0.1075, the petal tips end at 0.1025
+RBO = float(os.environ.get('RBO', 0.012)); _NR, _RR = 360, 0.001   # top-down footprint of the kept relief; an opening of radius RBO drops thin leftovers (a leaf-like fragment beside a petal edge = the pale shard) while the wide petals survive
+_ik = np.where(keep)[0]; _px = (cxb[_ik] / _RR + _NR / 2).astype(int).clip(0, _NR - 1); _py = (cyb[_ik] / _RR + _NR / 2).astype(int).clip(0, _NR - 1)
+_m = np.zeros((_NR, _NR), bool); _m[_py, _px] = True; _m = ndi.binary_fill_holes(ndi.binary_closing(_m, iterations=2))
+_r = int(round(RBO / _RR)); _yy, _xx = np.mgrid[-_r:_r + 1, -_r:_r + 1]; _mo = ndi.binary_opening(_m, structure=(_xx ** 2 + _yy ** 2 <= _r * _r))
+_lab, _nl = ndi.label(_mo); _mo = _lab == (1 + np.argmax(ndi.sum(_mo, _lab, range(1, _nl + 1)))); _mo = ndi.binary_dilation(_mo, iterations=4)
+_drop = ~_mo[_py, _px]; print('  opening RBO %.3f drops %d of %d relief tris' % (RBO, _drop.sum(), len(_ik))); keep[_ik[_drop]] = False
 print('band flower: bead centre shifted by %.4f %.4f, petal component radius %.4f (x S %.2f = %.4f)' % (cu, cz, RPET, S, RPET * S))
-f = F[keep]; used, inv = np.unique(f, return_inverse=True); f = inv.reshape(-1, 3)
+f = F[keep]
+from scipy.sparse import coo_matrix; from scipy.sparse.csgraph import connected_components
+_k = np.round(P[f.ravel()] * 1e5).astype(np.int64); _, _iv = np.unique(_k, axis=0, return_inverse=True); _A = _iv.ravel().reshape(-1, 3); _n = _A.max() + 1
+_nc, _lab = connected_components(coo_matrix((np.ones(len(f) * 3), (np.r_[_A[:, 0], _A[:, 1], _A[:, 2]], np.r_[_A[:, 1], _A[:, 2], _A[:, 0]])), shape=(_n, _n)), directed=False); _tl = _lab[_A[:, 0]]; _cn = np.bincount(_tl)
+print('  patch relief components (tris):', sorted(_cn.tolist(), reverse=True)[:8], '-> keeping the largest only (the others are stray old-petal fragments = the pale shards)')
+f = f[_tl == np.argmax(_cn)]
+used, inv = np.unique(f, return_inverse=True); f = inv.reshape(-1, 3)
 bp, bn, buv = P[used], N[used], UV[used]
 print('band flower centre %.4f %.4f floor z %.4f bead z %.4f; patch tris %d verts %d' % (xc, yc, ZF, P[:len(hi), 2][hi].mean(), len(f), len(bp)))
 
@@ -102,7 +114,7 @@ for (sg, u0, z0), rot in zip(FLOWERS, ROT):
         a = 2 * np.pi * k / NA; rs = np.arange(0.032, RMAX + 1e-9, 0.001); pu = rs * np.cos(a); pz = rs * np.sin(a)
         hi_ = H[((pz + NR * RES / 2) / RES).astype(int).clip(0, NR - 1), ((pu + NR * RES / 2) / RES).astype(int).clip(0, NR - 1)]
         th_ = c[0] + c[1] * pu + c[2] * pz + 0.016; i_ = first_run(hi_ < th_); Rp[k] = rs[i_] if i_ is not None else RVINE
-    Rp = np.maximum(Rp, 0.032); Rp = ndi.maximum_filter(ndi.median_filter(Rp, size=3, mode='wrap'), size=7, mode='wrap')   # median drops 1-sample spikes, then a +-18 deg max filter so the gaps between petals are cut as far as the neighbouring petals (no petal remnants left)
+    Rp = np.maximum(Rp, float(os.environ.get('RFULL', 0.032)));   # RFULL: nothing of the old flower may stay inside this radius (the vines only start at ~0.10): a leftover old-petal shard in a petal gap was floating there; Rp = ndi.maximum_filter(ndi.median_filter(Rp, size=3, mode='wrap'), size=7, mode='wrap')   # median drops 1-sample spikes, then a +-18 deg max filter so the gaps between petals are cut as far as the neighbouring petals (no petal remnants left)
     GR = np.hypot(GU, GZ); GA = np.arctan2(GZ, GU) % (2 * np.pi); Rg = np.interp(GA, 2 * np.pi * np.arange(NA + 1) / NA, np.r_[Rp, Rp[0]])
     mask = GR <= Rg; mask = ndi.binary_dilation(mask, structure=np.ones((3, 3), bool), iterations=max(1, int(round(DIL / RES))))
     MR = 2; mask_s = mask[::1, ::1]
