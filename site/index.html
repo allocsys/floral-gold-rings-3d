@@ -195,7 +195,7 @@ function cutFlowers(geo, S) {   // removes the solitaire's own flower inside the
   });
   g.setIndex(new THREE.BufferAttribute(Uint32Array.from(idx), 1)); g.computeBoundingSphere(); return g;
 }
-for (const [key, S] of Object.entries(SOLS)) Promise.all([loadGLB(S.file), S.patch ? loadGLB(S.patch + '?v=161') : null]).then(([g, pg]) => {
+for (const [key, S] of Object.entries(SOLS)) Promise.all([loadGLB(S.file), S.patch ? loadGLB(S.patch + '?v=162') : null]).then(([g, pg]) => {
   let m = null; g.scene.traverse(o => { if (o.isMesh && !m) m = o; });
   if (pg) pg.scene.traverse(o => { if (o.isMesh) { if (o.name === 'floor') S.floorGeo = o.geometry; else S.patchGeo = o.geometry; } });
   S.src = { geo: S.cuts ? cutFlowers(m.geometry, S) : m.geometry, mat: m.material };

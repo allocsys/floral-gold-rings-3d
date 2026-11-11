@@ -47,13 +47,28 @@ for k in range(NAB):
     i_ = first_run(~hb_); RPb[k] = rs[i_] if i_ is not None else RBV
 RPb = ndi.maximum_filter(ndi.median_filter(RPb, size=3, mode='wrap'), size=11, mode='wrap') + 0.010; RPET = RPb.max()
 print('  band petal outline radius per 30 deg:', np.round(RPb[::15], 3).tolist())
+YMX = float(os.environ.get('YMAX', 0.105)); SUBD = int(os.environ.get('SUBD', 3))
+def _inside(Q):   # the patch keep rule evaluated at points (petal outline radius, |y| clip, above the floor)
+    qx = Q[:, 0] - (xc - cu); qy = Q[:, 1] - (yc - cz)
+    return (np.hypot(qx, qy) <= np.interp(np.arctan2(qy, qx) % (2 * np.pi), 2 * np.pi * np.arange(NAB + 1) / NAB, np.r_[RPb, RPb[0]])) & (np.abs(qy) <= YMX) & (Q[:, 2] > ZF + 0.005)
+for _r in range(SUBD):   # subdivide the triangles that straddle the keep boundary (4-split), so the cut follows the outline instead of whole-triangle saw teeth at the petal tips
+    V = P[F]; st = np.stack([_inside(V[:, 0]), _inside(V[:, 1]), _inside(V[:, 2]), _inside(V.mean(axis=1))]); mx = ~(st.all(axis=0) | (~st).all(axis=0))
+    if not mx.any(): break
+    Fm = F[mx]; n0 = len(P); a_, b_, c_ = Fm[:, 0], Fm[:, 1], Fm[:, 2]
+    def _mid(i, j): return np.arange(len(Fm)) , (P[i] + P[j]) / 2, (N[i] + N[j]) / 2, (UV[i] + UV[j]) / 2
+    mids = [_mid(a_, b_), _mid(b_, c_), _mid(c_, a_)]
+    P = np.vstack([P] + [m[1] for m in mids]); N = np.vstack([N] + [m[2] / np.maximum(np.linalg.norm(m[2], axis=1, keepdims=True), 1e-9) for m in mids]); UV = np.vstack([UV] + [m[3] for m in mids])
+    k = len(Fm); m01 = n0 + np.arange(k); m12 = n0 + k + np.arange(k); m20 = n0 + 2 * k + np.arange(k)
+    F = np.vstack([F[~mx], np.stack([a_, m01, m20], 1), np.stack([m01, b_, m12], 1), np.stack([m20, m12, c_], 1), np.stack([m01, m12, m20], 1)])
+    cen = P[F].mean(axis=1)
+print('  patch relief after boundary subdivision: tris', len(F))
 cxb = (cen[:, 0] - (xc - cu)); cyb = (cen[:, 1] - (yc - cz)); ab = np.arctan2(cyb, cxb) % (2 * np.pi); rb_ = np.hypot(cxb, cyb)
 petal = None
-keep = (rb_ <= np.interp(ab, 2 * np.pi * np.arange(NAB + 1) / NAB, np.r_[RPb, RPb[0]])) & (np.abs(cyb) <= float(os.environ.get('YMAX', 0.105))) & (P[F][:, :, 2].min(axis=1) > ZF + 0.005)   # |y| clip: the rails of the strip start at y 0.1075, the petal tips end at 0.1025
+keep = (rb_ <= np.interp(ab, 2 * np.pi * np.arange(NAB + 1) / NAB, np.r_[RPb, RPb[0]])) & (np.abs(cyb) <= YMX) & (P[F][:, :, 2].min(axis=1) > ZF + 0.005)   # |y| clip: the rails of the strip start at y 0.1075, the petal tips end at 0.1025
 print('band flower: bead centre shifted by %.4f %.4f, petal component radius %.4f (x S %.2f = %.4f)' % (cu, cz, RPET, S, RPET * S))
 f = F[keep]; used, inv = np.unique(f, return_inverse=True); f = inv.reshape(-1, 3)
 bp, bn, buv = P[used], N[used], UV[used]
-print('band flower centre %.4f %.4f floor z %.4f bead z %.4f; patch tris %d verts %d' % (xc, yc, ZF, P[hi, 2].mean(), len(f), len(bp)))
+print('band flower centre %.4f %.4f floor z %.4f bead z %.4f; patch tris %d verts %d' % (xc, yc, ZF, P[:len(hi), 2][hi].mean(), len(f), len(bp)))
 
 # ---- solitaire
 SP, _, SUV, _ = glb(sol)
