@@ -126,9 +126,44 @@ const SOLS = { solitaire: { file: 'solitaire_meshy2.glb', cx: -0.0001, cy: -0.11
   solitaire2: { file: 'solitaire_meshy2.glb', cx: -0.0001, cy: -0.1190, r: 0.7256, label: 'Solitaire 2', patch: 'flower_patch.glb', R0: 0.82, cuts: CUTS } }; // Solitaire 2 = Solitaire with the solitaire's own flower triangles inside the cut circles (arc u at radius R0 x side sgn, z; radius rc; only above the window floor plane f so the floor and the bore stay) removed and the band's flower (flower_patch.glb, band UVs; drawn with the band's material) put in
 // Solitaire 3: the duplicate under-gallery scroll on one ring face is flattened away. Every vertex inside the rounded-rectangle footprint (x0,x1,y0,y1 in model units, border blend BL) that stands higher than the plate height ZF (|z|, on the face with sign SG) is pressed down to ZF, normals turned toward the face; no triangles are deleted, so no holes or ragged edges. ?face=-1 = the other ring face, ?gal=0 = off (plain Solitaire)
 const GALQ = new URLSearchParams(location.search), GAL_SG = GALQ.get('face') === '-1' ? -1 : 1;
+function splitBorder(geo, F, sg) {   // subdivides the triangles that straddle the footprint border (on the pressed face) so the pressed/unpressed edge follows the border closely instead of in big jagged triangle steps (same idea as cutFlowers)
+  if (!geo.index) return geo.clone();
+  const names = Object.keys(geo.attributes), A = names.map(k => geo.attributes[k]), off = {}; let stride = 0;
+  names.forEach((k, i) => { off[k] = stride; stride += A[i].itemSize; });
+  const nV = geo.attributes.position.count, I = geo.index.array, o = off.position, EMAX = 0.0025, MAXD = 5;
+  const rec = i => { const r = new Array(stride); names.forEach((k, j) => { const s = A[j].itemSize; for (let q = 0; q < s; q++) r[off[k] + q] = A[j].array[i * s + q]; }); return r; };
+  const mid = (p, q) => p.map((v, i) => (v + q[i]) / 2);
+  const ins = p => Math.min(p[0] - F.x0, F.x1 - p[0], p[1] - F.y0, F.y1 - p[1]) > 0;
+  const keep = [], ex = [];
+  const split = (a, b, c, d) => {
+    const ab = mid(a, b), bc = mid(b, c), ca = mid(c, a), g = a.map((v, i) => (v + b[i] + c[i]) / 3);
+    const s = [a, b, c, ab, bc, ca, g].map(r => ins(r.slice(o, o + 2))), mixed = s.some(v => v !== s[0]);
+    const L = Math.max(Math.hypot(a[o] - b[o], a[o + 1] - b[o + 1], a[o + 2] - b[o + 2]), Math.hypot(b[o] - c[o], b[o + 1] - c[o + 1], b[o + 2] - c[o + 2]), Math.hypot(c[o] - a[o], c[o + 1] - a[o + 1], c[o + 2] - a[o + 2]));
+    if (!mixed || d >= MAXD || L < EMAX) { ex.push(a, b, c); return; }
+    split(a, ab, ca, d + 1); split(ab, b, bc, d + 1); split(ca, bc, c, d + 1); split(ab, bc, ca, d + 1);
+  };
+  const P = geo.attributes.position.array;
+  for (let i = 0; i < I.length; i += 3) {
+    const ia = I[i], ib = I[i + 1], ic = I[i + 2], pa = ia * 3, pb = ib * 3, pc = ic * 3;
+    const zs = Math.max(P[pa + 2], P[pb + 2], P[pc + 2]) * sg, zn = Math.min(P[pa + 2], P[pb + 2], P[pc + 2]) * sg;
+    if (zs <= 0) { keep.push(ia, ib, ic); continue; }
+    const s = [[P[pa], P[pa + 1]], [P[pb], P[pb + 1]], [P[pc], P[pc + 1]], [(P[pa] + P[pb]) / 2, (P[pa + 1] + P[pb + 1]) / 2], [(P[pb] + P[pc]) / 2, (P[pb + 1] + P[pc + 1]) / 2], [(P[pc] + P[pa]) / 2, (P[pc + 1] + P[pa + 1]) / 2], [(P[pa] + P[pb] + P[pc]) / 3, (P[pa + 1] + P[pb + 1] + P[pc + 1]) / 3]].map(ins);
+    if (s.every(v => v === s[0])) { keep.push(ia, ib, ic); continue; }
+    split(rec(ia), rec(ib), rec(ic), 0);
+  }
+  const total = nV + ex.length, idx = Array.from(keep); for (let k = 0; k < ex.length; k++) idx.push(nV + k);
+  const g = new THREE.BufferGeometry();
+  names.forEach((k, j) => {
+    const sz = A[j].itemSize, arr = new Float32Array(total * sz); arr.set(A[j].array.subarray(0, nV * sz));
+    ex.forEach((r, e) => { for (let q = 0; q < sz; q++) arr[(nV + e) * sz + q] = r[off[k] + q]; });
+    if (k === 'normal') for (let v = nV; v < total; v++) { const l = Math.hypot(arr[v * 3], arr[v * 3 + 1], arr[v * 3 + 2]) || 1; arr[v * 3] /= l; arr[v * 3 + 1] /= l; arr[v * 3 + 2] /= l; }
+    g.setAttribute(k, new THREE.BufferAttribute(arr, sz));
+  });
+  g.setIndex(new THREE.BufferAttribute(Uint32Array.from(idx), 1)); return g;
+}
 function flattenGallery(geo, F) {
   if (GALQ.get('gal') === '0') return geo;
-  const g = geo.clone(), P = g.attributes.position.array, N = g.attributes.normal.array, UV = g.attributes.uv.array, sg = GAL_SG, sm = t => t * t * (3 - 2 * t);
+  const g = splitBorder(geo, F, GAL_SG), P = g.attributes.position.array, N = g.attributes.normal.array, UV = g.attributes.uv.array, sg = GAL_SG, sm = t => t * t * (3 - 2 * t);
   const ru = 0.8593, rv = 0.7308;   // a smooth bright-gold texel patch (same colour, metalness and roughness as the scroll surfaces around the block): found by scanning the texture under the neighbouring vertices for the lowest variance
   const GS = 0.03;   // the plain plate samples a tiny texture patch with a small gradient: a constant UV makes the shader's derivative-based tangent frame degenerate (speckled normal-map noise)
   for (let i = 0; i < P.length; i += 3) {
@@ -143,9 +178,9 @@ function flattenGallery(geo, F) {
     N[i] = na / l; N[i + 1] = nb / l; N[i + 2] = nc / l * sg;
   }
   // cap: a separate flat plain-gold plate (own material) just above ZF over the footprint, so the flattened scroll vertices and the open gaps of the scroll work are covered by clean gold
-  const NX = 44, NY = 24, MG = 0.012, m = 0.0, cp = [], ci = [], xc = (F.x0 + F.x1) / 2, yc = (F.y0 + F.y1) / 2, hx = (F.x1 - F.x0) / 2, hy = (F.y1 - F.y0) / 2;
+  const NX = 64, NY = 34, MG = 0.012, m = 0.0, cp = [], ci = [], xc = (F.x0 + F.x1) / 2, yc = (F.y0 + F.y1) / 2, hx = (F.x1 - F.x0) / 2, hy = (F.y1 - F.y0) / 2;
   const dome = (u, v) => { const e = 1 - Math.pow(Math.abs(u), 2.4), f = 1 - Math.pow(Math.abs(v), 2.4); return Math.max(0, e) * Math.max(0, f); };   // cushion: 0 at the footprint border, 1 in the middle; soft shoulders instead of a flat slab
-  for (let j = 0; j <= NY; j++) for (let i = 0; i <= NX; i++) { const x = F.x0 - MG + (F.x1 - F.x0 + 2 * MG) * i / NX, y = F.y0 - MG + (F.y1 - F.y0 + 2 * MG) * j / NY, eg = Math.max(0, Math.max(F.x0 - x, x - F.x1, F.y0 - y, y - F.y1)) / MG; cp.push(x, y, (F.zf + 0.0005 - 0.004 * eg + F.hd * dome((x - xc) / hx, (y - yc) / hy)) * sg); }   // MG: the cap overhangs the footprint by a thin skirt that sinks, hiding the jagged triangle edge of the pressed mesh
+  for (let j = 0; j <= NY; j++) for (let i = 0; i <= NX; i++) { const x = F.x0 - MG + (F.x1 - F.x0 + 2 * MG) * i / NX, y = F.y0 - MG + (F.y1 - F.y0 + 2 * MG) * j / NY, eg = Math.max(0, Math.max(F.x0 - x, x - F.x1, F.y0 - y, y - F.y1)) / MG; cp.push(x, y, (F.zf + 0.0005 - 0.006 * sm(Math.min(1, eg)) + F.hd * dome((x - xc) / hx, (y - yc) / hy)) * sg); }   // MG: the cap overhangs the footprint by a thin skirt that sinks, hiding the jagged triangle edge of the pressed mesh
   for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) { const a = j * (NX + 1) + i, b = a + 1, c = a + NX + 1, d = c + 1; if (sg > 0) ci.push(a, b, d, a, d, c); else ci.push(a, d, b, a, c, d); }
   const cg = new THREE.BufferGeometry(); cg.setAttribute('position', new THREE.Float32BufferAttribute(cp, 3)); cg.setIndex(ci); cg.computeVertexNormals(); const cu = []; for (let q = 0; q < cp.length; q += 3) cu.push(ru + (cp[q] - F.x0) * GS, rv + (cp[q + 1] - F.y0) * GS); cg.setAttribute('uv', new THREE.Float32BufferAttribute(cu, 2)); F.capGeo = cg; return g;   // cap UVs sample the same smooth gold texel patch as the plate, so the cap uses the ring's own material (colour, roughness, metalness)
 }
