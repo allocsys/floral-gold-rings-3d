@@ -42,7 +42,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep, reliefTex } from './geometry.js?v=relief158';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep, reliefTex } from './geometry.js?v=relief159';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -81,7 +81,6 @@ const group = new THREE.Group(); scene.add(group);
 // D80 (Meshy): band tabs use the Meshy image-to-3D strip (site/band_meshy_tile.glb = one seamless repeat cut from the Meshy strip at matched columns, flat slab x=length y=width z=relief) bent into a ring. ?src=old = previous parametric band.
 const MESHY_ON = new URLSearchParams(location.search).get('src') !== 'old';
 const MR_ON = new URLSearchParams(location.search).get('mr') !== '0';
-const LOWER = parseFloat(new URLSearchParams(location.search).get('lower')) || 0;
 let meshySrc = null, meshyFail = false;
 const isMeshy = () => MESHY_ON && !meshyFail && (kind === 'band1' || kind === 'band2');
 if (MESHY_ON) new GLTFLoader().load('band_meshy_tile.glb', g => {
@@ -121,16 +120,17 @@ function buildMeshy(ID, wt, tt) { // wrap the slab: x -> angle (N tiles round th
 }
 
 // Solitaire (D81): Meshy GLB (reference/meshy/solitaire_5.glb, copied to site/solitaire_meshy2.glb; the first Solitaire was solitaire_3.glb), used as is with its own textures. Scaled so the bore (circle fitted to the model: centre (SOL_CX, SOL_CY), radius SOL_R in model units) has the chosen inner diameter, and re-centred on the origin. Ring axis = z, stone at +y. The old parametric solitaire is gone (last in commit 3597c30).
-const SOLS = { solitaire: { file: 'solitaire_meshy2.glb', cx: -0.0001, cy: -0.1190, r: 0.7256, label: 'Solitaire' } };
+const SOLS = { solitaire: { file: 'solitaire_meshy2.glb', cx: -0.0001, cy: -0.1190, r: 0.7256, label: 'Solitaire' },
+  solitaire2: { file: 'solitaire_meshy2.glb', cx: -0.0001, cy: -0.1190, r: 0.7256, label: 'Solitaire 2', lower: 0.06 } }; // Solitaire 2 = Solitaire with the head (stone + prongs) slid down 0.06 model units (about 0.7 mm at ID 17); 0.12 squashes the stone
 const glbP = {}, loadGLB = f => glbP[f] || (glbP[f] = new Promise((res, rej) => new GLTFLoader().load(f, res, undefined, rej)));
 for (const [key, S] of Object.entries(SOLS)) loadGLB(S.file).then(g => {
   let m = null; g.scene.traverse(o => { if (o.isMesh && !m) m = o; });
   let geo = m.geometry;
-  if (LOWER > 0) { // ?lower=D: slide the head (stone + prongs, rigid, so the stone keeps its shape) down by D model units, blended into the shoulders by angle and into the shank by radius; the file is untouched
+  if (S.lower > 0) { // S.lower = D: slide the head (stone + prongs, rigid, so the stone keeps its shape) down by D model units, blended into the shoulders by angle and into the shank by radius; the file is untouched
     geo = geo.clone(); const pa = geo.attributes.position.array, ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
     for (let i = 0; i < pa.length; i += 3) {
       const x = pa[i] - S.cx, y = pa[i + 1] - S.cy, r = Math.hypot(x, y), off = Math.abs(Math.atan2(y, x) * 180 / Math.PI - 90);
-      pa[i + 1] -= LOWER * (1 - ss(15, 40, off)) * ss(0.86, 0.95, r);
+      pa[i + 1] -= S.lower * (1 - ss(15, 40, off)) * ss(0.86, 0.95, r);
     }
     geo.attributes.position.needsUpdate = true; geo.computeBoundingSphere();
   }
