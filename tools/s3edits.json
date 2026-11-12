@@ -1,1 +1,2 @@
-[]
+[{"name":"bolder shoulders (z thickness)","sel":{"th":[20,80],"rel":[1.05,1.3]},"feather":{"th":10,"rel":0.04},"op":"scale_z","amount":0.12,"mirror":true},
+ {"name":"raise outer ornament","sel":{"th":[15,70],"rel":[1.12,1.4]},"feather":{"th":8,"rel":0.05},"op":"radial","amount":0.025,"mirror":true}]
