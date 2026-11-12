@@ -1,6 +1,7 @@
 // Parametric ring geometry (mm). No dependencies: runs in the browser and in Node.
 // Both bands (band1, band2) carry the engraved floral relief (relief_band.js, derived from reference/rings_flat.png), repeated REPEATS times around the ring.
 import { RELIEF_BAND } from './relief_band.js?v=relief151';
+import { buildSolitaire3 } from './solitaire3.js?v=s3a';
 // RIM margin (band tabs only): WD mm added to the band width; the map keeps its mm size and the extra WD/2 per side is plain ground. URL ?wd=0.3 / ?wd=0.5 to test; no param or 0 = off (prior look).
 const WD = (() => { try { const v = parseFloat(new URLSearchParams(location.search).get('wd')); return v > 0 && v <= 1.5 ? Math.round(v * 10) / 10 : 0; } catch (e) { return 0; } })();
 export const DEFAULTS = {
@@ -8,10 +9,11 @@ export const DEFAULTS = {
   band2:     { ID: 17, w: +(4.0 + WD).toFixed(1), t: 1.4, relief: 0.4 },
   solitaire: { ID: 17 }, // Meshy GLB (site/solitaire_meshy2.glb = reference/meshy/solitaire_5.glb, loaded by index.html): only the inner diameter is adjustable; no parametric geometry
   solitaire2: { ID: 17 }, // Meshy GLB site/solitaire_6.glb (reference/meshy/solitaire_6.glb)
+  solitaire3: { ID: 17 }, // parametric (site/solitaire3.js): round gem, 4 ball-tip prongs, flower / leaf / vine shoulders
 };
-export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire', solitaire2: 'Solitaire 2' };
+export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire', solitaire2: 'Solitaire 2', solitaire3: 'Solitaire 3' };
 export const CONTROLS = [
-  ['ID', 'Inner diameter', 14, 24, 0.1, ['band1', 'band2', 'solitaire', 'solitaire2']],
+  ['ID', 'Inner diameter', 14, 24, 0.1, ['band1', 'band2', 'solitaire', 'solitaire2', 'solitaire3']],
   ['w', 'Width', 1.5, 8, 0.1],
   ['t', 'Thickness', 0.8, 3, 0.05],
   ['relief', 'Relief depth', 0, 0.8, 0.05, ['band1', 'band2']],
@@ -146,6 +148,7 @@ export const GLB_KINDS = ['solitaire', 'solitaire2']; // tabs whose model is a G
 // returns [{pos, idx, kind:'metal', col?}]; quality 'fine' (export) or 'draft' (live dragging)
 export function buildRing(kind, p, quality = 'fine') {
   if (GLB_KINDS.includes(kind)) throw new Error(`${kind} is a Meshy GLB model (see index.html), it has no parametric geometry`);
+  if (kind === 'solitaire3') return buildSolitaire3(p, quality).map(fixWinding);
   const shells = [];
   shells.push({ ...band(p, quality).shell, kind: 'metal' });
   return shells.map(fixWinding);

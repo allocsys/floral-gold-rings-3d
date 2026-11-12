@@ -42,7 +42,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep, reliefTex } from './geometry.js?v=relief160';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep, reliefTex } from './geometry.js?v=relief161';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -124,6 +124,8 @@ const SOLS = { solitaire: { file: 'solitaire_meshy2.glb', cx: -0.0001, cy: -0.11
 const glbP = {}, loadGLB = f => glbP[f] || (glbP[f] = new Promise((res, rej) => new GLTFLoader().load(f, res, undefined, rej)));
 // Gem (Solitaire 2): site/solitaire_6_stone.bin = bitmask of the stone triangles (tools/meshy/make_stone_mask.py, from the blue-white patch of the base colour texture). They get their own gem material (no baked texture); ?gem=0 = old baked look, ?gem=b = transmissive variant.
 const GEM = new URLSearchParams(location.search).get('gem') ?? 'e', BORE_ON = new URLSearchParams(location.search).get('bore') !== '0', boreMat = () => new THREE.MeshStandardMaterial({ color: 0xe9b73f, metalness: 1, roughness: 0.24 });
+const polished = new THREE.MeshStandardMaterial({ color: 0xe9b73f, metalness: 1, roughness: 0.24 }); // Solitaire 3: all gold polished like the Solitaire bores
+const gem3 = new THREE.MeshPhysicalMaterial({ color: 0xf2f6ff, metalness: 1, roughness: 0.04, ior: 2.4, specularIntensity: 1, envMapIntensity: 1.5, clearcoat: 0, clearcoatRoughness: 0, side: THREE.DoubleSide }); // = Solitaire 2 gem variant e, no texture
 function gemMat(m, v) { const o = { a: {}, b: { transmission: 1, thickness: 0.5 }, c: { color: 0x14181e, clearcoat: 0, envMapIntensity: 1.6 }, d: { color: 0xe6edf8, metalness: 1, roughness: 0.07, clearcoat: 0, envMapIntensity: 1.2 }, e: { color: 0xf2f6ff, metalness: 1, roughness: 0.04, clearcoat: 0, envMapIntensity: 1.5, normalMap: null }, f: { color: 0x14181e, clearcoat: 0, envMapIntensity: 1.6, normalMap: null } }[v] || {}; return new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0.03, ior: 2.4, specularIntensity: 1, envMapIntensity: 2, clearcoat: 1, clearcoatRoughness: 0, normalMap: m.material.normalMap, side: THREE.DoubleSide, ...o }); }
 for (const [key, S] of Object.entries(SOLS)) loadGLB(S.file).then(async g => {
   let m = null; g.scene.traverse(o => { if (o.isMesh && !m) m = o; });
@@ -220,7 +222,7 @@ function rebuild(quality) {
         nA.set(nB);
       }
     }
-    group.add(new THREE.Mesh(g, s.col ? (kind === 'band1' || kind === 'band2' ? plq : NM && s.nm && quality !== 'draft' ? makeNM(s) : goldVC) : gold));
+    group.add(new THREE.Mesh(g, kind === 'solitaire3' ? (s.kind === 'gem' ? gem3 : polished) : s.col ? (kind === 'band1' || kind === 'band2' ? plq : NM && s.nm && quality !== 'draft' ? makeNM(s) : goldVC) : gold));
   }
   const p = state[kind];
   document.getElementById('info').textContent = `Ø ${p.ID} mm inner · ${quality === 'draft' ? 'draft preview while dragging' : quality === 'ultra' ? 'ultra detail' : 'full detail'} · mm`;
@@ -233,10 +235,10 @@ function renderUI() {
     const b = document.createElement('button'); b.textContent = LABELS[k]; b.className = k === kind ? 'on' : '';
     b.onclick = () => { kind = k; spin.textContent = 'Spin: ' + (spinOn ? 'on' : 'off'); renderUI(); queue('fine'); }; tabs.appendChild(b);
   }
-  document.getElementById('dl').style.display = isMeshy() || SOLS[kind] ? 'none' : '';
+  document.getElementById('dl').style.display = isMeshy() || SOLS[kind] || kind === 'solitaire3' ? 'none' : '';
   for (const [key, label, min, max, step, only] of CONTROLS) {
     if (only && ![].concat(only).includes(kind)) continue;
-    if (SOLS[kind] && key !== 'ID') continue;
+    if ((SOLS[kind] || kind === 'solitaire3') && key !== 'ID') continue;
     if (isMeshy() && key !== 'ID' && key !== 'w' && key !== 't') continue;
     const mw = isMeshy() && (key === 'w' || key === 't'), mu = key === 'w' ? meshyW : meshyT, lo = mw && key === 'w' ? 3 : min, hi = mw && key === 'w' ? 7 : max, val = mw ? Math.min(hi, Math.max(lo, mu[kind] ?? (key === 'w' ? meshyLastW : meshyLastT)[kind])).toFixed(key === 'w' ? 1 : 2) : state[kind][key]; // Meshy band: width 3-7 mm (repeat count chosen to fit, only the ring-axis scale stretches), thickness 0.8-3 mm (only the radial relief scale changes)
     const row = document.createElement('div'); row.className = 'row';
