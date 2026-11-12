@@ -5,41 +5,41 @@ const TAU = Math.PI * 2;
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 // ---------- shank profile (s = arc length from the head along the outer face, mm) ----------
-const hwAt = s => 1.0 + 1.2 * Math.exp(-Math.pow(s / 7, 1.6));   // half width: 2.2 at the head -> 1.0 at the back
+const hwAt = s => 1.0 + 1.2 * Math.exp(-Math.pow(s / 7, 1.6)) + 0.2 * Math.exp(-(((s - 8) / 5) ** 2)); // + a little extra width under the ornament   // half width: 2.2 at the head -> 1.0 at the back
 const tAt = s => 1.65 + 0.30 * Math.exp(-Math.pow(s / 5, 1.5));  // wall thickness: 1.95 at the head -> 1.65
 const RF = 0.32, DOME = 0.16; // edge fillet radius, outer face dome
 
 // ---------- ornament: raised relief h(s, z) in mm on each shoulder ----------
-const S0 = 2.7, LAM = 3.1, NCELL = 3, AMP = 0.30; // first flower at S0 + LAM/2, pitch LAM, stem wave amplitude AMP
-const H_STEM = 0.12, H_LEAF = 0.16, H_PET = 0.20, H_BEAD = 0.26;
+const S0 = 2.7, LAM = 3.1, NCELL = 3, AMP = 0.36; // first flower at S0 + LAM/2, pitch LAM, stem wave amplitude AMP
+const H_STEM = 0.20, H_LEAF = 0.27, H_PET = 0.33, H_BEAD = 0.42; // bold relief
 function buildOrnament() {
   const P = []; // primitives with a bounding box [s0, s1, z0, z1]
   const usable = s => hwAt(s) - RF - 0.08;
   const stemZ = s => AMP * Math.sin(TAU * (s - (S0 + LAM / 2)) / LAM);
   const sEnd = S0 + LAM / 2 + (NCELL - 1) * LAM + LAM / 2;
-  P.push({ t: 'stem', a: 2.0, b: sEnd, w: 0.12, bb: [2.0 - 0.2, sEnd + 0.2, -AMP - 0.2, AMP + 0.2] });
+  P.push({ t: 'stem', a: 2.0, b: sEnd, w: 0.17, bb: [2.0 - 0.2, sEnd + 0.2, -AMP - 0.2, AMP + 0.2] });
   for (let i = 0; i < NCELL; i++) {
     const sc = S0 + LAM / 2 + i * LAM;
-    const R = Math.min(0.6, usable(sc) - 0.0);
+    const R = Math.min(0.76, usable(sc));
     P.push({ t: 'flower', s: sc, R, bb: [sc - R, sc + R, -R, R] });
     for (const sg of [-1, 1]) { // leaf at each stem peak, pointing away from the head
       const pk = sc + sg * LAM / 4; // stem peak
       const zp = stemZ(pk), side = Math.sign(zp) || 1;
       const ang = 50 * Math.PI / 180, ds = Math.cos(ang), dz = side * Math.sin(ang);
-      const L = Math.min(0.85, Math.max(0.35, (usable(pk) - Math.abs(zp)) / Math.sin(ang)));
+      const L = Math.min(1.05, Math.max(0.4, (usable(pk) - Math.abs(zp)) / Math.sin(ang)));
       const tip = [pk + ds * L, zp + dz * L];
-      P.push({ t: 'leaf', s: pk, z: zp, ds, dz, L, W: 0.24, bb: [Math.min(pk, tip[0]) - 0.3, Math.max(pk, tip[0]) + 0.3, Math.min(zp, tip[1]) - 0.3, Math.max(zp, tip[1]) + 0.3] });
+      P.push({ t: 'leaf', s: pk, z: zp, ds, dz, L, W: 0.33, bb: [Math.min(pk, tip[0]) - 0.3, Math.max(pk, tip[0]) + 0.3, Math.min(zp, tip[1]) - 0.3, Math.max(zp, tip[1]) + 0.3] });
     }
     // tendril (spiral) at each boundary between flowers, alternating sides; the last one ends the vine
     const b = sc + LAM / 2, sig = i % 2 === 0 ? 1 : -1;
-    const r0 = Math.min(0.5, (usable(b) - 0.1) / 2);
-    const turns = 1.25, rEnd = 0.4 * r0, th = turns * TAU, pts = [];
+    const r0 = Math.min(0.62, (usable(b) - 0.1) / 2);
+    const turns = 1.1, rEnd = 0.3 * r0, th = turns * TAU, pts = [];
     for (let k = 0; k <= 64; k++) {
       const q = k / 64, r = r0 - (r0 - rEnd) * q, a = -sig * Math.PI / 2 + sig * q * th;
       pts.push([b + r * Math.cos(a), sig * r0 + r * Math.sin(a)]);
     }
     const cs = b, cz = sig * r0;
-    P.push({ t: 'spiral', pts, w: 0.075, bead: pts[64], bb: [cs - r0 - 0.2, cs + r0 + 0.2, cz - r0 - 0.2, cz + r0 + 0.2] });
+    P.push({ t: 'spiral', pts, w: 0.105, bead: pts[64], bb: [cs - r0 - 0.2, cs + r0 + 0.2, cz - r0 - 0.2, cz + r0 + 0.2] });
   }
   const PET = 5, petals = [];
   const height = (s, z) => {
@@ -51,7 +51,7 @@ function buildOrnament() {
         if (s < p.a || s > p.b) continue;
         const slope = AMP * TAU / LAM * Math.cos(TAU * (s - (S0 + LAM / 2)) / LAM);
         const d = Math.abs(z - stemZ(s)) / Math.sqrt(1 + slope * slope), q = d / p.w;
-        if (q < 1) v = H_STEM * (1 - q * q);
+        if (q < 1) v = H_STEM * (1 - q * q) * sstep(p.a, p.a + 0.5, s); // tapers in at the head end (no hard step)
       } else if (p.t === 'flower') {
         const ds = s - p.s, dz = z, rr = Math.hypot(ds, dz), R = p.R;
         if (rr < 0.17 * R / 0.6) { const q = rr / (0.17 * R / 0.6); v = Math.max(v, H_BEAD * (1 - q * q)); }
@@ -65,7 +65,7 @@ function buildOrnament() {
         const rs = s - p.s, rz = z - p.z, u = (rs * p.ds + rz * p.dz) / p.L, w = (-rs * p.dz + rz * p.ds);
         if (u > 0 && u < 1) {
           const wid = p.W * Math.pow(Math.sin(Math.PI * u), 0.85) * (p.L / 0.85 > 0.6 ? 1 : 0.8), q = Math.abs(w) / Math.max(wid, 1e-4);
-          if (q < 1) v = H_LEAF * (1 - q * q) * (1 - 0.38 * Math.exp(-((w / 0.045) ** 2)));
+          if (q < 1) v = H_LEAF * (1 - q * q) * (1 - 0.3 * Math.exp(-((w / 0.07) ** 2)));
         }
       } else if (p.t === 'spiral') {
         let d2 = 1e9;
@@ -75,7 +75,7 @@ function buildOrnament() {
           d2 = Math.min(d2, dx * dx + dzz * dzz);
         }
         const q = Math.sqrt(d2) / p.w; if (q < 1) v = H_STEM * (1 - q * q);
-        const bq = Math.hypot(s - p.bead[0], z - p.bead[1]) / 0.11; if (bq < 1) v = Math.max(v, 0.20 * (1 - bq * bq));
+        const bq = Math.hypot(s - p.bead[0], z - p.bead[1]) / 0.15; if (bq < 1) v = Math.max(v, 0.32 * (1 - bq * bq));
       }
       if (v > h) h = v;
     }
