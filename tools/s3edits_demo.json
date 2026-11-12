@@ -1,0 +1,2 @@
+[{"name":"thicken shoulders","sel":{"th":[20,80],"rel":[1.05,1.3]},"feather":{"th":10,"rel":0.04},"op":"scale_z","amount":0.15,"mirror":true},
+ {"name":"raise outer shell near head","sel":{"th":[8,35],"rel":[1.1,1.4]},"feather":{"th":8,"rel":0.05},"op":"radial","amount":0.03,"mirror":true}]
