@@ -9,11 +9,12 @@ export const DEFAULTS = {
   band2:     { ID: 17, w: +(4.0 + WD).toFixed(1), t: 1.4, relief: 0.4 },
   solitaire: { ID: 17 }, // Meshy GLB (site/solitaire_meshy2.glb = reference/meshy/solitaire_5.glb, loaded by index.html): only the inner diameter is adjustable; no parametric geometry
   solitaire2: { ID: 17 }, // Meshy GLB site/solitaire_6.glb (reference/meshy/solitaire_6.glb)
-  solitaire3: { ID: 17 }, // parametric (site/solitaire3.js): round gem, 4 ball-tip prongs, flower / leaf / vine shoulders
+  solitaire3: { ID: 17 }, // clone of Solitaire 2 (GLB, edited gradually via tools/s3edit.py)
+  solitaire3p: { ID: 17 }, // old parametric Solitaire 3 (site/solitaire3.js): round gem, 4 ball-tip prongs, flower / leaf / vine shoulders
 };
-export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire', solitaire2: 'Solitaire 2', solitaire3: 'Solitaire 3' };
+export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire', solitaire2: 'Solitaire 2', solitaire3: 'Solitaire 3', solitaire3p: 'Param' };
 export const CONTROLS = [
-  ['ID', 'Inner diameter', 14, 24, 0.1, ['band1', 'band2', 'solitaire', 'solitaire2', 'solitaire3']],
+  ['ID', 'Inner diameter', 14, 24, 0.1, ['band1', 'band2', 'solitaire', 'solitaire2', 'solitaire3', 'solitaire3p']],
   ['w', 'Width', 1.5, 8, 0.1],
   ['t', 'Thickness', 0.8, 3, 0.05],
   ['relief', 'Relief depth', 0, 0.8, 0.05, ['band1', 'band2']],
@@ -144,11 +145,11 @@ function fixWinding(sh) {
   return sh;
 }
 
-export const GLB_KINDS = ['solitaire', 'solitaire2']; // tabs whose model is a GLB loaded by the viewer
+export const GLB_KINDS = ['solitaire', 'solitaire2', 'solitaire3']; // tabs whose model is a GLB loaded by the viewer
 // returns [{pos, idx, kind:'metal', col?}]; quality 'fine' (export) or 'draft' (live dragging)
 export function buildRing(kind, p, quality = 'fine') {
   if (GLB_KINDS.includes(kind)) throw new Error(`${kind} is a Meshy GLB model (see index.html), it has no parametric geometry`);
-  if (kind === 'solitaire3') return buildSolitaire3(p, quality).map(fixWinding);
+  if (kind === 'solitaire3p') return buildSolitaire3(p, quality).map(fixWinding);
   const shells = [];
   shells.push({ ...band(p, quality).shell, kind: 'metal' });
   return shells.map(fixWinding);
