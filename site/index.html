@@ -123,17 +123,21 @@ function buildMeshy(ID, wt, tt) { // wrap the slab: x -> angle (N tiles round th
 const SOLS = { solitaire: { file: 'solitaire_meshy2.glb', cx: -0.0001, cy: -0.1190, r: 0.7256, label: 'Solitaire' }, solitaire2: { file: 'solitaire_6.glb', cx: -0.0004, cy: -0.0739, r: 0.7366, label: 'Solitaire 2', stone: 'solitaire_6_stone.bin' } };
 const glbP = {}, loadGLB = f => glbP[f] || (glbP[f] = new Promise((res, rej) => new GLTFLoader().load(f, res, undefined, rej)));
 // Gem (Solitaire 2): site/solitaire_6_stone.bin = bitmask of the stone triangles (tools/meshy/make_stone_mask.py, from the blue-white patch of the base colour texture). They get their own gem material (no baked texture); ?gem=0 = old baked look, ?gem=b = transmissive variant.
-const GEM = new URLSearchParams(location.search).get('gem') ?? 'e';
+const GEM = new URLSearchParams(location.search).get('gem') ?? 'e', BORE_ON = new URLSearchParams(location.search).get('bore') !== '0', boreMat = () => new THREE.MeshStandardMaterial({ color: 0xe9b73f, metalness: 1, roughness: 0.24 });
 function gemMat(m, v) { const o = { a: {}, b: { transmission: 1, thickness: 0.5 }, c: { color: 0x14181e, clearcoat: 0, envMapIntensity: 1.6 }, d: { color: 0xe6edf8, metalness: 1, roughness: 0.07, clearcoat: 0, envMapIntensity: 1.2 }, e: { color: 0xf2f6ff, metalness: 1, roughness: 0.04, clearcoat: 0, envMapIntensity: 1.5, normalMap: null }, f: { color: 0x14181e, clearcoat: 0, envMapIntensity: 1.6, normalMap: null } }[v] || {}; return new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0.03, ior: 2.4, specularIntensity: 1, envMapIntensity: 2, clearcoat: 1, clearcoatRoughness: 0, normalMap: m.material.normalMap, side: THREE.DoubleSide, ...o }); }
 for (const [key, S] of Object.entries(SOLS)) loadGLB(S.file).then(async g => {
   let m = null; g.scene.traverse(o => { if (o.isMesh && !m) m = o; });
   S.src = { geo: m.geometry, mat: m.material };
-  if (S.stone && GEM !== '0') {
-    const mk = new Uint8Array(await (await fetch(S.stone)).arrayBuffer()), geo = m.geometry, idx = geo.index.array, n = idx.length / 3, out = new idx.constructor(idx.length), isS = t => (mk[t >> 3] >> (t & 7)) & 1;
-    let a = 0; for (let t = 0; t < n; t++) if (!isS(t)) { out.set(idx.subarray(3 * t, 3 * t + 3), a); a += 3; }
-    let c = a; for (let t = 0; t < n; t++) if (isS(t)) { out.set(idx.subarray(3 * t, 3 * t + 3), c); c += 3; }
-    geo.setIndex(new THREE.BufferAttribute(out, 1)); geo.clearGroups(); geo.addGroup(0, a, 0); geo.addGroup(a, idx.length - a, 1);
-    S.src.mat = [m.material, gemMat(m, GEM)];
+  // triangle classes: 0 gold (textured), 1 gem (stone mask, Solitaire 2), 2 bore = all 3 verts within 4% of the bore radius with the normal pointing at the axis (dot < -0.9; 8.8k / 16.3k tris, full 360 deg, measured); bore gets plain polished gold like the bands, ?bore=0 = textured as before
+  const geo = m.geometry, idx = geo.index.array, pos = geo.attributes.position.array, nor = geo.attributes.normal.array, n = idx.length / 3, cls = new Uint8Array(n);
+  const mk = S.stone && GEM !== '0' ? new Uint8Array(await (await fetch(S.stone)).arrayBuffer()) : null;
+  const inB = v => { const dx = pos[3 * v] - S.cx, dy = pos[3 * v + 1] - S.cy, rr = Math.hypot(dx, dy); return Math.abs(rr / S.r - 1) < 0.04 && (nor[3 * v] * dx + nor[3 * v + 1] * dy) / rr < -0.9; };
+  for (let t = 0; t < n; t++) cls[t] = mk && (mk[t >> 3] >> (t & 7)) & 1 ? 1 : BORE_ON && inB(idx[3 * t]) && inB(idx[3 * t + 1]) && inB(idx[3 * t + 2]) ? 2 : 0;
+  if (mk || BORE_ON) {
+    const out = new idx.constructor(idx.length), mats = [m.material, mk ? gemMat(m, GEM) : null, BORE_ON ? boreMat() : null]; let o = 0; geo.clearGroups();
+    for (let c = 0; c < 3; c++) { const o0 = o; for (let t = 0; t < n; t++) if (cls[t] === c) { out.set(idx.subarray(3 * t, 3 * t + 3), o); o += 3; } if (o > o0) geo.addGroup(o0, o - o0, c); }
+    geo.setIndex(new THREE.BufferAttribute(out, 1)); S.src.mat = mats.map(x => x || m.material);
+    console.log(key, 'tris gold/gem/bore', [0, 1, 2].map(c => cls.reduce((a, v) => a + (v === c), 0)).join('/'));
   }
   if (kind === key) queue('fine');
 }).catch(e => { console.error(key + ' glb failed', e); S.fail = true; queue('fine'); });
