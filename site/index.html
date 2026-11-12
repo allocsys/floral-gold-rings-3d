@@ -32,7 +32,7 @@
   <div class="hd"><div class="tabs" id="tabs"></div><button id="tog" aria-label="Toggle settings" aria-expanded="true">▾</button></div>
   <div id="body">
     <div id="sliders"></div>
-    <div class="act"><button id="reset">Reset</button><button id="spin">Spin: off</button><button id="dl">Download STL</button></div>
+    <div class="act"><button id="reset">Reset</button><button id="spin">Spin: off</button></div>
     <div id="info"></div>
   </div>
 </div>
@@ -42,7 +42,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep, reliefTex } from './geometry.js?v=relief162';
+import { DEFAULTS, LABELS, CONTROLS } from './geometry.js?v=clean1';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -68,23 +68,14 @@ canvas.addEventListener('pointermove', e => { const p = ptrs.get(e.pointerId); i
 const up = e => { ptrs.delete(e.pointerId); if (!ptrs.size) dragging = false; };
 canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
 canvas.addEventListener('dblclick', () => { camera.position.copy(HOME); controls.target.set(0, 0, 0); group.quaternion.identity(); vel.set(0, 0); });
-const gold = new THREE.MeshStandardMaterial({ color: 0xf5c657, metalness: 1, roughness: 0.42 });
-const goldVC = gold.clone(); goldVC.vertexColors = true; goldVC.color.set(0xf2b93c); goldVC.roughness = 0.58; /* D38: deeper base colour wins back the saturation lost at .58 */ // D34: 0.42 reflects the RoomEnvironment light panels as horizontal bands on relief walls
-// D64 (S1b): plaque material = goldVC with per-vertex roughness/metalness from the vertex colour: dark ground (r<.15) matte + dielectric-ish, raised gold glossy mirror
-const plq = goldVC.clone(); plq.roughness = 1; plq.metalness = 1; plq.envMapIntensity = 1.7; plq.customProgramCacheKey = () => 'plq3';
-plq.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader
-  .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nfloat gk = smoothstep(0.12, 0.55, vColor.r); roughnessFactor = mix(0.9, 0.3, gk);')
-  .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(0.15, 1.0, gk);')
-  .replace('#include <opaque_fragment>', 'outgoingLight *= mix(0.5, 1.0, gk);\n#include <opaque_fragment>'); }; // D74: ground reflected the room env as grey-brown; dim it toward the near-black matte of the ref
 const group = new THREE.Group(); scene.add(group);
 
-// D80 (Meshy): band tabs use the Meshy image-to-3D strip (site/band_meshy_tile.glb = one seamless repeat cut from the Meshy strip at matched columns, flat slab x=length y=width z=relief) bent into a ring. ?src=old = previous parametric band.
-const MESHY_ON = new URLSearchParams(location.search).get('src') !== 'old';
+// D80 (Meshy): band tabs use the Meshy image-to-3D strip (site/band_meshy_tile.glb = one seamless repeat cut from the Meshy strip at matched columns, flat slab x=length y=width z=relief) bent into a ring.
 const MR_ON = new URLSearchParams(location.search).get('mr') !== '0';
 let meshySrc = null, meshyFail = false;
-const isMeshy = () => MESHY_ON && !meshyFail && (kind === 'band1' || kind === 'band2');
+const isMeshy = () => !meshyFail && (kind === 'band1' || kind === 'band2');
 let bandStarted = false; // lazy: each GLB is fetched only when its tab is first opened (startup was ~82 MB for all three)
-const loadBand = () => { if (!MESHY_ON || bandStarted) return; bandStarted = true; new GLTFLoader().load('band_meshy_tile.glb', g => {
+const loadBand = () => { if (bandStarted) return; bandStarted = true; new GLTFLoader().load('band_meshy_tile.glb', g => {
   let m = null; g.scene.traverse(o => { if (o.isMesh && !m) m = o; });
   if (!m.geometry.attributes.normal) m.geometry.computeVertexNormals();
   m.geometry.computeBoundingBox();
@@ -121,15 +112,12 @@ function buildMeshy(ID, wt, tt) { // wrap the slab: x -> angle (N tiles round th
 }
 
 // Solitaire (D81): Meshy GLB (reference/meshy/solitaire_5.glb, copied to site/solitaire_meshy2.glb; the first Solitaire was solitaire_3.glb), used as is with its own textures. Scaled so the bore (circle fitted to the model: centre (SOL_CX, SOL_CY), radius SOL_R in model units) has the chosen inner diameter, and re-centred on the origin. Ring axis = z, stone at +y. The old parametric solitaire is gone (last in commit 3597c30).
-const SOLS = { solitaire: { file: 'solitaire_meshy2.glb', cx: -0.0001, cy: -0.1190, r: 0.7256, label: 'Solitaire' }, solitaire2: { file: 'solitaire_6.glb', cx: -0.0004, cy: -0.0739, r: 0.7366, label: 'Solitaire 2', stone: 'solitaire_6_stone.bin' } }; //
+const SOLS = { solitaire: { file: 'solitaire_meshy2.glb', cx: -0.0001, cy: -0.1190, r: 0.7256, label: 'Solitaire' }, solitaire2: { file: 'solitaire_6.glb', cx: -0.0004, cy: -0.0739, r: 0.7366, label: 'Solitaire 2', stone: 'solitaire_6_stone.bin' } };
 const glbP = {}, loadGLB = f => glbP[f] || (glbP[f] = new Promise((res, rej) => new GLTFLoader().load(f, res, undefined, rej)));
 // Gem (Solitaire 2): site/solitaire_6_stone.bin = bitmask of the stone triangles (tools/meshy/make_stone_mask.py, from the blue-white patch of the base colour texture). They get their own gem material (no baked texture); ?gem=0 = old baked look, ?gem=b = transmissive variant.
 const GEM = new URLSearchParams(location.search).get('gem') ?? 'e', BORE_ON = new URLSearchParams(location.search).get('bore') !== '0', boreMat = () => new THREE.MeshStandardMaterial({ color: 0xe9b73f, metalness: 1, roughness: 0.24 });
-const polished = new THREE.MeshStandardMaterial({ color: 0xe9b73f, metalness: 1, roughness: 0.24 }); // Solitaire 3: all gold polished like the Solitaire bores
-const gem3 = new THREE.MeshPhysicalMaterial({ color: 0xf2f6ff, metalness: 1, roughness: 0.04, ior: 2.4, specularIntensity: 1, envMapIntensity: 1.5, clearcoat: 0, clearcoatRoughness: 0, side: THREE.DoubleSide }); // = Solitaire 2 gem variant e, no texture
 function gemMat(m, v) { const o = { a: {}, b: { transmission: 1, thickness: 0.5 }, c: { color: 0x14181e, clearcoat: 0, envMapIntensity: 1.6 }, d: { color: 0xe6edf8, metalness: 1, roughness: 0.07, clearcoat: 0, envMapIntensity: 1.2 }, e: { color: 0xf2f6ff, metalness: 1, roughness: 0.04, clearcoat: 0, envMapIntensity: 1.5, normalMap: null }, f: { color: 0x14181e, clearcoat: 0, envMapIntensity: 1.6, normalMap: null } }[v] || {}; return new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0.03, ior: 2.4, specularIntensity: 1, envMapIntensity: 2, clearcoat: 1, clearcoatRoughness: 0, normalMap: m.material.normalMap, side: THREE.DoubleSide, ...o }); }
 const loadSol = key => { const S = SOLS[key]; if (S.started) return; S.started = true;
-  if (S.share) { const B = SOLS[S.share]; loadSol(S.share); Object.assign(S, { cx: B.cx, cy: B.cy, r: B.r }); B.done.then(() => { S.src = B.src; S.fail = B.fail; if (kind === key) queue('fine'); }); return; }
   S.done = loadGLB(S.file).then(async g => {
   let m = null; g.scene.traverse(o => { if (o.isMesh && !m) m = o; });
   S.src = { geo: m.geometry, mat: m.material };
@@ -150,39 +138,8 @@ function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new
 
 let kind = 'solitaire';
 const state = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { ...v }]));
-let shells = [], dirty = 'fine', fineTimer = 0;
-let ultraTimer = 0;
-// D46: 'ultra' = 1.2-1.7M tris per ring; touch devices and <=4 GB machines stay on 'fine' (380-515k tris). ?ultra=1 / ?ultra=0 overrides.
-const _uq = new URLSearchParams(location.search).get('ultra');
-const ULTRA_OK = _uq === '1' ? true : _uq === 'mid' ? false : _uq === '0' ? false : !(matchMedia('(pointer: coarse)').matches || (navigator.deviceMemory && navigator.deviceMemory <= 4));
-// D52: touch / low-memory devices refine to a mid ultra step (.03 mm, ~1.8x the 'fine' tris) instead of staying on .04. ?ultra=0 disables, ?ultra=mid forces it.
-const MID_OK = !ULTRA_OK && _uq !== '0';
-if (MID_OK) setUltraStep(0.02);
-const queue = (q) => { clearTimeout(ultraTimer); dirty = q; };
-// D54 (b2): ?nm=1 (default OFF) = per-pixel shading normals from the full-res map on the band outer face. The fragment shader adds (map slope at 1 texel - map slope at the mesh step) x fade to the mesh normal, so only detail the mesh cannot carry is added. Band only (Solitaire u is non-linear).
-const NM = new URLSearchParams(location.search).get('nm') === '1';
-let nmTexture = null;
-function makeNM(s) {
-  if (!nmTexture) {
-    const t = reliefTex();
-    nmTexture = new THREE.DataTexture(t.data, t.W, t.H, THREE.RedFormat, THREE.UnsignedByteType);
-    nmTexture.unpackAlignment = 1; nmTexture.wrapS = THREE.RepeatWrapping; nmTexture.wrapT = THREE.ClampToEdgeWrapping;
-    nmTexture.magFilter = nmTexture.minFilter = THREE.LinearFilter; nmTexture.generateMipmaps = false; nmTexture.needsUpdate = true;
-    nmTexture.userData = { W: t.W, H: t.H };
-  }
-  const m = goldVC.clone(); m.userData.nm = true; m.customProgramCacheKey = () => 'nm1';
-  const U = { uNMap: { value: nmTexture }, uTW: { value: nmTexture.userData.W }, uTH: { value: nmTexture.userData.H }, uRel: { value: s.nm.rel }, uSu: { value: s.nm.su }, uSv: { value: s.nm.sv }, uHalf: { value: s.nm.sv / 2 }, uStep: { value: s.nm.step }, uRep: { value: 3 } };
-  m.onBeforeCompile = (sh) => {
-    Object.assign(sh.uniforms, U);
-    sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec3 uvf; varying float vNF; varying vec3 vNP; varying vec3 vNT; varying vec3 vNB;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvNF = uvf.z; vNP = position; vNT = normalize(normalMatrix * vec3(-position.y, position.x, 0.0)); vNB = normalize(normalMatrix * vec3(0.0, 0.0, 1.0));');
-    sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vNF; varying vec3 vNP; varying vec3 vNT; varying vec3 vNB;\nuniform sampler2D uNMap; uniform float uTW, uTH, uRel, uSu, uSv, uHalf, uStep, uRep;\nfloat nmH(vec2 p) { return texture2D(uNMap, p).r; }')
-      .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nif (vNF > 0.002) {\n  float nu = fract(atan(vNP.y, vNP.x) * uRep / 6.2831853);\n  float nv = clamp(vNP.z / uHalf * 0.5 + 0.5, 0.0, 1.0);\n  vec2 np = vec2(nu, nv);\n  vec2 e = vec2(1.0 / uTW, 0.0), f = vec2(0.0, 1.0 / uTH);\n  float gtF = (nmH(np + e) - nmH(np - e)) * 0.5 * uTW / uSu;\n  float gbF = (nmH(np + f) - nmH(np - f)) * 0.5 * uTH / uSv;\n  vec2 ec = vec2(uStep / uSu, 0.0), fc = vec2(0.0, uStep / uSv);\n  float gtC = (nmH(np + ec) - nmH(np - ec)) * 0.5 / uStep;\n  float gbC = (nmH(np + fc) - nmH(np - fc)) * 0.5 / uStep;\n  vec2 nd = uRel * vNF * vec2(gtF - gtC, gbF - gbC);\n  normal = normalize(normal - nd.x * normalize(vNT) - nd.y * normalize(vNB));\n}');
-  };
-  return m;
-}
+let dirty = 'fine', fineTimer = 0;
+const queue = (q) => { dirty = q; };
 
 function rebuild(quality) {
   for (const m of [...group.children]) { if (!m.userData.shared) m.geometry.dispose(); if (m.material.userData?.nm) m.material.dispose(); group.remove(m); }
@@ -201,34 +158,7 @@ function rebuild(quality) {
     for (const [key, user, val] of [['w', meshyW, r.w], ['t', meshyT, r.t]]) if (user[kind] == null) { const si = sliders.querySelector(`input[data-k="${key}"]`); if (si) { si.value = val.toFixed(key === 'w' ? 1 : 2); si.nextElementSibling.textContent = si.value; } } // auto: the slider follows the natural value (e.g. when the diameter changes)
     document.getElementById('info').textContent = `Meshy band · Ø ${state[kind].ID} mm inner · ${r.N} repeats · ${r.w.toFixed(1)} mm wide${Math.abs(r.stretch - 1) > 0.005 ? ` (${r.stretch > 1 ? 'stretched' : 'squeezed'} ${Math.round(Math.abs(r.stretch - 1) * 100)}% across)` : ''} · ${r.t.toFixed(1)} mm thick`; return;
   }
-  scene.background.set(0x4a3b30);
-  shells = buildRing(kind, state[kind], quality);
-  for (const s of shells) {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(s.pos, 3));
-    g.setIndex(new THREE.BufferAttribute(s.idx, 1));
-    if (s.col) g.setAttribute('color', new THREE.BufferAttribute(s.col, 3));
-    if (s.uvf) g.setAttribute('uvf', new THREE.BufferAttribute(s.uvf, 3)); // D53 b1: (u, v, fade) for the planned shader normal map; unused so far
-    g.computeVertexNormals();
-    if (s.col && s.grid && quality === 'ultra') { // D33: [1 2 1] passes of the vertex normals: 1 along grid i (ring), PV along grid j (across the band; v slope noise is ~2x u in smooth gold, meshq)
-      const [N, M] = s.grid, nA = g.attributes.normal.array, nB = new Float32Array(nA.length), PV = 3;
-      for (let pass = 0; pass < PV; pass++) {
-        const di1 = pass === 0 ? 1 : 0;
-        for (let i = 0; i < N; i++) for (let j = 0; j < M; j++) {
-          let x = 0, y = 0, z = 0;
-          for (let di = -di1; di <= di1; di++) for (let dj = -1; dj <= 1; dj++) {
-            const jj = j + dj; if (jj < 0 || jj >= M) continue;
-            const w = (di ? 1 : 2) * (dj ? 1 : 2), o = (((i + di + N) % N) * M + jj) * 3; x += w * nA[o]; y += w * nA[o + 1]; z += w * nA[o + 2];
-          }
-          const l = Math.hypot(x, y, z) || 1, o = (i * M + j) * 3; nB[o] = x / l; nB[o + 1] = y / l; nB[o + 2] = z / l;
-        }
-        nA.set(nB);
-      }
-    }
-    group.add(new THREE.Mesh(g, kind === 'solitaire3p' ? (s.kind === 'gem' ? gem3 : polished) : s.col ? (kind === 'band1' || kind === 'band2' ? plq : NM && s.nm && quality !== 'draft' ? makeNM(s) : goldVC) : gold));
-  }
-  const p = state[kind];
-  document.getElementById('info').textContent = `Ø ${p.ID} mm inner · ${quality === 'draft' ? 'draft preview while dragging' : quality === 'ultra' ? 'ultra detail' : 'full detail'} · mm`;
+  scene.background.set(0x4a3b30); document.getElementById('info').textContent = 'Meshy band failed to load';
 }
 
 const tabs = document.getElementById('tabs'), sliders = document.getElementById('sliders');
@@ -239,10 +169,9 @@ function renderUI() {
     const b = document.createElement('button'); b.textContent = LABELS[k]; b.className = k === kind ? 'on' : '';
     b.onclick = () => { kind = k; spin.textContent = 'Spin: ' + (spinOn ? 'on' : 'off'); renderUI(); queue('fine'); }; tabs.appendChild(b);
   }
-  document.getElementById('dl').style.display = isMeshy() || SOLS[kind] || kind === 'solitaire3p' ? 'none' : '';
   for (const [key, label, min, max, step, only] of CONTROLS) {
     if (only && ![].concat(only).includes(kind)) continue;
-    if ((SOLS[kind] || kind === 'solitaire3p') && key !== 'ID') continue;
+    if (SOLS[kind] && key !== 'ID') continue;
     if (isMeshy() && key !== 'ID' && key !== 'w' && key !== 't') continue;
     const mw = isMeshy() && (key === 'w' || key === 't'), mu = key === 'w' ? meshyW : meshyT, lo = mw && key === 'w' ? 3 : min, hi = mw && key === 'w' ? 7 : max, val = mw ? Math.min(hi, Math.max(lo, mu[kind] ?? (key === 'w' ? meshyLastW : meshyLastT)[kind])).toFixed(key === 'w' ? 1 : 2) : state[kind][key]; // Meshy band: width 3-7 mm (repeat count chosen to fit, only the ring-axis scale stretches), thickness 0.8-3 mm (only the radial relief scale changes)
     const row = document.createElement('div'); row.className = 'row';
@@ -255,18 +184,12 @@ function renderUI() {
 document.getElementById('reset').onclick = () => { state[kind] = { ...DEFAULTS[kind] }; if (kind in meshyW) { meshyW[kind] = null; meshyT[kind] = null; } renderUI(); queue('fine'); };
 const spin = document.getElementById('spin');
 spin.onclick = () => { spinOn = !spinOn; spin.textContent = 'Spin: ' + (spinOn ? 'on' : 'off'); };
-document.getElementById('dl').onclick = () => {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([toSTL(buildRing(kind, state[kind], 'fine'))], { type: 'model/stl' }));
-  a.download = `ring_${kind}.stl`; a.click(); URL.revokeObjectURL(a.href);
-};
 const ui = document.getElementById('ui'), tog = document.getElementById('tog');
 function setCollapsed(c) { ui.classList.toggle('collapsed', c); tog.textContent = c ? '▴' : '▾'; tog.setAttribute('aria-expanded', String(!c)); }
 tog.onclick = () => setCollapsed(!ui.classList.contains('collapsed'));
 setCollapsed(innerWidth < 720); // start collapsed on phones so the ring is fully visible
 function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize(); renderUI();
-// relief bands refine to 'ultra' (.02 mm step) once the view has been idle for 700 ms
-renderer.setAnimationLoop(() => { if (dirty) { const q = dirty; dirty = false; rebuild(q); if (q === 'fine' && (ULTRA_OK || MID_OK)) ultraTimer = setTimeout(() => queue('ultra'), 700); } if (!dragging) { if (vel.lengthSq() > 0.01) { rotView(vel.x, vel.y); vel.multiplyScalar(0.94); } else if (spinOn && !ptrs.size) group.rotateY(0.004); } controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(() => { if (dirty) { const q = dirty; dirty = false; rebuild(q); } if (!dragging) { if (vel.lengthSq() > 0.01) { rotView(vel.x, vel.y); vel.multiplyScalar(0.94); } else if (spinOn && !ptrs.size) group.rotateY(0.004); } controls.update(); renderer.render(scene, camera); });
 </script>
 </body></html>
