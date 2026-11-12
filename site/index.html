@@ -83,7 +83,8 @@ const MESHY_ON = new URLSearchParams(location.search).get('src') !== 'old';
 const MR_ON = new URLSearchParams(location.search).get('mr') !== '0';
 let meshySrc = null, meshyFail = false;
 const isMeshy = () => MESHY_ON && !meshyFail && (kind === 'band1' || kind === 'band2');
-if (MESHY_ON) new GLTFLoader().load('band_meshy_tile.glb', g => {
+let bandStarted = false; // lazy: each GLB is fetched only when its tab is first opened (startup was ~82 MB for all three)
+const loadBand = () => { if (!MESHY_ON || bandStarted) return; bandStarted = true; new GLTFLoader().load('band_meshy_tile.glb', g => {
   let m = null; g.scene.traverse(o => { if (o.isMesh && !m) m = o; });
   if (!m.geometry.attributes.normal) m.geometry.computeVertexNormals();
   m.geometry.computeBoundingBox();
@@ -98,7 +99,7 @@ if (MESHY_ON) new GLTFLoader().load('band_meshy_tile.glb', g => {
   geo.setIndex([...A, ...B]); geo.clearGroups(); geo.addGroup(0, A.length, 0); if (B.length) geo.addGroup(A.length, B.length, 1);
   meshySrc = { geo, mat, mats: [mat, bore], b: geo.boundingBox };
   if (isMeshy()) queue('fine');
-}, undefined, e => { console.error('meshy glb failed', e); meshyFail = true; queue('fine'); });
+}, undefined, e => { console.error('meshy glb failed', e); meshyFail = true; queue('fine'); }); };
 const meshyW = { band1: null, band2: null }, meshyLastW = { band1: 4.6, band2: 4.6 }, meshyT = { band1: null, band2: null }, meshyLastT = { band1: 1.5, band2: 1.5 }; // user-chosen width / thickness in mm per band tab; null = auto (natural value of the best-fit repeat count, as before the sliders existed)
 function buildMeshy(ID, wt, tt) { // wrap the slab: x -> angle (N tiles round the ring), y -> ring axis, z -> radius; scale k (x, z) so the N tiles close exactly round the ring; wt = target width in mm (null = auto): N = repeat count whose natural width k*W is nearest wt, then only the ring-axis scale is stretched to hit wt exactly; tt = target thickness in mm (null = auto = natural k*dz): only the radial (relief-depth) scale changes
   const { geo, b } = meshySrc, L = b.max.x - b.min.x, W = b.max.y - b.min.y, dz = b.max.z - b.min.z, Ri = ID / 2, c = 0.7, T = Math.PI * 2;
@@ -127,7 +128,7 @@ const GEM = new URLSearchParams(location.search).get('gem') ?? 'e', BORE_ON = ne
 const polished = new THREE.MeshStandardMaterial({ color: 0xe9b73f, metalness: 1, roughness: 0.24 }); // Solitaire 3: all gold polished like the Solitaire bores
 const gem3 = new THREE.MeshPhysicalMaterial({ color: 0xf2f6ff, metalness: 1, roughness: 0.04, ior: 2.4, specularIntensity: 1, envMapIntensity: 1.5, clearcoat: 0, clearcoatRoughness: 0, side: THREE.DoubleSide }); // = Solitaire 2 gem variant e, no texture
 function gemMat(m, v) { const o = { a: {}, b: { transmission: 1, thickness: 0.5 }, c: { color: 0x14181e, clearcoat: 0, envMapIntensity: 1.6 }, d: { color: 0xe6edf8, metalness: 1, roughness: 0.07, clearcoat: 0, envMapIntensity: 1.2 }, e: { color: 0xf2f6ff, metalness: 1, roughness: 0.04, clearcoat: 0, envMapIntensity: 1.5, normalMap: null }, f: { color: 0x14181e, clearcoat: 0, envMapIntensity: 1.6, normalMap: null } }[v] || {}; return new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0.03, ior: 2.4, specularIntensity: 1, envMapIntensity: 2, clearcoat: 1, clearcoatRoughness: 0, normalMap: m.material.normalMap, side: THREE.DoubleSide, ...o }); }
-for (const [key, S] of Object.entries(SOLS)) loadGLB(S.file).then(async g => {
+const loadSol = key => { const S = SOLS[key]; if (S.started) return; S.started = true; loadGLB(S.file).then(async g => {
   let m = null; g.scene.traverse(o => { if (o.isMesh && !m) m = o; });
   S.src = { geo: m.geometry, mat: m.material };
   // triangle classes: 0 gold (textured), 1 gem (stone mask, Solitaire 2), 2 bore = all 3 verts within 4% of the bore radius with the normal pointing at the axis (dot < -0.9; 8.8k / 16.3k tris, full 360 deg, measured); bore gets plain polished gold like the bands, ?bore=0 = textured as before
@@ -142,7 +143,7 @@ for (const [key, S] of Object.entries(SOLS)) loadGLB(S.file).then(async g => {
     console.log(key, 'tris gold/gem/bore', [0, 1, 2].map(c => cls.reduce((a, v) => a + (v === c), 0)).join('/'));
   }
   if (kind === key) queue('fine');
-}).catch(e => { console.error(key + ' glb failed', e); S.fail = true; queue('fine'); });
+}).catch(e => { console.error(key + ' glb failed', e); S.fail = true; queue('fine'); }); };
 function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; return mesh; }
 
 let kind = 'solitaire';
@@ -230,6 +231,7 @@ function rebuild(quality) {
 
 const tabs = document.getElementById('tabs'), sliders = document.getElementById('sliders');
 function renderUI() {
+  if (SOLS[kind]) loadSol(kind); else if (kind === 'band1' || kind === 'band2') loadBand(); // lazy GLB load on first visit of the tab
   tabs.innerHTML = ''; sliders.innerHTML = '';
   for (const k of Object.keys(DEFAULTS)) {
     const b = document.createElement('button'); b.textContent = LABELS[k]; b.className = k === kind ? 'on' : '';
