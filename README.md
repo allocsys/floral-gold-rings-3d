@@ -10,7 +10,7 @@ Tabs: Wide band, Band, Solitaire, Solitaire 2. Sliders: inner diameter (all), wi
 | `site/index.html` | three.js viewer (tabs, sliders, GLB loaders, band bending, stone/bore materials) |
 | `site/geometry.js` | Tab table only: DEFAULTS, LABELS, CONTROLS |
 | `site/band_meshy_tile.glb` | Band tile (one repeat of the Meshy strip) |
-| `site/solitaire_meshy2.glb` | Solitaire (= `reference/meshy/solitaire_5.glb`) |
+| `site/solitaire_meshy2.glb` | Solitaire |
 | `site/solitaire_6.glb`, `solitaire_6_stone.bin` | Solitaire 2 and its gem-triangle bitmask |
 | `site/test.mjs` | Smoke test (CI, before every Pages deploy) |
 | `reference/` | Source Meshy outputs and the images they were generated from |

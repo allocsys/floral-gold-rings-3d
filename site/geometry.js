@@ -3,7 +3,7 @@
 export const DEFAULTS = {
   band1:      { ID: 19 },
   band2:      { ID: 17 },
-  solitaire:  { ID: 17 }, // site/solitaire_meshy2.glb (= reference/meshy/solitaire_5.glb)
+  solitaire:  { ID: 17 }, // site/solitaire_meshy2.glb
   solitaire2: { ID: 17 }, // site/solitaire_6.glb
 };
 export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire: 'Solitaire', solitaire2: 'Solitaire 2' };

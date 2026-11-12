@@ -111,7 +111,7 @@ function buildMeshy(ID, wt, tt) { // wrap the slab: x -> angle (N tiles round th
   return { meshes, N, w: ky * W, t: kz * dz, stretch: ky / k };
 }
 
-// Solitaire (D81): Meshy GLB (reference/meshy/solitaire_5.glb, copied to site/solitaire_meshy2.glb), used as is with its own textures. Scaled so the bore (circle fitted to the model: centre (SOL_CX, SOL_CY), radius SOL_R in model units) has the chosen inner diameter, and re-centred on the origin. Ring axis = z, stone at +y. The old parametric solitaire is gone (last in commit 3597c30).
+// Solitaire (D81): Meshy GLB (site/solitaire_meshy2.glb), used as is with its own textures. Scaled so the bore (circle fitted to the model: centre (SOL_CX, SOL_CY), radius SOL_R in model units) has the chosen inner diameter, and re-centred on the origin. Ring axis = z, stone at +y. The old parametric solitaire is gone (last in commit 3597c30).
 const SOLS = { solitaire: { file: 'solitaire_meshy2.glb', cx: -0.0001, cy: -0.1190, r: 0.7256, label: 'Solitaire' }, solitaire2: { file: 'solitaire_6.glb', cx: -0.0004, cy: -0.0739, r: 0.7366, label: 'Solitaire 2', stone: 'solitaire_6_stone.bin' } };
 const glbP = {}, loadGLB = f => glbP[f] || (glbP[f] = new Promise((res, rej) => new GLTFLoader().load(f, res, undefined, rej)));
 // Gem (Solitaire 2): site/solitaire_6_stone.bin = bitmask of the stone triangles (tools/meshy/make_stone_mask.py, from the blue-white patch of the base colour texture). They get their own gem material (no baked texture); ?gem=0 = old baked look, ?gem=b = transmissive variant.
