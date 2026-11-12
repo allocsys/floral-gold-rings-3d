@@ -14,9 +14,19 @@ def weight(L, pos, sel, fe):
         if key in sel:
             lo, hi = sel[key]; f = max(fe.get(key, 1e-9), 1e-9); w *= ss((v - lo) / f + .5) * ss((hi - v) / f + .5)
     return w
+def prong_scale(L, p, o):
+    """Thicken the 4 prongs: scale (x,z) about each prong axis by 1+amount*w. Params: cx,cz (axis offsets), rad (xz reach), y:[lo,hi], feather_y."""
+    cx, cz, rad = o.get('cx', .15), o.get('cz', .13), o.get('rad', .09); lo, hi = o['y']; fy = max(o.get('feather_y', .03), 1e-9)
+    wy = ss((p[:, 1] - lo) / fy + .5) * ss((hi - p[:, 1]) / fy + .5) * (L['sem'] == 0)
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            ax, az = sx * cx, sz * cz; d = np.hypot(p[:, 0] - ax, p[:, 2] - az); w = wy * ss((rad - d) / (rad * .4) + .5)
+            p[:, 0] = ax + (p[:, 0] - ax) * (1 + o['amount'] * w); p[:, 2] = az + (p[:, 2] - az) * (1 + o['amount'] * w)
+    return p
 def apply(g, L, ops):
     p = g.pos.astype(np.float64).copy()
     for o in ops:
+        if o['op'] == 'prong_scale': p = prong_scale(L, p, o); continue
         sels = [o['sel']]
         if o.get('mirror') and 'th' in o['sel']: lo, hi = o['sel']['th']; sels.append({**o['sel'], 'th': [-hi, -lo]})
         for s in sels:
@@ -25,6 +35,7 @@ def apply(g, L, ops):
             elif o['op'] == 'radial':
                 dx, dy = p[:, 0] - M.C['cx'], p[:, 1] - M.C['cy']; rr = np.hypot(dx, dy); k = a * M.C['R'] * w / rr; p[:, 0] += dx * k; p[:, 1] += dy * k
             elif o['op'] == 'move': p += np.outer(w, o['d'])
+            elif o['op'] == 'prong_scale': pass
             else: raise SystemExit('unknown op ' + o['op'])
     return p.astype(np.float32)
 if __name__ == '__main__':
