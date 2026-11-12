@@ -42,7 +42,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep, reliefTex } from './geometry.js?v=relief158';
+import { DEFAULTS, LABELS, CONTROLS, buildRing, toSTL, setUltraStep, reliefTex } from './geometry.js?v=relief160';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -120,7 +120,7 @@ function buildMeshy(ID, wt, tt) { // wrap the slab: x -> angle (N tiles round th
 }
 
 // Solitaire (D81): Meshy GLB (reference/meshy/solitaire_5.glb, copied to site/solitaire_meshy2.glb; the first Solitaire was solitaire_3.glb), used as is with its own textures. Scaled so the bore (circle fitted to the model: centre (SOL_CX, SOL_CY), radius SOL_R in model units) has the chosen inner diameter, and re-centred on the origin. Ring axis = z, stone at +y. The old parametric solitaire is gone (last in commit 3597c30).
-const SOLS = { solitaire: { file: 'solitaire_meshy2.glb', cx: -0.0001, cy: -0.1190, r: 0.7256, label: 'Solitaire' } };
+const SOLS = { solitaire: { file: 'solitaire_meshy2.glb', cx: -0.0001, cy: -0.1190, r: 0.7256, label: 'Solitaire' }, solitaire2: { file: 'solitaire_6.glb', cx: -0.0004, cy: -0.0739, r: 0.7366, label: 'Solitaire 2' } };
 const glbP = {}, loadGLB = f => glbP[f] || (glbP[f] = new Promise((res, rej) => new GLTFLoader().load(f, res, undefined, rej)));
 for (const [key, S] of Object.entries(SOLS)) loadGLB(S.file).then(g => {
   let m = null; g.scene.traverse(o => { if (o.isMesh && !m) m = o; });
