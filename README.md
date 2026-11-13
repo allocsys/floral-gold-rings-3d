@@ -2,7 +2,7 @@
 
 Viewer for a floral-engraved gold ring set: a wide band, a band and two solitaires. All four models are Meshy image-to-3D meshes (GLB); the bands are one seamless repeat tiled round the ring and bent in the viewer. Units are millimetres. The meshes are not NURBS: use them as scale/reference geometry and rebuild in Matrix/Rhino for production.
 
-Tabs: Wide band, Band, Solitaire, Solitaire 2. Sliders: inner diameter (all), width + thickness (bands). GLBs load lazily on first visit of the tab.
+Tabs: Wide band, Band, Solitaire, Solitaire 2, Solitaire 3. Sliders: inner diameter (all), width + thickness (bands). GLBs load lazily on first visit of the tab.
 
 ## Layout
 | Path | Purpose |
@@ -12,6 +12,7 @@ Tabs: Wide band, Band, Solitaire, Solitaire 2. Sliders: inner diameter (all), wi
 | `site/band_meshy_tile.glb` | Band tile (one repeat of the Meshy strip) |
 | `site/solitaire_meshy2.glb` | Solitaire |
 | `site/solitaire_6.glb`, `solitaire_6_stone.bin` | Solitaire 2 and its gem-triangle bitmask |
+| `site/nodiamond1.glb` | Solitaire 3 (= `reference/meshy/NoDiamond1.glb` rotated so ring axis = z, head = +y; empty setting, no stone) |
 | `site/test.mjs` | Smoke test (CI, before every Pages deploy) |
 | `reference/` | Source Meshy outputs and the images they were generated from |
 | `tools/meshy/` | `make_tile.py` (strip -> band tile), `make_sym.py`, `make_stone_mask.py` (gem mask) |
