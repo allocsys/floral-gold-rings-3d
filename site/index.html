@@ -140,8 +140,8 @@ const loadSol = key => { const S = SOLS[key]; if (S.started) return; S.started =
   }
   if (kind === key) queue('fine');
 }).catch(e => { console.error(key + ' glb failed', e); S.fail = true; queue('fine'); }); };
-// Stand (Solitaire 3, additive: the GLB is untouched; ?stand=0 = off, ?sh=H height in model units, default 0.16). Measured on the GLB: the 4 original pillars end in a small cup at (+-0.137, +-0.135), tip y ~0.945. One smooth tapered claw (0.030 -> 0.011) rises out of each cup and curves in over the stone. Claw material matches the pillars: colour/roughness sampled from the GLB textures at the pillar tips (base colour median 250,210,113, roughness 0.19, metal 1). Children of the ring mesh, so they scale/move with it.
-const QP = new URLSearchParams(location.search), STAND_ON = QP.get('stand') !== '0', STAND_H = +(QP.get('sh') ?? 0.16);
+// Stand (Solitaire 3, additive: the GLB is untouched; ?stand=1 = on (hidden by default while the joints are cleaned), ?sh=H height in model units, default 0.16). Measured on the GLB: the 4 original pillars end in a small cup at (+-0.137, +-0.135), tip y ~0.945. One smooth tapered claw (0.030 -> 0.011) rises out of each cup and curves in over the stone. Claw material matches the pillars: colour/roughness sampled from the GLB textures at the pillar tips (base colour median 250,210,113, roughness 0.19, metal 1). Children of the ring mesh, so they scale/move with it.
+const QP = new URLSearchParams(location.search), STAND_ON = QP.get('stand') === '1', STAND_H = +(QP.get('sh') ?? 0.16);
 let standG = null;
 function standParts() {
   if (standG) return standG; const mat = new THREE.MeshStandardMaterial({ color: 0xfad271, metalness: 1, roughness: 0.19 }), g = [], Y0 = 0.925, H = STAND_H, add = (geo, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.userData.shared = true; g.push(m); return m; };
