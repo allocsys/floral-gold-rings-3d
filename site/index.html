@@ -134,16 +134,17 @@ const loadSol = key => { const S = SOLS[key]; if (S.started) return; S.started =
   }
   if (kind === key) queue('fine');
 }).catch(e => { console.error(key + ' glb failed', e); S.fail = true; queue('fine'); }); };
-// Stand / basket (Solitaire 3, additive: the GLB is untouched; ?stand=0 = off, ?sh=H height in model units, default 0.16). Measured on the GLB: seat ring top y 0.91, hole r 0.16, 4 prongs at (+-0.137, +-0.135) (r 0.193), tips y 0.944-0.951. The basket continues those 4 prongs upward (leaning out 10%) with ball tips, plus a collar ring on the seat and a gallery ring half way, all in the same polished gold as the bore. Children of the ring mesh, so they scale/move with it.
-const STAND_ON = new URLSearchParams(location.search).get('stand') !== '0', STAND_H = +(new URLSearchParams(location.search).get('sh') ?? 0.16);
+// Stand (Solitaire 3, additive: the GLB is untouched; ?stand=0 = off, ?sh=H height in model units, default 0.16). Measured on the GLB: the 4 original pillars end in a small cup at (+-0.137, +-0.135), tip y ~0.945. One smooth tapered claw (0.030 -> 0.011) rises out of each cup and curves in over the stone. Claw material matches the pillars: colour/roughness sampled from the GLB textures at the pillar tips (base colour median 250,210,113, roughness 0.19, metal 1). Children of the ring mesh, so they scale/move with it.
+const QP = new URLSearchParams(location.search), STAND_ON = QP.get('stand') !== '0', STAND_H = +(QP.get('sh') ?? 0.16);
 let standG = null;
 function standParts() {
-  if (standG) return standG; const mat = boreMat(), g = [], Y0 = 0.93, H = STAND_H, R0 = 0.193, RM = 0.205, add = (geo, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.userData.shared = true; g.push(m); return m; };
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {   // each claw: S-curve from the existing prong, bulging out to the girdle then curving in over the stone, ball tip
-    const P = (f, y) => new THREE.Vector3(sx * 0.7071 * R0 * f, y, sz * 0.7071 * R0 * f), c = new THREE.CatmullRomCurve3([P(1, Y0), P(RM / R0, Y0 + H * 0.5), P(0.97, Y0 + H)]);
-    add(new THREE.TubeGeometry(c, 24, 0.015, 10), 0, 0, 0); const e = c.getPoint(1); add(new THREE.SphereGeometry(0.02, 16, 12), e.x, e.y, e.z);
+  if (standG) return standG; const mat = new THREE.MeshStandardMaterial({ color: 0xfad271, metalness: 1, roughness: 0.19 }), g = [], Y0 = 0.925, H = STAND_H, add = (geo, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.userData.shared = true; g.push(m); return m; };
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const P = (f, y) => new THREE.Vector3(sx * 0.137 * f, y, sz * 0.135 * f), c = new THREE.CatmullRomCurve3([P(1, Y0), P(1.05, Y0 + H * 0.5), P(0.96, Y0 + H)]), TS = 28, RS = 14;
+    const geo = new THREE.TubeGeometry(c, TS, 1, RS), pa = geo.attributes.position;   // radius 1, then taper each ring about the curve centre (smooth, no seams)
+    for (let i = 0; i <= TS; i++) { const u = i / TS, ctr = c.getPointAt(u), r = 0.03 - 0.019 * Math.pow(u, 0.8); for (let j = 0; j <= RS; j++) { const k = i * (RS + 1) + j; pa.setXYZ(k, ctr.x + (pa.getX(k) - ctr.x) * r, ctr.y + (pa.getY(k) - ctr.y) * r, ctr.z + (pa.getZ(k) - ctr.z) * r); } }
+    geo.computeVertexNormals(); add(geo, 0, 0, 0); const e = c.getPoint(1); add(new THREE.SphereGeometry(0.011, 12, 10), e.x, e.y, e.z);
   }
-  for (const [r, y, t] of [[R0, Y0 + 0.004, 0.01], [RM, Y0 + H * 0.5, 0.007]]) add(new THREE.TorusGeometry(r, t, 10, 64).rotateX(Math.PI / 2), 0, y, 0);
   return standG = g;
 }
 function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.stand && STAND_ON) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
