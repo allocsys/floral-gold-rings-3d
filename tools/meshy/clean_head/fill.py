@@ -20,14 +20,14 @@ for s in list(dirs):
 print('loops',[len(l) for l in loops])
 newP=[];newN=[];newUV=[];newT=[]; base=len(P)
 for cyc in loops:
-    n=len(cyc); q0=Pw[cyc]; cen=q0.mean(0); ucen=UV[first[cyc]].mean(0)
+    n=len(cyc); q0=Pw[cyc]; cen=q0.mean(0); ucen=UV[first[cyc]].mean(0); umed=np.median(UV[first[cyc]],axis=0)
     rings=[]  # vertex index arrays (global original-vertex index space)
     rings.append(first[cyc].copy())
     for r in range(1,RINGS):
         t=r/RINGS; pos=q0*(1-t)+cen*t
         idx=np.arange(base,base+n); base+=n
-        newP.append(pos); newUV.append(UV[first[cyc]]*(1-t)+ucen*t); rings.append(idx)
-    cidx=base; base+=1; newP.append(cen[None]); newUV.append(ucen[None])
+        newP.append(pos); newUV.append(np.tile(umed,(n,1))); rings.append(idx)
+    cidx=base; base+=1; newP.append(cen[None]); newUV.append(umed[None])
     # tris (existing has q_j->q_j+1, patch reversed)
     for r in range(RINGS-1):
         A=rings[r]; B=rings[r+1]; A1=np.roll(A,-1); B1=np.roll(B,-1)
