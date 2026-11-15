@@ -3,9 +3,10 @@
 export const DEFAULTS = {
   band1:      { ID: 19 },
   band2:      { ID: 17 },
-  solitaire3: { ID: 17 }, // site/nodiamond1.glb (= reference/meshy/NoDiamond1.glb rotated: ring axis y -> z, head z -> +y; no stone)
+  solitaire3: { ID: 17 },
+  solitaire2: { ID: 17 }, // same GLB as Solitaire, original look (no knob/cup edits, claws on) // site/nodiamond1.glb (= reference/meshy/NoDiamond1.glb rotated: ring axis y -> z, head z -> +y; no stone)
 };
-export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire3: 'Solitaire' };
+export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire3: 'Solitaire', solitaire2: 'Solitaire 2' };
 export const CONTROLS = [
   ['ID', 'Inner diameter', 14, 24, 0.1],
   ['w', 'Width', 1.5, 8, 0.1, ['band1', 'band2']],
