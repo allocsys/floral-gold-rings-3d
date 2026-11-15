@@ -13,7 +13,7 @@ for (const [key, , min, max, step, only] of CONTROLS) {
   for (const k of [].concat(only || [])) if (!DEFAULTS[k]) fail(`control ${key}: unknown tab ${k}`);
 }
 const html = readFileSync(dir + 'index.html', 'utf8');
-for (const f of ['band_meshy_tile.glb', 'nodiamond1.glb']) {
+for (const f of ['band_meshy_tile.glb', 'nodiamond1.glb', 'nodiamond2.glb']) {
   if (!html.includes(f)) fail(`index.html does not reference ${f}`);
   if (!existsSync(dir + f)) fail(`missing ${f}`);
   if (f.endsWith('.glb') && readFileSync(dir + f).subarray(0, 4).toString() !== 'glTF') fail(`${f}: not a GLB`);
