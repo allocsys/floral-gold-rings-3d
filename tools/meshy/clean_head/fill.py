@@ -43,12 +43,15 @@ nv=len(Pall); nb=[set() for _ in range(nv)]
 for t in NT:
     for a,b in ((t[0],t[1]),(t[1],t[2]),(t[2],t[0])): nb[a].add(b); nb[b].add(a)
 free=np.arange(len(P),nv)
-adj=[np.array(sorted(nb[v])) for v in free]
+from scipy.sparse import coo_matrix
+rr=[];cc=[]
+for v in range(nv):
+    for n_ in nb[v]: rr.append(v); cc.append(n_)
+A=coo_matrix((np.ones(len(rr)),(rr,cc)),shape=(nv,nv)).tocsr(); deg=np.asarray(A.sum(1)).ravel(); deg[deg==0]=1
+fm=np.zeros(nv,bool); fm[free]=True
 for it in range(FAIR):
-    Pn=Pall.copy()
-    for k,v in enumerate(free):
-        Pn[v]=Pall[adj[k]].mean(0)
-    Pall=Pall+0.7*(Pn-Pall)*np.isin(np.arange(nv),free)[:,None]
+    Pn=(A@Pall)/deg[:,None]
+    Pall[fm]=Pall[fm]+0.8*(Pn[fm]-Pall[fm])
 # normals for new verts
 fn=np.cross(Pall[NT[:,1]]-Pall[NT[:,0]],Pall[NT[:,2]]-Pall[NT[:,0]])
 Nacc=np.zeros((nv,3))
