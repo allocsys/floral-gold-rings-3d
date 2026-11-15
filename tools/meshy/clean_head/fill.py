@@ -18,7 +18,8 @@ for s in list(dirs):
     while v!=s and v not in seen: cyc.append(v); seen.add(v); v=dirs[v]
     loops.append(cyc)
 print('loops',[len(l) for l in loops])
-newP=[];newN=[];newUV=[];newT=[]; base=len(P)
+newP=[];newN=[];newUV=[];newT=[];tv=[]; base=len(P)
+HDOME=float(__import__('os').environ.get('HDOME',0.022))
 for cyc in loops:
     n=len(cyc); q0=Pw[cyc]; cen=q0.mean(0); ucen=UV[first[cyc]].mean(0); umed=np.median(UV[first[cyc]],axis=0)
     rings=[]  # vertex index arrays (global original-vertex index space)
@@ -26,8 +27,8 @@ for cyc in loops:
     for r in range(1,RINGS):
         t=r/RINGS; pos=q0*(1-t)+cen*t
         idx=np.arange(base,base+n); base+=n
-        newP.append(pos); newUV.append(np.tile(umed,(n,1))); rings.append(idx)
-    cidx=base; base+=1; newP.append(cen[None]); newUV.append(umed[None])
+        newP.append(pos); newUV.append(np.tile(umed,(n,1))); rings.append(idx); tv.append(np.full(n,t))
+    cidx=base; base+=1; newP.append(cen[None]); newUV.append(umed[None]); tv.append(np.array([1.0]))
     # tris (existing has q_j->q_j+1, patch reversed)
     for r in range(RINGS-1):
         A=rings[r]; B=rings[r+1]; A1=np.roll(A,-1); B1=np.roll(B,-1)
@@ -52,6 +53,15 @@ fm=np.zeros(nv,bool); fm[free]=True
 for it in range(FAIR):
     Pn=(A@Pall)/deg[:,None]
     Pall[fm]=Pall[fm]+0.8*(Pn[fm]-Pall[fm])
+TV=np.concatenate(tv)
+fn0=np.cross(Pall[NT[:,1]]-Pall[NT[:,0]],Pall[NT[:,2]]-Pall[NT[:,0]]); N0=np.zeros((nv,3))
+for k in range(3): np.add.at(N0,NT[:,k],fn0)
+N0/=np.linalg.norm(N0,axis=1,keepdims=True)+1e-15
+for li,(rings,cidx,n) in enumerate(LI):
+    sgn=np.sign((N0[rings[1]]*N[rings[0]]).sum(1).mean()) or 1.0
+    ids=np.concatenate([rings[1:].ravel() if hasattr(rings,'ravel') else np.concatenate(rings[1:]),[cidx]])
+    tt=TV[ids-len(P)]; cx_=Pall[ids].mean(0); rad=np.array([cx_[0],0,cx_[2]]); rad/=np.linalg.norm(rad)+1e-15; dirv=0.55*rad+0.83*np.array([0,1.0,0]); dirv/=np.linalg.norm(dirv); Pall[ids]+=dirv[None,:]*(HDOME*np.sin(tt*np.pi/2))[:,None]
+    print('loop',li,'dome sign',sgn)
 # normals for new verts
 fn=np.cross(Pall[NT[:,1]]-Pall[NT[:,0]],Pall[NT[:,2]]-Pall[NT[:,0]])
 Nacc=np.zeros((nv,3))
