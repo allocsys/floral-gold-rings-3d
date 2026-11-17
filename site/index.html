@@ -185,7 +185,25 @@ function clawParts(v) {
   }
   return clawC[v] = g;
 }
-function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.newRim && NEWRIM) mesh.add(rimMesh(S.lowBand)); if (COL) mesh.add(colMesh()); if (S.claws && clawSel !== 'off') for (const p of clawParts(clawSel)) mesh.add(p.clone()); if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
+// Diamond (Solitaire, shown with the claws; ?dia=0 hides it): round brilliant, 16 segments, flat-shaded, held BY THE CLAWS, not sitting on the ring. The claw centre line is sampled (same curve as clawParts) and the stone is placed by fixed-point iteration so that (1) the girdle radius GR = claw centre radius - 0.6 x claw radial half-width at the girdle height (claws bite 40% of their half-width into the girdle) and (2) each claw tip rests on the crown (tip y = girdle top + crown height at the tip radius - 0.002 sink). Proportions in girdle diameters D: girdle 0.02, crown 0.162 (table 0.56 R), pavilion 0.431 (culet).
+const dmC = {};
+function diamondMesh(v) {
+  if (dmC[v]) return dmC[v].clone(); const pr = CP[v] || CP.a, H = +(QP.get('ch') ?? pr.h), INS = +(QP.get('ci') ?? pr.ins), RB = +(QP.get('cb') ?? pr.rb), RT = +(QP.get('ct') ?? pr.rt), N = 16;
+  const c = new THREE.CatmullRomCurve3([new THREE.Vector3(RIM_R, RIM_Y, 0), new THREE.Vector3(RIM_R + 0.002, RIM_Y + H * 0.35, 0), new THREE.Vector3(RIM_R - INS * 0.30, RIM_Y + H * 0.72, 0), new THREE.Vector3(RIM_R - INS, RIM_Y + H, 0)]);
+  const at = y => { let lo = 0, hi = 1; for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (c.getPointAt(m).y < y) lo = m; else hi = m; } const u = (lo + hi) / 2, p = c.getPointAt(u), r = RT + (RB - RT) * Math.pow(1 - u, 0.9); return { rc: p.x, hw: Math.min(r, RIM_A) }; };
+  const yT = RIM_Y + H, rT = RIM_R - INS, crownY = (r, R) => { const D = 2 * R, P = [[R, 0], [0.8 * R, 0.095 * D], [0.56 * R, 0.162 * D]]; if (r >= R) return 0; for (let i = 0; i < 2; i++) if (r >= P[i + 1][0]) return P[i][1] + (P[i + 1][1] - P[i][1]) * (P[i][0] - r) / (P[i][0] - P[i + 1][0]); return P[2][1]; };
+  let yG = yT - 0.02, GR = 0.16; for (let it = 0; it < 12; it++) { const q = at(yG); GR = q.rc - 0.6 * q.hw; yG = yT - crownY(rT, GR) + 0.002; }
+  const D = 2 * GR, R = GR, yTab = yG + 0.162 * D - 0.02 * D, yCul = yG - 0.02 * D - 0.431 * D, rings = [[0.56 * R, yTab, 0], [0.8 * R, yG + 0.095 * D - 0.02 * D + 0.02 * D, 0.5], [R, yG, 0], [R, yG - 0.02 * D, 0], [0.5 * R, yG - 0.02 * D - 0.22 * D, 0.5]];   // [radius, y, angular offset in segments]; offset 0.5 rings give the kite / triangle facet pattern
+  const V = (r, y, a) => [r * Math.cos(a), y, r * Math.sin(a)], pos = [], tri = (a, b, d) => pos.push(...a, ...b, ...d), P = (q, j) => V(q[0], q[1], (j + q[2]) / N * 2 * Math.PI);
+  for (let j = 0; j < N; j++) tri([0, yTab, 0], P(rings[0], j + 1), P(rings[0], j));   // flat table
+  for (let i = 0; i < rings.length - 1; i++) { const A = rings[i], B = rings[i + 1]; for (let j = 0; j < N; j++) {
+    if (A[2] === B[2]) { tri(P(A, j), P(B, j), P(A, j + 1)); tri(P(A, j + 1), P(B, j), P(B, j + 1)); }
+    else { const k = B[2] > A[2] ? j : j + 1, k2 = B[2] > A[2] ? j : j + 1; tri(P(A, j), P(B, k), P(A, j + 1)); tri(P(B, k2), P(B, k2 + 1), P(A, j + 1)); } } }
+  const L = rings[rings.length - 1]; for (let j = 0; j < N; j++) tri(P(L, j), [0, yCul, 0], P(L, j + 1));   // pavilion mains to the culet
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({ color: 0xf2f6ff, metalness: 1, roughness: 0.04, envMapIntensity: 1.5, flatShading: true, side: THREE.DoubleSide })); m.userData.shared = true; m.userData.dia = { GR, yG, yCul, yTab }; dmC[v] = m; return m.clone();
+}
+function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.newRim && NEWRIM) mesh.add(rimMesh(S.lowBand)); if (COL) mesh.add(colMesh()); if (S.claws && clawSel !== 'off') { for (const p of clawParts(clawSel)) mesh.add(p.clone()); if (QP.get('dia') !== '0') mesh.add(diamondMesh(clawSel)); } if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
 
 let kind = 'solitaire3';
 const state = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { ...v }]));
