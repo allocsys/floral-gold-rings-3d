@@ -186,6 +186,15 @@ function clawParts(v) {
   return clawC[v] = g;
 }
 // Diamond (Solitaire, shown with the claws; ?dia=0 hides it): round brilliant, 16 segments, flat-shaded, held BY THE CLAWS, not sitting on the ring. The claw centre line is sampled (same curve as clawParts) and the stone is placed by fixed-point iteration so that (1) the girdle radius GR = claw centre radius - 0.6 x claw radial half-width at the girdle height (claws bite 40% of their half-width into the girdle) and (2) the stone sits low: girdle bottom just above the rim wire (?gy, offset from the rim centre), pavilion 0.36 D deep (?pd), so there is no gap to the ring (the claws are taller than the crown with preset E; shorten with ?ch). Proportions in girdle diameters D: girdle 0.02, crown 0.162 (table 0.56 R).
+// Foundation for the claws (Solitaire, ?base=0 hides): a cross bar spanning the ring through the centre (merges into the rim wire at both ends) with a squashed round hub in the middle where the claws will start (user sketch). ?bw bar radius, ?hr hub radius, ?hh hub height factor, ?by bar y offset from the rim centre.
+let baseC = null;
+function baseParts() {
+  if (baseC) return baseC; const BW = +(QP.get('bw') ?? 0.013), HR = +(QP.get('hr') ?? 0.034), HH = +(QP.get('hh') ?? 0.7), BY = +(QP.get('by') ?? -0.004);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xfad271, metalness: 1, roughness: 0.19 }), g = [];
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(BW, BW, 2 * RIM_R, 32, 1), mat); bar.rotation.z = Math.PI / 2; bar.position.set(0, RIM_Y + BY, 0); bar.userData.shared = true; g.push(bar);
+  const hub = new THREE.Mesh(new THREE.SphereGeometry(HR, 40, 28), mat); hub.scale.y = HH; hub.position.set(0, RIM_Y + BY, 0); hub.userData.shared = true; g.push(hub);
+  return baseC = g;
+}
 const dmC = {};
 function diamondMesh(v) {
   if (dmC[v]) return dmC[v].clone(); const pr = CP[v] || CP.a, H = +(QP.get('ch') ?? pr.h), INS = +(QP.get('ci') ?? pr.ins), RB = +(QP.get('cb') ?? pr.rb), RT = +(QP.get('ct') ?? pr.rt), N = 16;
@@ -204,7 +213,7 @@ function diamondMesh(v) {
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.computeVertexNormals();
   const m = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({ color: 0xf2f6ff, metalness: 1, roughness: 0.04, envMapIntensity: 1.5, flatShading: true, side: THREE.DoubleSide })); m.userData.shared = true; m.userData.dia = { GR, yG, yCul, yTab }; dmC[v] = m; return m.clone();
 }
-function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.newRim && NEWRIM) mesh.add(rimMesh(S.lowBand)); if (COL) mesh.add(colMesh()); if (S.claws && clawSel !== 'off') { for (const p of clawParts(clawSel)) mesh.add(p.clone()); if (QP.get('dia') !== '0') mesh.add(diamondMesh(clawSel)); } if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
+function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.newRim && NEWRIM) mesh.add(rimMesh(S.lowBand)); if (COL) mesh.add(colMesh()); if (S.claws && QP.get('base') !== '0') for (const p of baseParts()) mesh.add(p.clone()); if (S.claws && clawSel !== 'off') { for (const p of clawParts(clawSel)) mesh.add(p.clone()); if (QP.get('dia') !== '0') mesh.add(diamondMesh(clawSel)); } if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
 
 let kind = 'solitaire3';
 const state = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { ...v }]));
