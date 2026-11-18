@@ -141,10 +141,7 @@ const loadSol = key => { const S = SOLS[key]; if (S.started) return; S.started =
   const mk = S.stone && GEM !== '0' ? new Uint8Array(await (await fetch(S.stone)).arrayBuffer()) : null;
   const inB = v => { const dx = pos[3 * v] - S.cx, dy = pos[3 * v + 1] - S.cy, rr = Math.hypot(dx, dy); return Math.abs(rr / S.r - 1) < 0.04 && (nor[3 * v] * dx + nor[3 * v + 1] * dy) / rr < -0.9; };
   const dropT = t => { if (!S.knobs || !KNOB_ON || PRE) return false; let x = 0, y = 0, z = 0; for (let q = 0; q < 3; q++) { const v = idx[3 * t + q]; x += pos[3 * v]; y += pos[3 * v + 1]; z += pos[3 * v + 2]; } x /= 3; y /= 3; z /= 3; if (S.newRim && NEWRIM) { const r = Math.hypot(x, z); if (y > 0.865 && r > RD0 && r < RD1) return true; if (COL && y > COL_Y0 && r < COL_RO) return true; for (const c of S.knobs) { if (Math.hypot(x - c[0], y - c[1], z - c[2]) < BULB_R) return true; if (y > CUP_Y && Math.hypot(x - Math.sign(c[0]) * 0.137, z - Math.sign(c[2]) * 0.135) < CUP_R + 0.005) return true; } } for (const k of CUPS) { const c = S.knobs[k]; if (y > CUP_Y && Math.hypot(x - Math.sign(c[0]) * 0.137, z - Math.sign(c[2]) * 0.135) < CUP_R) return true; } if (!FLAP_ON) return false; if (Math.abs(x) < SKIRT_X && Math.abs(z) > 0.1 && (y < 0.88 || (S.newRim && NEWRIM)) && Math.hypot(x, z) > 0.15 && Math.hypot(x, z) < 0.25) return true; for (const c of S.knobs) if (Math.hypot(x - c[0], y - c[1], z - c[2]) < 0.04 && y > c[1] + SPIKE_Y) return true; for (const c of S.knobs) { const dx = (x - c[0]) * -Math.sign(c[0]), dy = y - c[1], dz = (z - c[2]) * -Math.sign(c[2]); if (dx > 0.0 && dz > -0.005 && dy < -0.008 && dx * dx + dy * dy + dz * dz < FLAP_R * FLAP_R) return true; } return false; };
-  // Solitaire shoulders run parallel to the rim: the band strips slope ~12deg where they meet the flat rim, so lift them with a smoothstep that is flat at |x|=?sx0 (.17, the rim) and fades out by |x|=?sx1 (.45); ?sf=0 = off. Done after classification (bore detection uses the original circle)
-  const flattenShoulders = () => { if (S.newRim && NEWRIM && RQ.get('sf') !== '0') { const X0 = +(RQ.get('sx0') ?? 0.17), X1 = +(RQ.get('sx1') ?? 0.45), RM = 0.9, yn = x => Math.sqrt(RM * RM - x * x), y0 = yn(X0); for (let v = 0; v < pos.length; v += 3) { const ax = Math.abs(pos[v]); if (pos[v + 1] < 0.3 || ax <= X0 || ax >= X1) continue; const u = (ax - X0) / (X1 - X0), sm = u * u * (3 - 2 * u); pos[v + 1] += (1 - sm) * (y0 - yn(ax)); } geo.attributes.position.needsUpdate = true; geo.computeBoundingSphere(); geo.computeBoundingBox(); } };
   for (let t = 0; t < n; t++) cls[t] = dropT(t) ? 3 : mk && (mk[t >> 3] >> (t & 7)) & 1 ? 1 : BORE_ON && inB(idx[3 * t]) && inB(idx[3 * t + 1]) && inB(idx[3 * t + 2]) ? 2 : 0;
-  flattenShoulders();
   if (mk || BORE_ON) {
     const out = new idx.constructor(idx.length), mats = [m.material, mk ? gemMat(m, GEM) : null, BORE_ON ? boreMat() : null]; let o = 0; geo.clearGroups();
     for (let c = 0; c < 3; c++) { const o0 = o; for (let t = 0; t < n; t++) if (cls[t] === c) { out.set(idx.subarray(3 * t, 3 * t + 3), o); o += 3; } if (o > o0) geo.addGroup(o0, o - o0, c); }
@@ -173,7 +170,7 @@ function rimMesh(low) { const ck = low && RIM_LO ? 'low' : 'tube'; if (!rimMs[ck
 // Foundation for the claws (Solitaire, ?base=0 hides): a cross bar spanning the ring through the centre (merges into the rim wire at both ends) with a squashed round hub in the middle where the claws will start (user sketch). ?bw bar radius, ?hr hub radius, ?hh hub height factor, ?by bar y offset from the rim centre.
 let baseC = null;
 function baseParts() {
-  if (baseC) return baseC; const BW = +(QP.get('bw') ?? 0.013), HR = +(QP.get('hr') ?? 0.034), HH = +(QP.get('hh') ?? 0.7), BY = +(QP.get('by') ?? -0.034) + +(QP.get('ru') ?? 0.03); // ?ru raises the cross bar + hub only (diamond and arm ends stay)
+  if (baseC) return baseC; const BW = +(QP.get('bw') ?? 0.013), HR = +(QP.get('hr') ?? 0.034), HH = +(QP.get('hh') ?? 0.7), BY = +(QP.get('by') ?? -0.034);
   const mat = new THREE.MeshStandardMaterial({ color: 0xfad271, metalness: 1, roughness: 0.19 }), g = [];
   const bar = new THREE.Mesh(new THREE.CylinderGeometry(BW, BW, 2 * RIM_R, 32, 1), mat); bar.rotation.z = Math.PI / 2; bar.position.set(0, RIM_Y + BY, 0); bar.userData.shared = true; g.push(bar);
   const hub = new THREE.Mesh(new THREE.SphereGeometry(HR, 40, 28), mat); hub.scale.y = HH; hub.position.set(0, RIM_Y + BY, 0); hub.userData.shared = true; g.push(hub);
@@ -182,16 +179,11 @@ function baseParts() {
 // V pillars (Solitaire, ?vp=0 hides): each V has its vertex at the centre of the ring (on the hub) and two arms that rise and spread out to the rim, like a V opening upward. ?vn number of Vs (default 2, at 90 deg apart), ?vH arm height above the hub (0.12), ?vb base radius (0.012), ?vt tip radius (0.0025), ?va start angle of the first V in degrees (0).
 let vC = null;
 function vPillars() {
-  if (vC) return vC; const VN = Math.round(+(QP.get('vn') ?? 2)), H = +(QP.get('vH') ?? 0.12), RB = +(QP.get('vb') ?? 0.012), RT = +(QP.get('vt') ?? 0.0025), RU = +(QP.get('ru') ?? 0.03), A0 = +(QP.get('va') ?? 0) * Math.PI / 180, BY = +(QP.get('by') ?? -0.034), Y0 = RIM_Y + BY + RU, RR = RIM_R - 0.004;
-  // arms hug the OUTSIDE of the diamond pavilion (offset ?vo, default .02) from the hub up to the rim, ending beside the girdle
-  const GR = +(QP.get('dgr') ?? 0.162), DG = +(QP.get('dgy') ?? 0.12), OF = +(QP.get('vo') ?? 0.02), D2 = 2 * GR, hG = DG - 0.02 * D2, hM = hG - 0.51 * 0.36 * D2, rM = 0.5 * GR, sl = (hG - hM) / (GR - rM), rEnd = RIM_R - 0.003, hEnd = hG + sl * (rEnd - OF - GR);
-  const yc = r => r >= 0.8 * GR ? DG + (GR - r) / (0.2 * GR) * 0.095 * D2 : DG + 0.095 * D2 + (0.8 * GR - r) / (0.24 * GR) * 0.067 * D2; // crown surface height above hub
-  // arm = straight line from the hub to just outside the girdle, then one smooth hook over the crown that hugs it
-  const sx = rEnd, sy = hEnd, ln = Math.hypot(sx, sy), hk = [sx, sy, sx + 0.014 * sx / ln, sy + 0.014 * sy / ln, 0.93 * GR, yc(0.93 * GR) + 0.004, 0.80 * GR, yc(0.80 * GR) + 0.003];
+  if (vC) return vC; const VN = Math.round(+(QP.get('vn') ?? 2)), H = +(QP.get('vH') ?? 0.12), RB = +(QP.get('vb') ?? 0.012), RT = +(QP.get('vt') ?? 0.0025), A0 = +(QP.get('va') ?? 0) * Math.PI / 180, BY = +(QP.get('by') ?? -0.034), Y0 = RIM_Y + BY, RR = RIM_R - 0.004;
   const mat = new THREE.MeshStandardMaterial({ color: 0xfad271, metalness: 1, roughness: 0.19 }), g = [];
   for (let v = 0; v < VN; v++) for (const sg of [1, -1]) {
     const a = A0 + v * Math.PI / VN, dx = Math.cos(a) * sg, dz = Math.sin(a) * sg;
-    const P = (r, h) => new THREE.Vector3(dx * r, Y0 + h, dz * r), c = new THREE.CurvePath(); c.add(new THREE.LineCurve3(P(0, 0), P(hk[0], hk[1]))); c.add(new THREE.CubicBezierCurve3(P(hk[0], hk[1]), P(hk[2], hk[3]), P(hk[4], hk[5]), P(hk[6], hk[7]))); const TS = 48, RS = 14;
+    const c = new THREE.CatmullRomCurve3([new THREE.Vector3(0, Y0, 0), new THREE.Vector3(dx * RR * 0.5, Y0 + H * 0.5, dz * RR * 0.5), new THREE.Vector3(dx * RR, Y0 + H, dz * RR)]), TS = 32, RS = 14;
     const geo = new THREE.TubeGeometry(c, TS, 1, RS), pa = geo.attributes.position;
     for (let i = 0; i <= TS; i++) { const u = i / TS, ctr = c.getPointAt(u), r = RT + (RB - RT) * Math.pow(1 - u, 0.9); for (let j = 0; j <= RS; j++) { const k = i * (RS + 1) + j; pa.setXYZ(k, ctr.x + (pa.getX(k) - ctr.x) * r, ctr.y + (pa.getY(k) - ctr.y) * r, ctr.z + (pa.getZ(k) - ctr.z) * r); } }
     geo.computeVertexNormals(); const m = new THREE.Mesh(geo, mat); m.userData.shared = true; g.push(m);
@@ -199,21 +191,7 @@ function vPillars() {
   }
   return vC = g;
 }
-// Solitaire diamond (?dia=0 hides): round brilliant resting in the V pillars, culet down. Girdle radius ?dgr (0.162, just inside the rim bore .165), girdle height above the hub ?dgy (0.10). Pillars untouched.
-let dmA = null;
-function diamondA() {
-  if (dmA) return dmA.clone(); const GR = +(QP.get('dgr') ?? 0.162), BY = +(QP.get('by') ?? -0.034), yG = RIM_Y + BY + +(QP.get('ru') ?? 0.03) + +(QP.get('dgy') ?? 0.12), PD = 0.36, N = 16, D = 2 * GR, R = GR;
-  const yTab = yG + 0.162 * D, yCul = yG - 0.02 * D - PD * D, rings = [[0.56 * R, yTab, 0], [0.8 * R, yG + 0.095 * D, 0.5], [R, yG, 0], [R, yG - 0.02 * D, 0], [0.5 * R, yG - 0.02 * D - 0.51 * PD * D, 0.5]];
-  const V = (r, y, a) => [r * Math.cos(a), y, r * Math.sin(a)], pos = [], tri = (a, b, d) => pos.push(...a, ...b, ...d), P = (q, j) => V(q[0], q[1], (j + q[2]) / N * 2 * Math.PI);
-  for (let j = 0; j < N; j++) tri([0, yTab, 0], P(rings[0], j + 1), P(rings[0], j));
-  for (let i = 0; i < rings.length - 1; i++) { const A = rings[i], B = rings[i + 1]; for (let j = 0; j < N; j++) {
-    if (A[2] === B[2]) { tri(P(A, j), P(B, j), P(A, j + 1)); tri(P(A, j + 1), P(B, j), P(B, j + 1)); }
-    else { const k = B[2] > A[2] ? j : j + 1; tri(P(A, j), P(B, k), P(A, j + 1)); tri(P(B, k), P(B, k + 1), P(A, j + 1)); } } }
-  const L = rings[rings.length - 1]; for (let j = 0; j < N; j++) tri(P(L, j), [0, yCul, 0], P(L, j + 1));
-  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.computeVertexNormals();
-  const m = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({ color: 0xeaf0fb, metalness: 0.35, roughness: 0.02, envMapIntensity: 0.9, flatShading: true, side: THREE.DoubleSide })); m.userData.shared = true; return (dmA = m).clone();
-}
-function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.newRim && NEWRIM) mesh.add(rimMesh(S.lowBand)); if (COL) mesh.add(colMesh()); if (S.claws && QP.get('base') !== '0') for (const p of baseParts()) mesh.add(p.clone()); if (S.claws && QP.get('vp') !== '0') for (const p of vPillars()) mesh.add(p.clone()); if (S.claws && QP.get('dia') !== '0') mesh.add(diamondA()); if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
+function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.newRim && NEWRIM) mesh.add(rimMesh(S.lowBand)); if (COL) mesh.add(colMesh()); if (S.claws && QP.get('base') !== '0') for (const p of baseParts()) mesh.add(p.clone()); if (S.claws && QP.get('vp') !== '0') for (const p of vPillars()) mesh.add(p.clone()); if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
 
 let kind = 'solitaire3';
 const state = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { ...v }]));
