@@ -1,13 +1,11 @@
-// Tab definitions for the viewer (no geometry here: all four models are Meshy GLBs, see index.html).
+// Tab definitions for the viewer (no geometry here: all models are Meshy GLBs, see index.html).
 // Units are millimetres. Bands: only the ID / width / thickness sliders; solitaires: only the inner diameter.
 export const DEFAULTS = {
   band1:      { ID: 19 },
   band2:      { ID: 17 },
   solitaire3: { ID: 17 },
-  solitaire2: { ID: 17 }, // same GLB as Solitaire, original look (no knob/cup edits, claws on) // site/nodiamond1.glb (= reference/meshy/NoDiamond1.glb rotated: ring axis y -> z, head z -> +y; no stone)
-  solitaire4: { ID: 17 }, // frozen copy of Solitaire as of nodiamond10.glb (pinned file, shown as 'Solitaire 3')
 };
-export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire3: 'Solitaire', solitaire2: 'Solitaire 2', solitaire4: 'Solitaire 3' };
+export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire3: 'Solitaire' };
 export const CONTROLS = [
   ['ID', 'Inner diameter', 14, 24, 0.1],
   ['w', 'Width', 1.5, 8, 0.1, ['band1', 'band2']],
