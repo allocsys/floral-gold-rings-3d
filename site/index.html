@@ -176,7 +176,22 @@ function baseParts() {
   const hub = new THREE.Mesh(new THREE.SphereGeometry(HR, 40, 28), mat); hub.scale.y = HH; hub.position.set(0, RIM_Y + BY, 0); hub.userData.shared = true; g.push(hub);
   return baseC = g;
 }
-function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.newRim && NEWRIM) mesh.add(rimMesh(S.lowBand)); if (COL) mesh.add(colMesh()); if (S.claws && QP.get('base') !== '0') for (const p of baseParts()) mesh.add(p.clone()); if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
+// V pillars (Solitaire, ?vp=0 hides): each V has its vertex at the centre of the ring (on the hub) and two arms that rise and spread out to the rim, like a V opening upward. ?vn number of Vs (default 2, at 90 deg apart), ?vH arm height above the hub (0.12), ?vb base radius (0.012), ?vt tip radius (0.0025), ?va start angle of the first V in degrees (0).
+let vC = null;
+function vPillars() {
+  if (vC) return vC; const VN = Math.round(+(QP.get('vn') ?? 2)), H = +(QP.get('vH') ?? 0.12), RB = +(QP.get('vb') ?? 0.012), RT = +(QP.get('vt') ?? 0.0025), A0 = +(QP.get('va') ?? 0) * Math.PI / 180, BY = +(QP.get('by') ?? -0.004), Y0 = RIM_Y + BY, RR = RIM_R - 0.004;
+  const mat = new THREE.MeshStandardMaterial({ color: 0xfad271, metalness: 1, roughness: 0.19 }), g = [];
+  for (let v = 0; v < VN; v++) for (const sg of [1, -1]) {
+    const a = A0 + v * Math.PI / VN, dx = Math.cos(a) * sg, dz = Math.sin(a) * sg;
+    const c = new THREE.CatmullRomCurve3([new THREE.Vector3(0, Y0, 0), new THREE.Vector3(dx * RR * 0.5, Y0 + H * 0.55, dz * RR * 0.5), new THREE.Vector3(dx * RR, Y0 + H, dz * RR)]), TS = 32, RS = 14;
+    const geo = new THREE.TubeGeometry(c, TS, 1, RS), pa = geo.attributes.position;
+    for (let i = 0; i <= TS; i++) { const u = i / TS, ctr = c.getPointAt(u), r = RT + (RB - RT) * Math.pow(1 - u, 0.9); for (let j = 0; j <= RS; j++) { const k = i * (RS + 1) + j; pa.setXYZ(k, ctr.x + (pa.getX(k) - ctr.x) * r, ctr.y + (pa.getY(k) - ctr.y) * r, ctr.z + (pa.getZ(k) - ctr.z) * r); } }
+    geo.computeVertexNormals(); const m = new THREE.Mesh(geo, mat); m.userData.shared = true; g.push(m);
+    const e = c.getPoint(1), t = new THREE.Mesh(new THREE.SphereGeometry(RT * 1.2, 10, 8), mat); t.position.copy(e); t.userData.shared = true; g.push(t);
+  }
+  return vC = g;
+}
+function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.newRim && NEWRIM) mesh.add(rimMesh(S.lowBand)); if (COL) mesh.add(colMesh()); if (S.claws && QP.get('base') !== '0') for (const p of baseParts()) mesh.add(p.clone()); if (S.claws && QP.get('vp') !== '0') for (const p of vPillars()) mesh.add(p.clone()); if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
 
 let kind = 'solitaire3';
 const state = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { ...v }]));
