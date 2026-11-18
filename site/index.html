@@ -183,11 +183,12 @@ function vPillars() {
   // arms hug the OUTSIDE of the diamond pavilion (offset ?vo, default .02) from the hub up to the rim, ending beside the girdle
   const GR = +(QP.get('dgr') ?? 0.162), DG = +(QP.get('dgy') ?? 0.12), OF = +(QP.get('vo') ?? 0.02), D2 = 2 * GR, hG = DG - 0.02 * D2, hM = hG - 0.51 * 0.36 * D2, rM = 0.5 * GR, sl = (hG - hM) / (GR - rM), rEnd = RIM_R - 0.003, hEnd = hG + sl * (rEnd - OF - GR);
   const yc = r => r >= 0.8 * GR ? DG + (GR - r) / (0.2 * GR) * 0.095 * D2 : DG + 0.095 * D2 + (0.8 * GR - r) / (0.24 * GR) * 0.067 * D2; // crown surface height above hub
-  const armPts = [[rM * 0.5 + OF, hM - sl * rM * 0.5], [rM + OF, hM], [(rM + rEnd) / 2 + OF / 2, (hM + hEnd) / 2], [rEnd, hEnd], [rEnd + 0.0005, DG + 0.002], [GR + 0.006, DG + 0.016], [0.92 * GR, yc(0.92 * GR) + 0.007], [0.80 * GR, yc(0.80 * GR) + 0.004]];
+  // arm = straight line from the hub to just outside the girdle, then one smooth hook over the crown that hugs it
+  const sx = rEnd, sy = hEnd, ln = Math.hypot(sx, sy), hk = [sx, sy, sx + 0.014 * sx / ln, sy + 0.014 * sy / ln, 0.93 * GR, yc(0.93 * GR) + 0.004, 0.80 * GR, yc(0.80 * GR) + 0.003];
   const mat = new THREE.MeshStandardMaterial({ color: 0xfad271, metalness: 1, roughness: 0.19 }), g = [];
   for (let v = 0; v < VN; v++) for (const sg of [1, -1]) {
     const a = A0 + v * Math.PI / VN, dx = Math.cos(a) * sg, dz = Math.sin(a) * sg;
-    const P = (r, h) => new THREE.Vector3(dx * r, Y0 + h, dz * r), c = new THREE.CatmullRomCurve3([P(0, 0), ...armPts.map(([r, h]) => P(r, h))]), TS = 32, RS = 14;
+    const P = (r, h) => new THREE.Vector3(dx * r, Y0 + h, dz * r), c = new THREE.CurvePath(); c.add(new THREE.LineCurve3(P(0, 0), P(hk[0], hk[1]))); c.add(new THREE.CubicBezierCurve3(P(hk[0], hk[1]), P(hk[2], hk[3]), P(hk[4], hk[5]), P(hk[6], hk[7]))); const TS = 48, RS = 14;
     const geo = new THREE.TubeGeometry(c, TS, 1, RS), pa = geo.attributes.position;
     for (let i = 0; i <= TS; i++) { const u = i / TS, ctr = c.getPointAt(u), r = RT + (RB - RT) * Math.pow(1 - u, 0.9); for (let j = 0; j <= RS; j++) { const k = i * (RS + 1) + j; pa.setXYZ(k, ctr.x + (pa.getX(k) - ctr.x) * r, ctr.y + (pa.getY(k) - ctr.y) * r, ctr.z + (pa.getZ(k) - ctr.z) * r); } }
     geo.computeVertexNormals(); const m = new THREE.Mesh(geo, mat); m.userData.shared = true; g.push(m);
