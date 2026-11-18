@@ -181,8 +181,8 @@ let vC = null;
 function vPillars() {
   if (vC) return vC; const VN = Math.round(+(QP.get('vn') ?? 2)), H = +(QP.get('vH') ?? 0.12), RB = +(QP.get('vb') ?? 0.012), RT = +(QP.get('vt') ?? 0.0025), A0 = +(QP.get('va') ?? 0) * Math.PI / 180, BY = +(QP.get('by') ?? -0.034), Y0 = RIM_Y + BY, RR = RIM_R - 0.004;
   // arms hug the OUTSIDE of the diamond pavilion (offset ?vo, default .02) from the hub up to the rim, ending beside the girdle
-  const GR = +(QP.get('dgr') ?? 0.162), DG = +(QP.get('dgy') ?? 0.10), OF = +(QP.get('vo') ?? 0.02), D2 = 2 * GR, hG = DG - 0.02 * D2, hM = hG - 0.51 * 0.36 * D2, rM = 0.5 * GR, sl = (hG - hM) / (GR - rM), rEnd = RIM_R - 0.003, hEnd = hG + sl * (rEnd - OF - GR);
-  const armPts = [[rM * 0.5 + OF, hM - sl * rM * 0.5], [rM + OF, hM], [(rM + rEnd) / 2 + OF / 2, (hM + hEnd) / 2], [rEnd, hEnd]];
+  const GR = +(QP.get('dgr') ?? 0.162), DG = +(QP.get('dgy') ?? 0.12), OF = +(QP.get('vo') ?? 0.02), D2 = 2 * GR, hG = DG - 0.02 * D2, hM = hG - 0.51 * 0.36 * D2, rM = 0.5 * GR, sl = (hG - hM) / (GR - rM), rEnd = RIM_R - 0.003, hEnd = hG + sl * (rEnd - OF - GR);
+  const armPts = [[rM * 0.5 + OF, hM - sl * rM * 0.5], [rM + OF, hM], [(rM + rEnd) / 2 + OF / 2, (hM + hEnd) / 2], [rEnd, hEnd], [RIM_R, 0.044]];
   const mat = new THREE.MeshStandardMaterial({ color: 0xfad271, metalness: 1, roughness: 0.19 }), g = [];
   for (let v = 0; v < VN; v++) for (const sg of [1, -1]) {
     const a = A0 + v * Math.PI / VN, dx = Math.cos(a) * sg, dz = Math.sin(a) * sg;
@@ -197,7 +197,7 @@ function vPillars() {
 // Solitaire diamond (?dia=0 hides): round brilliant resting in the V pillars, culet down. Girdle radius ?dgr (0.162, just inside the rim bore .165), girdle height above the hub ?dgy (0.10). Pillars untouched.
 let dmA = null;
 function diamondA() {
-  if (dmA) return dmA.clone(); const GR = +(QP.get('dgr') ?? 0.162), BY = +(QP.get('by') ?? -0.034), yG = RIM_Y + BY + +(QP.get('dgy') ?? 0.10), PD = 0.36, N = 16, D = 2 * GR, R = GR;
+  if (dmA) return dmA.clone(); const GR = +(QP.get('dgr') ?? 0.162), BY = +(QP.get('by') ?? -0.034), yG = RIM_Y + BY + +(QP.get('dgy') ?? 0.12), PD = 0.36, N = 16, D = 2 * GR, R = GR;
   const yTab = yG + 0.162 * D, yCul = yG - 0.02 * D - PD * D, rings = [[0.56 * R, yTab, 0], [0.8 * R, yG + 0.095 * D, 0.5], [R, yG, 0], [R, yG - 0.02 * D, 0], [0.5 * R, yG - 0.02 * D - 0.51 * PD * D, 0.5]];
   const V = (r, y, a) => [r * Math.cos(a), y, r * Math.sin(a)], pos = [], tri = (a, b, d) => pos.push(...a, ...b, ...d), P = (q, j) => V(q[0], q[1], (j + q[2]) / N * 2 * Math.PI);
   for (let j = 0; j < N; j++) tri([0, yTab, 0], P(rings[0], j + 1), P(rings[0], j));
