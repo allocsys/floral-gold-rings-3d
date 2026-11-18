@@ -191,10 +191,10 @@ function vPillars() {
   }
   return vC = g;
 }
-// Solitaire diamond (?dia=0 hides): round brilliant resting in the V pillars, culet down. Girdle radius ?dgr (0.102, touches the arms), girdle height above the hub ?dgy (0.075). Pillars untouched.
+// Solitaire diamond (?dia=0 hides): round brilliant resting in the V pillars, culet down. Girdle radius ?dgr (0.143, touches the arms), girdle height above the hub ?dgy (0.10). Pillars untouched.
 let dmA = null;
 function diamondA() {
-  if (dmA) return dmA.clone(); const GR = +(QP.get('dgr') ?? 0.102), BY = +(QP.get('by') ?? -0.034), yG = RIM_Y + BY + +(QP.get('dgy') ?? 0.075), PD = 0.36, N = 16, D = 2 * GR, R = GR;
+  if (dmA) return dmA.clone(); const GR = +(QP.get('dgr') ?? 0.143), BY = +(QP.get('by') ?? -0.034), yG = RIM_Y + BY + +(QP.get('dgy') ?? 0.10), PD = 0.36, N = 16, D = 2 * GR, R = GR;
   const yTab = yG + 0.162 * D, yCul = yG - 0.02 * D - PD * D, rings = [[0.56 * R, yTab, 0], [0.8 * R, yG + 0.095 * D, 0.5], [R, yG, 0], [R, yG - 0.02 * D, 0], [0.5 * R, yG - 0.02 * D - 0.51 * PD * D, 0.5]];
   const V = (r, y, a) => [r * Math.cos(a), y, r * Math.sin(a)], pos = [], tri = (a, b, d) => pos.push(...a, ...b, ...d), P = (q, j) => V(q[0], q[1], (j + q[2]) / N * 2 * Math.PI);
   for (let j = 0; j < N; j++) tri([0, yTab, 0], P(rings[0], j + 1), P(rings[0], j));
