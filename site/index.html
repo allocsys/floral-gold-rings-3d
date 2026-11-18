@@ -182,7 +182,8 @@ function vPillars() {
   if (vC) return vC; const VN = Math.round(+(QP.get('vn') ?? 2)), H = +(QP.get('vH') ?? 0.12), RB = +(QP.get('vb') ?? 0.012), RT = +(QP.get('vt') ?? 0.0025), A0 = +(QP.get('va') ?? 0) * Math.PI / 180, BY = +(QP.get('by') ?? -0.034), Y0 = RIM_Y + BY, RR = RIM_R - 0.004;
   // arms hug the OUTSIDE of the diamond pavilion (offset ?vo, default .02) from the hub up to the rim, ending beside the girdle
   const GR = +(QP.get('dgr') ?? 0.162), DG = +(QP.get('dgy') ?? 0.12), OF = +(QP.get('vo') ?? 0.02), D2 = 2 * GR, hG = DG - 0.02 * D2, hM = hG - 0.51 * 0.36 * D2, rM = 0.5 * GR, sl = (hG - hM) / (GR - rM), rEnd = RIM_R - 0.003, hEnd = hG + sl * (rEnd - OF - GR);
-  const armPts = [[rM * 0.5 + OF, hM - sl * rM * 0.5], [rM + OF, hM], [(rM + rEnd) / 2 + OF / 2, (hM + hEnd) / 2], [rEnd, hEnd], [RIM_R, 0.044]];
+  const yc = r => r >= 0.8 * GR ? DG + (GR - r) / (0.2 * GR) * 0.095 * D2 : DG + 0.095 * D2 + (0.8 * GR - r) / (0.24 * GR) * 0.067 * D2; // crown surface height above hub
+  const armPts = [[rM * 0.5 + OF, hM - sl * rM * 0.5], [rM + OF, hM], [(rM + rEnd) / 2 + OF / 2, (hM + hEnd) / 2], [rEnd, hEnd], [rEnd + 0.0005, DG + 0.002], [GR + 0.006, DG + 0.016], [0.92 * GR, yc(0.92 * GR) + 0.007], [0.80 * GR, yc(0.80 * GR) + 0.004]];
   const mat = new THREE.MeshStandardMaterial({ color: 0xfad271, metalness: 1, roughness: 0.19 }), g = [];
   for (let v = 0; v < VN; v++) for (const sg of [1, -1]) {
     const a = A0 + v * Math.PI / VN, dx = Math.cos(a) * sg, dz = Math.sin(a) * sg;
