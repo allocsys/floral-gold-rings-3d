@@ -144,6 +144,7 @@ const loadSol = key => { const S = SOLS[key]; if (S.started) return; S.started =
   // Solitaire shoulders run parallel to the rim: the band strips slope ~12deg where they meet the flat rim, so lift them with a smoothstep that is flat at |x|=?sx0 (.17, the rim) and fades out by |x|=?sx1 (.45); ?sf=0 = off. Done after classification (bore detection uses the original circle)
   const flattenShoulders = () => { if (S.newRim && NEWRIM && RQ.get('sf') !== '0') { const X0 = +(RQ.get('sx0') ?? 0.17), X1 = +(RQ.get('sx1') ?? 0.45), RM = 0.9, yn = x => Math.sqrt(RM * RM - x * x), y0 = yn(X0); for (let v = 0; v < pos.length; v += 3) { const ax = Math.abs(pos[v]); if (pos[v + 1] < 0.3 || ax <= X0 || ax >= X1) continue; const u = (ax - X0) / (X1 - X0), sm = u * u * (3 - 2 * u); pos[v + 1] += (1 - sm) * (y0 - yn(ax)); } geo.attributes.position.needsUpdate = true; geo.computeBoundingSphere(); geo.computeBoundingBox(); } };
   for (let t = 0; t < n; t++) cls[t] = dropT(t) ? 3 : mk && (mk[t >> 3] >> (t & 7)) & 1 ? 1 : BORE_ON && inB(idx[3 * t]) && inB(idx[3 * t + 1]) && inB(idx[3 * t + 2]) ? 2 : 0;
+  flattenShoulders();
   if (mk || BORE_ON) {
     const out = new idx.constructor(idx.length), mats = [m.material, mk ? gemMat(m, GEM) : null, BORE_ON ? boreMat() : null]; let o = 0; geo.clearGroups();
     for (let c = 0; c < 3; c++) { const o0 = o; for (let t = 0; t < n; t++) if (cls[t] === c) { out.set(idx.subarray(3 * t, 3 * t + 3), o); o += 3; } if (o > o0) geo.addGroup(o0, o - o0, c); }
