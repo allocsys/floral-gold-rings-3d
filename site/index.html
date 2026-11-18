@@ -221,7 +221,7 @@ function diamondA() {
 function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.newRim && NEWRIM) mesh.add(rimMesh(S.lowBand)); if (COL) mesh.add(colMesh()); if (S.claws && QP.get('base') !== '0') for (const p of baseParts()) mesh.add(p.clone()); if (S.claws && pillarSel === 'a') { for (const p of aPillars()) mesh.add(p.clone()); mesh.add(diamondA()); } else if (S.claws && pillarSel === 'v' && QP.get('vp') !== '0') for (const p of vPillars()) mesh.add(p.clone()); if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
 
 let kind = 'solitaire3';
-const PILLAR_DEF = { dgr: 0.034, dgy: 0.05, pb: 0.0075, pt: 0.0035 }, pillarP = { ...PILLAR_DEF };   // pillar A settings, changed by the sliders
+const PILLAR_DEF = { dgr: 0.075, dgy: 0.09, pb: 0.011, pt: 0.005 }, pillarP = { ...PILLAR_DEF };   // pillar A settings, changed by the sliders
 let pillarSel = QP.get('pl') === 'a' ? 'a' : 'v';   // pillar variation: 'v' = V pillars (default), 'a' = tight pillars + diamond
 const state = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { ...v }]));
 let dirty = 'fine', fineTimer = 0;
@@ -267,7 +267,7 @@ function renderUI() {
     sliders.appendChild(row);
   }
 if (SOLS[kind]?.claws && pillarSel === 'a') {
-  for (const [key, label, min, max, step] of [['dgr', 'Diamond size', 0.02, 0.05, 0.001], ['dgy', 'Diamond height', 0.02, 0.08, 0.001], ['pb', 'Pillar base', 0.004, 0.012, 0.0005], ['pt', 'Pillar tip', 0.002, 0.006, 0.0005]]) {
+  for (const [key, label, min, max, step] of [['dgr', 'Diamond size', 0.02, 0.12, 0.001], ['dgy', 'Diamond height', 0.02, 0.16, 0.001], ['pb', 'Pillar base', 0.004, 0.02, 0.0005], ['pt', 'Pillar tip', 0.002, 0.01, 0.0005]]) {
     const row = document.createElement('div'); row.className = 'row';
     row.innerHTML = `<label>${label}</label><input type="range" min="${min}" max="${max}" step="${step}" value="${pillarP[key]}"><output>${pillarP[key].toFixed(4)}</output>`;
     const inp = row.querySelector('input'), out = row.querySelector('output');
