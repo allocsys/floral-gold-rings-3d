@@ -170,7 +170,7 @@ function rimMesh(low) { const ck = low && RIM_LO ? 'low' : 'tube'; if (!rimMs[ck
 // Foundation for the claws (Solitaire, ?base=0 hides): a cross bar spanning the ring through the centre (merges into the rim wire at both ends) with a squashed round hub in the middle where the claws will start (user sketch). ?bw bar radius, ?hr hub radius, ?hh hub height factor, ?by bar y offset from the rim centre.
 let baseC = null;
 function baseParts() {
-  if (baseC) return baseC; const BW = +(QP.get('bw') ?? 0.013), HR = +(QP.get('hr') ?? 0.034), HH = +(QP.get('hh') ?? 0.7), BY = +(QP.get('by') ?? -0.034);
+  if (baseC) return baseC; const BW = +(QP.get('bw') ?? 0.013), HR = +(QP.get('hr') ?? 0.034), HH = +(QP.get('hh') ?? 0.7), BY = +(QP.get('by') ?? -0.034) + +(QP.get('ru') ?? 0.03); // ?ru raises the cross bar + hub only (diamond and arm ends stay)
   const mat = new THREE.MeshStandardMaterial({ color: 0xfad271, metalness: 1, roughness: 0.19 }), g = [];
   const bar = new THREE.Mesh(new THREE.CylinderGeometry(BW, BW, 2 * RIM_R, 32, 1), mat); bar.rotation.z = Math.PI / 2; bar.position.set(0, RIM_Y + BY, 0); bar.userData.shared = true; g.push(bar);
   const hub = new THREE.Mesh(new THREE.SphereGeometry(HR, 40, 28), mat); hub.scale.y = HH; hub.position.set(0, RIM_Y + BY, 0); hub.userData.shared = true; g.push(hub);
@@ -179,7 +179,7 @@ function baseParts() {
 // V pillars (Solitaire, ?vp=0 hides): each V has its vertex at the centre of the ring (on the hub) and two arms that rise and spread out to the rim, like a V opening upward. ?vn number of Vs (default 2, at 90 deg apart), ?vH arm height above the hub (0.12), ?vb base radius (0.012), ?vt tip radius (0.0025), ?va start angle of the first V in degrees (0).
 let vC = null;
 function vPillars() {
-  if (vC) return vC; const VN = Math.round(+(QP.get('vn') ?? 2)), H = +(QP.get('vH') ?? 0.12), RB = +(QP.get('vb') ?? 0.012), RT = +(QP.get('vt') ?? 0.0025), A0 = +(QP.get('va') ?? 0) * Math.PI / 180, BY = +(QP.get('by') ?? -0.034), Y0 = RIM_Y + BY, RR = RIM_R - 0.004;
+  if (vC) return vC; const VN = Math.round(+(QP.get('vn') ?? 2)), H = +(QP.get('vH') ?? 0.12), RB = +(QP.get('vb') ?? 0.012), RT = +(QP.get('vt') ?? 0.0025), RU = +(QP.get('ru') ?? 0.03), A0 = +(QP.get('va') ?? 0) * Math.PI / 180, BY = +(QP.get('by') ?? -0.034), Y0 = RIM_Y + BY, RR = RIM_R - 0.004;
   // arms hug the OUTSIDE of the diamond pavilion (offset ?vo, default .02) from the hub up to the rim, ending beside the girdle
   const GR = +(QP.get('dgr') ?? 0.162), DG = +(QP.get('dgy') ?? 0.12), OF = +(QP.get('vo') ?? 0.02), D2 = 2 * GR, hG = DG - 0.02 * D2, hM = hG - 0.51 * 0.36 * D2, rM = 0.5 * GR, sl = (hG - hM) / (GR - rM), rEnd = RIM_R - 0.003, hEnd = hG + sl * (rEnd - OF - GR);
   const yc = r => r >= 0.8 * GR ? DG + (GR - r) / (0.2 * GR) * 0.095 * D2 : DG + 0.095 * D2 + (0.8 * GR - r) / (0.24 * GR) * 0.067 * D2; // crown surface height above hub
@@ -188,7 +188,7 @@ function vPillars() {
   const mat = new THREE.MeshStandardMaterial({ color: 0xfad271, metalness: 1, roughness: 0.19 }), g = [];
   for (let v = 0; v < VN; v++) for (const sg of [1, -1]) {
     const a = A0 + v * Math.PI / VN, dx = Math.cos(a) * sg, dz = Math.sin(a) * sg;
-    const P = (r, h) => new THREE.Vector3(dx * r, Y0 + h, dz * r), c = new THREE.CurvePath(); c.add(new THREE.LineCurve3(P(0, 0), P(hk[0], hk[1]))); c.add(new THREE.CubicBezierCurve3(P(hk[0], hk[1]), P(hk[2], hk[3]), P(hk[4], hk[5]), P(hk[6], hk[7]))); const TS = 48, RS = 14;
+    const P = (r, h) => new THREE.Vector3(dx * r, Y0 + h, dz * r), c = new THREE.CurvePath(); c.add(new THREE.LineCurve3(P(0, RU), P(hk[0], hk[1]))); c.add(new THREE.CubicBezierCurve3(P(hk[0], hk[1]), P(hk[2], hk[3]), P(hk[4], hk[5]), P(hk[6], hk[7]))); const TS = 48, RS = 14;
     const geo = new THREE.TubeGeometry(c, TS, 1, RS), pa = geo.attributes.position;
     for (let i = 0; i <= TS; i++) { const u = i / TS, ctr = c.getPointAt(u), r = RT + (RB - RT) * Math.pow(1 - u, 0.9); for (let j = 0; j <= RS; j++) { const k = i * (RS + 1) + j; pa.setXYZ(k, ctr.x + (pa.getX(k) - ctr.x) * r, ctr.y + (pa.getY(k) - ctr.y) * r, ctr.z + (pa.getZ(k) - ctr.z) * r); } }
     geo.computeVertexNormals(); const m = new THREE.Mesh(geo, mat); m.userData.shared = true; g.push(m);
