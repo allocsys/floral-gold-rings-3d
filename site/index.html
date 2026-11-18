@@ -191,23 +191,10 @@ function vPillars() {
   }
   return vC = g;
 }
-// Pillar variation A (Solitaire, ?pl=a): tight pillars. Four short prongs rise from the centre of the ring (from the hub) and close around a small round-brilliant diamond that sits on the hub. Diamond girdle radius ?dgr (0.034), girdle height above the hub ?dgy (0.05). Prong radii ?pb (base), ?pt (tip), pillar count is 4.
-let aC = null, dmA = null;
-function aPillars() {
-  if (aC) return aC; const RB = pillarP.pb, RT = pillarP.pt, BY = +(QP.get('by') ?? -0.034), Y0 = RIM_Y + BY, GR = pillarP.dgr, yG = Y0 + pillarP.dgy;
-  const mat = new THREE.MeshStandardMaterial({ color: 0xfad271, metalness: 1, roughness: 0.19 }), g = [];
-  for (let k = 0; k < 4; k++) {
-    const a = (45 + 90 * k) * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
-    const c = new THREE.CatmullRomCurve3([new THREE.Vector3(0.022 * ca, Y0 + 0.004, 0.022 * sa), new THREE.Vector3((GR + 0.001) * ca, yG - 0.012, (GR + 0.001) * sa), new THREE.Vector3((GR + 0.001) * ca, yG + 0.005, (GR + 0.001) * sa)]), TS = 24, RS = 12;
-    const geo = new THREE.TubeGeometry(c, TS, 1, RS), pa = geo.attributes.position;
-    for (let i = 0; i <= TS; i++) { const u = i / TS, ctr = c.getPointAt(u), r = RT + (RB - RT) * Math.pow(1 - u, 0.9); for (let j = 0; j <= RS; j++) { const q = i * (RS + 1) + j; pa.setXYZ(q, ctr.x + (pa.getX(q) - ctr.x) * r, ctr.y + (pa.getY(q) - ctr.y) * r, ctr.z + (pa.getZ(q) - ctr.z) * r); } }
-    geo.computeVertexNormals(); const m = new THREE.Mesh(geo, mat); m.userData.shared = true; g.push(m);
-    const e = c.getPoint(1), t = new THREE.Mesh(new THREE.SphereGeometry(RT * 1.2, 10, 8), mat); t.position.copy(e); t.userData.shared = true; g.push(t);
-  }
-  return aC = g;
-}
+// Solitaire diamond (?dia=0 hides): round brilliant resting in the V pillars, culet down. Girdle radius ?dgr (0.058, touches the arms), girdle height above the hub ?dgy (0.045). Pillars untouched.
+let dmA = null;
 function diamondA() {
-  if (dmA) return dmA.clone(); const GR = pillarP.dgr, BY = +(QP.get('by') ?? -0.034), yG = RIM_Y + BY + pillarP.dgy, PD = 0.36, N = 16, D = 2 * GR, R = GR;
+  if (dmA) return dmA.clone(); const GR = +(QP.get('dgr') ?? 0.058), BY = +(QP.get('by') ?? -0.034), yG = RIM_Y + BY + +(QP.get('dgy') ?? 0.045), PD = 0.36, N = 16, D = 2 * GR, R = GR;
   const yTab = yG + 0.162 * D, yCul = yG - 0.02 * D - PD * D, rings = [[0.56 * R, yTab, 0], [0.8 * R, yG + 0.095 * D, 0.5], [R, yG, 0], [R, yG - 0.02 * D, 0], [0.5 * R, yG - 0.02 * D - 0.51 * PD * D, 0.5]];
   const V = (r, y, a) => [r * Math.cos(a), y, r * Math.sin(a)], pos = [], tri = (a, b, d) => pos.push(...a, ...b, ...d), P = (q, j) => V(q[0], q[1], (j + q[2]) / N * 2 * Math.PI);
   for (let j = 0; j < N; j++) tri([0, yTab, 0], P(rings[0], j + 1), P(rings[0], j));
@@ -218,11 +205,9 @@ function diamondA() {
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.computeVertexNormals();
   const m = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0.02, ior: 2.4, specularIntensity: 1, envMapIntensity: 3, clearcoat: 1, clearcoatRoughness: 0, flatShading: true, side: THREE.DoubleSide })); m.userData.shared = true; return (dmA = m).clone();
 }
-function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.newRim && NEWRIM) mesh.add(rimMesh(S.lowBand)); if (COL) mesh.add(colMesh()); if (S.claws && QP.get('base') !== '0') for (const p of baseParts()) mesh.add(p.clone()); if (S.claws && pillarSel === 'a') { for (const p of aPillars()) mesh.add(p.clone()); mesh.add(diamondA()); } else if (S.claws && pillarSel === 'v' && QP.get('vp') !== '0') for (const p of vPillars()) mesh.add(p.clone()); if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
+function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.newRim && NEWRIM) mesh.add(rimMesh(S.lowBand)); if (COL) mesh.add(colMesh()); if (S.claws && QP.get('base') !== '0') for (const p of baseParts()) mesh.add(p.clone()); if (S.claws && QP.get('vp') !== '0') for (const p of vPillars()) mesh.add(p.clone()); if (S.claws && QP.get('dia') !== '0') mesh.add(diamondA()); if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
 
 let kind = 'solitaire3';
-const PILLAR_DEF = { dgr: 0.075, dgy: 0.09, pb: 0.011, pt: 0.005 }, pillarP = { ...PILLAR_DEF };   // pillar A settings, changed by the sliders
-let pillarSel = QP.get('pl') === 'a' ? 'a' : 'v';   // pillar variation: 'v' = V pillars (default), 'a' = tight pillars + diamond
 const state = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { ...v }]));
 let dirty = 'fine', fineTimer = 0;
 const queue = (q) => { dirty = q; };
@@ -266,18 +251,8 @@ function renderUI() {
     inp.oninput = () => { state[kind][key] = +inp.value; if (mw) mu[kind] = +inp.value; out.textContent = inp.value; queue('draft'); clearTimeout(fineTimer); fineTimer = setTimeout(() => queue('fine'), 350); };
     sliders.appendChild(row);
   }
-if (SOLS[kind]?.claws && pillarSel === 'a') {
-  for (const [key, label, min, max, step] of [['dgr', 'Diamond size', 0.02, 0.12, 0.001], ['dgy', 'Diamond height', 0.02, 0.16, 0.001], ['pb', 'Pillar base', 0.004, 0.02, 0.0005], ['pt', 'Pillar tip', 0.002, 0.01, 0.0005]]) {
-    const row = document.createElement('div'); row.className = 'row';
-    row.innerHTML = `<label>${label}</label><input type="range" min="${min}" max="${max}" step="${step}" value="${pillarP[key]}"><output>${pillarP[key].toFixed(4)}</output>`;
-    const inp = row.querySelector('input'), out = row.querySelector('output');
-    inp.oninput = () => { pillarP[key] = +inp.value; aC = null; dmA = null; out.textContent = (+inp.value).toFixed(4); queue('fine'); };
-    sliders.appendChild(row);
-  }
 }
-if (SOLS[kind]?.claws) { const pl = document.createElement('div'); pl.className = 'cl'; pl.innerHTML = '<span>Pillars</span>'; for (const v of ['v', 'a']) { const b = document.createElement('button'); b.textContent = v.toUpperCase(); b.className = v === pillarSel ? 'on' : ''; b.onclick = () => { pillarSel = v; renderUI(); queue('fine'); }; pl.appendChild(b); } sliders.appendChild(pl); }
-}
-document.getElementById('reset').onclick = () => { state[kind] = { ...DEFAULTS[kind] }; Object.assign(pillarP, PILLAR_DEF); aC = null; dmA = null; if (kind in meshyW) { meshyW[kind] = null; meshyT[kind] = null; } renderUI(); queue('fine'); };
+document.getElementById('reset').onclick = () => { state[kind] = { ...DEFAULTS[kind] }; if (kind in meshyW) { meshyW[kind] = null; meshyT[kind] = null; } renderUI(); queue('fine'); };
 const spin = document.getElementById('spin');
 spin.onclick = () => { spinOn = !spinOn; spin.textContent = 'Spin: ' + (spinOn ? 'on' : 'off'); };
 const ui = document.getElementById('ui'), tog = document.getElementById('tog');
