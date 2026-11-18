@@ -183,7 +183,7 @@ function vPillars() {
   const mat = new THREE.MeshStandardMaterial({ color: 0xfad271, metalness: 1, roughness: 0.19 }), g = [];
   for (let v = 0; v < VN; v++) for (const sg of [1, -1]) {
     const a = A0 + v * Math.PI / VN, dx = Math.cos(a) * sg, dz = Math.sin(a) * sg;
-    const c = new THREE.CatmullRomCurve3([new THREE.Vector3(0, Y0, 0), new THREE.Vector3(dx * RR * 0.5, Y0 + H * 0.55, dz * RR * 0.5), new THREE.Vector3(dx * RR, Y0 + H, dz * RR)]), TS = 32, RS = 14;
+    const c = new THREE.CatmullRomCurve3([new THREE.Vector3(0, Y0, 0), new THREE.Vector3(dx * RR * 0.5, Y0 + H * 0.5, dz * RR * 0.5), new THREE.Vector3(dx * RR, Y0 + H, dz * RR)]), TS = 32, RS = 14;
     const geo = new THREE.TubeGeometry(c, TS, 1, RS), pa = geo.attributes.position;
     for (let i = 0; i <= TS; i++) { const u = i / TS, ctr = c.getPointAt(u), r = RT + (RB - RT) * Math.pow(1 - u, 0.9); for (let j = 0; j <= RS; j++) { const k = i * (RS + 1) + j; pa.setXYZ(k, ctr.x + (pa.getX(k) - ctr.x) * r, ctr.y + (pa.getY(k) - ctr.y) * r, ctr.z + (pa.getZ(k) - ctr.z) * r); } }
     geo.computeVertexNormals(); const m = new THREE.Mesh(geo, mat); m.userData.shared = true; g.push(m);
