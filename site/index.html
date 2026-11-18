@@ -208,7 +208,7 @@ function diamondA() {
     else { const k = B[2] > A[2] ? j : j + 1; tri(P(A, j), P(B, k), P(A, j + 1)); tri(P(B, k), P(B, k + 1), P(A, j + 1)); } } }
   const L = rings[rings.length - 1]; for (let j = 0; j < N; j++) tri(P(L, j), [0, yCul, 0], P(L, j + 1));
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.computeVertexNormals();
-  const m = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0.02, ior: 2.4, specularIntensity: 1, envMapIntensity: 3, clearcoat: 1, clearcoatRoughness: 0, flatShading: true, side: THREE.DoubleSide })); m.userData.shared = true; return (dmA = m).clone();
+  const m = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({ color: 0xeaf0fb, metalness: 0.35, roughness: 0.02, envMapIntensity: 0.9, flatShading: true, side: THREE.DoubleSide })); m.userData.shared = true; return (dmA = m).clone();
 }
 function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.newRim && NEWRIM) mesh.add(rimMesh(S.lowBand)); if (COL) mesh.add(colMesh()); if (S.claws && QP.get('base') !== '0') for (const p of baseParts()) mesh.add(p.clone()); if (S.claws && QP.get('vp') !== '0') for (const p of vPillars()) mesh.add(p.clone()); if (S.claws && QP.get('dia') !== '0') mesh.add(diamondA()); if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
 
