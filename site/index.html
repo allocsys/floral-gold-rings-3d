@@ -196,7 +196,7 @@ function vPillars() {
   }
   return vC = g;
 }
-// Solitaire 2 pillars: a single style, the ivy curl (2 Vs on the hub whose arms are wavy vines with pointed 5-lobe leaves, ending in curled tendrils). All other pillar styles were removed; they are recoverable from commit 68385ac.
+// Solitaire 2 pillars: a single style, the ivy curl (2 Vs on the hub whose arms are wavy vines ending in curled tendrils, no leaves). All other pillar styles were removed; they are recoverable from commit 68385ac.
 const plSel = 'i3';
 const plC = {};
 function plTube(pts, rb, rt, ball, mat, g) {
@@ -204,12 +204,6 @@ function plTube(pts, rb, rt, ball, mat, g) {
   for (let i = 0; i <= TS; i++) { const u = i / TS, ctr = c.getPointAt(u), r = rt + (rb - rt) * Math.pow(1 - u, 0.8); for (let j = 0; j <= RS; j++) { const k = i * (RS + 1) + j; pa.setXYZ(k, ctr.x + (pa.getX(k) - ctr.x) * r, ctr.y + (pa.getY(k) - ctr.y) * r, ctr.z + (pa.getZ(k) - ctr.z) * r); } }
   geo.computeVertexNormals(); const m = new THREE.Mesh(geo, mat); m.userData.shared = true; g.push(m);
   if (ball) { const e = c.getPoint(1), t = new THREE.Mesh(new THREE.SphereGeometry(ball, 16, 12), mat); t.position.copy(e); t.userData.shared = true; g.push(t); }
-}
-let leafG = null;
-function ivyLeaf(P, X, size, mat, g, hint) {
-  if (!leafG) { const q = [[0, 0], [0.1, 0.15], [0.24, 0.3], [0.36, 0.15], [0.5, 0.2], [0.65, 0.12], [1, 0]], sh = new THREE.Shape(); const pts = q.concat(q.slice(1, -1).reverse().map(a => [a[0], -a[1]])).map(a => [a[0], a[1] * 1.7]); sh.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) sh.lineTo(pts[i][0], pts[i][1]); sh.closePath(); leafG = new THREE.ExtrudeGeometry(sh, { depth: 0.06, bevelEnabled: false }); leafG.translate(0, 0, -0.03); const pa = leafG.attributes.position; for (let i = 0; i < pa.count; i++) pa.setZ(i, pa.getZ(i) + 0.3 * pa.getX(i) * pa.getX(i)); leafG.computeVertexNormals(); }
-  const up = hint.clone(), x = X.clone().normalize(), z = up.clone().addScaledVector(x, -up.dot(x)); if (z.length() < 0.2) z.set(1, 0, 0).addScaledVector(x, -x.x); z.normalize(); const y = new THREE.Vector3().crossVectors(z, x);
-  const m = new THREE.Mesh(leafG, mat); m.position.copy(P); m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z)); m.scale.set(size, size, size); m.userData.shared = true; g.push(m);
 }
 function ivyArms(id, mat, g) {
   const Y0 = RIM_Y - 0.034, H = 0.17, ER = 0.14, UP = new THREE.Vector3(0, 1, 0);
@@ -223,8 +217,6 @@ function ivyArms(id, mat, g) {
       let all = pts, T1 = tg(1);
       if (id === 'i3') { let th = Math.atan2(T1.y, T1.dot(e)), P = pts[N].clone(); const cp = []; for (let i = 1; i <= 26; i++) { const sN = i / 26; th += (0.0035 * (12 + 200 * sN)); P = P.clone().addScaledVector(e, Math.cos(th) * 0.0042).addScaledVector(UP, Math.sin(th) * 0.0042); cp.push(P); } all = pts.concat(cp); }
       plTube(all, id === 'i3' ? 0.012 : 0.013, id === 'i3' ? 0.0035 : 0.006, 0, mat, g);
-      const lf = id === 'i3' ? [[0.4, 1], [0.7, -1]] : [[0.38, 1], [0.58, -1], [0.78, 1]];
-      for (const [u, sd2] of lf) ivyLeaf(c.getPointAt(u), tg(u).multiplyScalar(0.5).addScaledVector(sd, 0.9 * sd2).addScaledVector(UP, 0.25), 0.075, mat, g, sd.clone().multiplyScalar(sd2).addScaledVector(UP, 0.5));
     }
   }
 }
