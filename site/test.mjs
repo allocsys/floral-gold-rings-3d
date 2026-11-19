@@ -13,6 +13,7 @@ for (const [key, , min, max, step, only] of CONTROLS) {
   for (const k of [].concat(only || [])) if (!DEFAULTS[k]) fail(`control ${key}: unknown tab ${k}`);
 }
 const html = readFileSync(dir + 'index.html', 'utf8');
+if (!html.includes('./diamond.js') || !existsSync(dir + 'diamond.js')) fail('diamond.js missing or not imported');
 for (const f of ['band_meshy_tile.glb', 'nodiamond1.glb', 'nodiamond2.glb', 'nodiamond10.glb']) {
   if (!html.includes(f)) fail(`index.html does not reference ${f}`);
   if (!existsSync(dir + f)) fail(`missing ${f}`);
