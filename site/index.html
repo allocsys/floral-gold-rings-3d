@@ -12,6 +12,7 @@
   @media(min-width:720px){#ui{left:auto;top:0;right:0;bottom:0;width:320px;max-height:none;border-radius:0}}
   .tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}.tabs button{flex:1 1 56px}
   .tabs button,.act button{flex:1;padding:8px 4px;border:1px solid var(--accent);background:transparent;color:var(--fg);border-radius:8px;font:inherit}
+  .pl{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.pl button{flex:1 1 28%;padding:6px 4px;border:1px solid var(--accent);background:transparent;color:var(--fg);border-radius:8px;font:inherit}.pl button.on{background:var(--accent);color:#fff}
   .tabs button.on,.cl button.on{background:var(--accent);color:#fff}
   .cl{display:flex;gap:6px;align-items:center;margin:6px 0}.cl span{flex:0 0 110px}.cl button{flex:1;padding:8px 4px;border:1px solid var(--accent);background:transparent;color:var(--fg);border-radius:8px;font:inherit}
   .row{display:grid;grid-template-columns:110px 1fr 44px;gap:8px;align-items:center;margin:4px 0}
@@ -116,7 +117,7 @@ function buildMeshy(ID, wt, tt) { // wrap the slab: x -> angle (N tiles round th
 const GLBQ = new URLSearchParams(location.search).get('glb'), PRE = GLBQ !== 'nodiamond1.glb'; // Solitaire uses nodiamond2.glb = nodiamond1 with the old rim joints/cups/skirt removed and the torn edges cleaned offline (tools/meshy/clean_head). ?glb=nodiamond1.glb = original file with the runtime edits instead
 const SOLS = { solitaire3: { file: GLBQ ?? 'nodiamond10.glb', cx: -0.0004, cy: -0.0103, r: 0.866, label: 'Solitaire', claws: true, stand: true, newRim: true, lowBand: true, knobs: [[-0.1514, 0.8885, -0.1514], [-0.1566, 0.8905, 0.1486], [0.1507, 0.8883, -0.1511], [0.1554, 0.8906, 0.1483]] } };
 // Solitaire 2 = clone of Solitaire (same GLB, same code path; each entry clones its own geometry, so edits to one do not leak into the other). Edit this one freely.
-SOLS.solitaire2 = { ...SOLS.solitaire3, label: 'Solitaire 2', knobs: SOLS.solitaire3.knobs.map(k => k.slice()), rimArc: true };
+SOLS.solitaire2 = { ...SOLS.solitaire3, label: 'Solitaire 2', knobs: SOLS.solitaire3.knobs.map(k => k.slice()), rimArc: true, pillarSel: true };
 // Solitaire 2 = the same GLB as it looked before the knob work (commit 975d945): no squeeze, no cup cut, no skirt trim, claws ON by default (?stand=0 off). Each entry gets its own copy of the geometry, so the Solitaire edits do not leak into it.
 // Knobs: the 4 spheres (r 0.0545, fitted) at the claw bases are the joints of rim wire / cross bar / shank, so they are squeezed, not cut: vertices inside R2 = 0.075 of a centre are pulled towards it, bulb radius 0.0545 -> 0.0545*KK (default 0.28 = 0.015, about the wire). ?knob=0 = original bulbs, ?kk=F factor.
 // Old pillar cups (y > CUP_Y, horizontal radius CUP_R around the cup axis (+-0.137, +-0.135)) are cut off, corner by corner: CUPS = knob indices cleaned (default all four), ?cups=all / ?cups=none.
@@ -195,7 +196,27 @@ function vPillars() {
   }
   return vC = g;
 }
-function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.newRim && NEWRIM) mesh.add(rimMesh(S.lowBand, S.rimArc)); if (COL) mesh.add(colMesh()); if (S.claws && QP.get('base') !== '0') for (const p of baseParts()) mesh.add(p.clone()); if (S.claws && QP.get('vp') !== '0') for (const p of vPillars()) mesh.add(p.clone()); if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
+// Solitaire 2 pillar styles (selector row under the sliders, ?pl=id): c4 / c6 = tapered claws that rise from the rim and curl inward; ar = two crossing arches over the centre; tu = 8 slim tulip prongs; v = the old V pillars; none. Only entries with pillarSel use this; Solitaire keeps vPillars().
+const PL_STYLES = [['c4', '4 claws'], ['c6', '6 claws'], ['ar', 'Arches'], ['tu', 'Tulip 8'], ['v', 'Old V'], ['none', 'None']];
+let plSel = PL_STYLES.some(a => a[0] === QP.get('pl')) ? QP.get('pl') : 'c4';
+const plC = {};
+function plTube(pts, rb, rt, ball, mat, g) {
+  const c = new THREE.CatmullRomCurve3(pts), TS = 40, RS = 16, geo = new THREE.TubeGeometry(c, TS, 1, RS), pa = geo.attributes.position;
+  for (let i = 0; i <= TS; i++) { const u = i / TS, ctr = c.getPointAt(u), r = rt + (rb - rt) * Math.pow(1 - u, 0.8); for (let j = 0; j <= RS; j++) { const k = i * (RS + 1) + j; pa.setXYZ(k, ctr.x + (pa.getX(k) - ctr.x) * r, ctr.y + (pa.getY(k) - ctr.y) * r, ctr.z + (pa.getZ(k) - ctr.z) * r); } }
+  geo.computeVertexNormals(); const m = new THREE.Mesh(geo, mat); m.userData.shared = true; g.push(m);
+  if (ball) { const e = c.getPoint(1), t = new THREE.Mesh(new THREE.SphereGeometry(ball, 16, 12), mat); t.position.copy(e); t.userData.shared = true; g.push(t); }
+}
+function pillarsFor(id) {
+  if (id === 'none') return []; if (id === 'v') return vPillars(); if (plC[id]) return plC[id];
+  const mat = new THREE.MeshStandardMaterial({ color: 0xfad271, metalness: 1, roughness: 0.19 }), g = [], R0 = RIM_R, Y = RIM_Y;
+  const claws = (n, a0, H, rb, rt, ball, lean) => { for (let i = 0; i < n; i++) { const a = a0 + i * 2 * Math.PI / n, d = (r, y) => new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r); plTube([d(R0, Y - 0.012), d(R0 + 0.006, Y + H * 0.4), d(R0 - lean * 0.45, Y + H * 0.8), d(R0 - lean, Y + H)], rb, rt, ball, mat, g); } };
+  if (id === 'c4') claws(4, Math.PI / 4, 0.15, 0.019, 0.009, 0.0115, 0.04);
+  else if (id === 'c6') claws(6, Math.PI / 6, 0.15, 0.015, 0.0075, 0.0095, 0.04);
+  else if (id === 'tu') claws(8, Math.PI / 8, 0.11, 0.012, 0.0055, 0.0075, 0.03);
+  else if (id === 'ar') for (const a of [0, Math.PI / 2]) { const d = (r, y) => new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r), RR = R0 - 0.002, H = 0.15; plTube([d(-RR, Y - 0.012), d(-RR * 1.02, Y + H * 0.35), d(-RR * 0.6, Y + H * 0.85), d(0, Y + H), d(RR * 0.6, Y + H * 0.85), d(RR * 1.02, Y + H * 0.35), d(RR, Y - 0.012)], 0.0105, 0.0105, 0, mat, g); }
+  return plC[id] = g;
+}
+function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.newRim && NEWRIM) mesh.add(rimMesh(S.lowBand, S.rimArc)); if (COL) mesh.add(colMesh()); if (S.claws && QP.get('base') !== '0') for (const p of baseParts()) mesh.add(p.clone()); if (S.claws && QP.get('vp') !== '0') for (const p of (S.pillarSel ? pillarsFor(plSel) : vPillars())) mesh.add(p.clone()); if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
 
 let kind = 'solitaire3';
 const state = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { ...v }]));
@@ -241,8 +262,9 @@ function renderUI() {
     inp.oninput = () => { state[kind][key] = +inp.value; if (mw) mu[kind] = +inp.value; out.textContent = inp.value; queue('draft'); clearTimeout(fineTimer); fineTimer = setTimeout(() => queue('fine'), 350); };
     sliders.appendChild(row);
   }
+  if (SOLS[kind]?.pillarSel) { const pl = document.createElement('div'); pl.className = 'pl'; for (const [id, lb] of PL_STYLES) { const b = document.createElement('button'); b.textContent = lb; b.className = id === plSel ? 'on' : ''; b.onclick = () => { plSel = id; for (const x of pl.children) x.className = x === b ? 'on' : ''; queue('fine'); }; pl.appendChild(b); } sliders.appendChild(pl); }
 }
-document.getElementById('reset').onclick = () => { state[kind] = { ...DEFAULTS[kind] }; if (kind in meshyW) { meshyW[kind] = null; meshyT[kind] = null; } renderUI(); queue('fine'); };
+document.getElementById('reset').onclick = () => { state[kind] = { ...DEFAULTS[kind] }; if (SOLS[kind]?.pillarSel) plSel = 'c4'; if (kind in meshyW) { meshyW[kind] = null; meshyT[kind] = null; } renderUI(); queue('fine'); };
 const spin = document.getElementById('spin');
 spin.onclick = () => { spinOn = !spinOn; spin.textContent = 'Spin: ' + (spinOn ? 'on' : 'off'); };
 const ui = document.getElementById('ui'), tog = document.getElementById('tog');
