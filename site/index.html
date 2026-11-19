@@ -196,8 +196,9 @@ function vPillars() {
   }
   return vC = g;
 }
-// Solitaire 2 pillars: a single style, the ivy curl (2 Vs on the hub whose arms are wavy vines ending in curled tendrils, no leaves). All other pillar styles were removed; they are recoverable from commit 68385ac.
-const plSel = 'i3';
+// Solitaire 2 pillar styles (selector row under the sliders, ?pl=id): i3 = Ivy curl (2 Vs rising from the hub in the middle of the ring), r3 = Ivy rim (4 vines standing on the outer ring/rim, leaning inward). Others removed (recoverable from 68385ac).
+const PL_STYLES = [['i3', 'Ivy curl'], ['r3', 'Ivy rim']];
+let plSel = PL_STYLES.some(a => a[0] === QP.get('pl')) ? QP.get('pl') : 'i3';
 const plC = {};
 function plTube(pts, rb, rt, ball, mat, g) {
   const c = new THREE.CatmullRomCurve3(pts), TS = 40, RS = 16, geo = new THREE.TubeGeometry(c, TS, 1, RS), pa = geo.attributes.position;
@@ -206,18 +207,16 @@ function plTube(pts, rb, rt, ball, mat, g) {
   if (ball) { const e = c.getPoint(1), t = new THREE.Mesh(new THREE.SphereGeometry(ball, 16, 12), mat); t.position.copy(e); t.userData.shared = true; g.push(t); }
 }
 function ivyArms(id, mat, g) {
-  const Y0 = RIM_Y - 0.034, H = 0.17, ER = 0.14, UP = new THREE.Vector3(0, 1, 0);
+  const rim = id === 'r3', UP = new THREE.Vector3(0, 1, 0);
+  const Y0 = rim ? RIM_Y - 0.02 : RIM_Y - 0.034, H = rim ? 0.19 : 0.17, RB = rim ? RIM_R - 0.004 : 0, SPAN = rim ? -0.055 : 0.14, N = 16;
   for (let v = 0; v < 2; v++) for (const sg of [1, -1]) {
-    const a = v * Math.PI / 2, e = new THREE.Vector3(Math.cos(a) * sg, 0, Math.sin(a) * sg), sd = new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)).multiplyScalar(sg);
-    const amp = id === 'i2' ? 0.006 : 0.012, wv = id === 'i3' ? 1 : 1.5, N = 16;
-    const at = u => { const f = u, h = 1 - Math.pow(1 - u, 1.4), w = amp * Math.sin(2 * Math.PI * wv * u) * Math.min(1, u * 3); return new THREE.Vector3(0, Y0 + H * h, 0).addScaledVector(e, ER * f).addScaledVector(sd, w); };
+    const a = v * Math.PI / 2, e = new THREE.Vector3(Math.cos(a) * sg, 0, Math.sin(a) * sg), sd = new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)).multiplyScalar(sg), d = e.clone().multiplyScalar(Math.sign(SPAN));
+    const at = u => { const h = 1 - Math.pow(1 - u, 1.4), w = 0.012 * Math.sin(2 * Math.PI * u) * Math.min(1, u * 3); return new THREE.Vector3(0, Y0 + H * h, 0).addScaledVector(e, RB + SPAN * u).addScaledVector(sd, w); };
     const pts = []; for (let i = 0; i <= N; i++) pts.push(at(i / N));
-    const c = new THREE.CatmullRomCurve3(pts), tg = u => c.getTangentAt(u);
-    {
-      let all = pts, T1 = tg(1);
-      if (id === 'i3') { let th = Math.atan2(T1.y, T1.dot(e)), P = pts[N].clone(); const cp = []; for (let i = 1; i <= 26; i++) { const sN = i / 26; th += (0.0035 * (12 + 200 * sN)); P = P.clone().addScaledVector(e, Math.cos(th) * 0.0042).addScaledVector(UP, Math.sin(th) * 0.0042); cp.push(P); } all = pts.concat(cp); }
-      plTube(all, id === 'i3' ? 0.012 : 0.013, id === 'i3' ? 0.0035 : 0.006, 0, mat, g);
-    }
+    const c = new THREE.CatmullRomCurve3(pts), T1 = c.getTangentAt(1);
+    let th = Math.atan2(T1.y, T1.dot(d)), P = pts[N].clone(); const cp = [];
+    for (let i = 1; i <= 26; i++) { th += 0.0035 * (12 + 200 * i / 26); P = P.clone().addScaledVector(d, Math.cos(th) * 0.0042).addScaledVector(UP, Math.sin(th) * 0.0042); cp.push(P); }
+    plTube(pts.concat(cp), 0.012, 0.0035, 0, mat, g);
   }
 }
 function pillarsFor(id) {
@@ -272,8 +271,9 @@ function renderUI() {
     inp.oninput = () => { state[kind][key] = +inp.value; if (mw) mu[kind] = +inp.value; out.textContent = inp.value; queue('draft'); clearTimeout(fineTimer); fineTimer = setTimeout(() => queue('fine'), 350); };
     sliders.appendChild(row);
   }
+  if (SOLS[kind]?.pillarSel) { const pl = document.createElement('div'); pl.className = 'pl'; for (const [id, lb] of PL_STYLES) { const b = document.createElement('button'); b.textContent = lb; b.className = id === plSel ? 'on' : ''; b.onclick = () => { plSel = id; for (const x of pl.children) x.className = x === b ? 'on' : ''; queue('fine'); }; pl.appendChild(b); } sliders.appendChild(pl); }
 }
-document.getElementById('reset').onclick = () => { state[kind] = { ...DEFAULTS[kind] }; if (kind in meshyW) { meshyW[kind] = null; meshyT[kind] = null; } renderUI(); queue('fine'); };
+document.getElementById('reset').onclick = () => { state[kind] = { ...DEFAULTS[kind] }; if (SOLS[kind]?.pillarSel) plSel = 'i3'; if (kind in meshyW) { meshyW[kind] = null; meshyT[kind] = null; } renderUI(); queue('fine'); };
 const spin = document.getElementById('spin');
 spin.onclick = () => { spinOn = !spinOn; spin.textContent = 'Spin: ' + (spinOn ? 'on' : 'off'); };
 const ui = document.getElementById('ui'), tog = document.getElementById('tog');
