@@ -45,6 +45,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { DEFAULTS, LABELS, CONTROLS } from './geometry.js?v=clean7';
+import { diamondGeo } from './diamond.js?v=d1';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -219,10 +220,16 @@ function ivyArms(id, mat, g) {
     plTube(pts.concat(cp), 0.012, 0.0035, 0, mat, g);
   }
 }
+// Diamond for Ivy rim (?dia=0 hides): round brilliant from diamond.js, culet on the hub top, girdle just inside the 4 vines (measured: vine centre r .1446 - tube .0079 at the girdle height, so Rg .137). Tune with ?dr (girdle radius), ?dy (culet y).
+function diamondMesh() {
+  const m = new THREE.Mesh(diamondGeo({ Rg: +(QP.get('dr') ?? 0.137), culetY: +(QP.get('dy') ?? 0.8818) }), new THREE.MeshPhysicalMaterial({ color: 0xf4f8ff, metalness: 1, roughness: 0.03, envMapIntensity: 1.6, clearcoat: 0, side: THREE.DoubleSide }));
+  m.userData.shared = true; return m;
+}
 function pillarsFor(id) {
   if (plC[id]) return plC[id];
   const mat = new THREE.MeshStandardMaterial({ color: 0xfad271, metalness: 1, roughness: 0.19 }), g = [];
   ivyArms(id, mat, g);
+  if (id === 'r3' && QP.get('dia') !== '0') g.push(diamondMesh());
   return plC[id] = g;
 }
 function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.newRim && NEWRIM) mesh.add(rimMesh(S.lowBand, S.rimArc)); if (COL) mesh.add(colMesh()); if (S.claws && QP.get('base') !== '0') for (const p of baseParts()) mesh.add(p.clone()); if (S.claws && QP.get('vp') !== '0') for (const p of (S.pillarSel ? pillarsFor(plSel) : vPillars())) mesh.add(p.clone()); if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
