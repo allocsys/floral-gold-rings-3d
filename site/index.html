@@ -197,7 +197,7 @@ function vPillars() {
   return vC = g;
 }
 // Solitaire 2 pillar styles (selector row under the sliders, ?pl=id): all are V pillars with the vertex on the hub and two arms rising and spreading; they differ in thickness, height, spread, curve and number of Vs. v0 = the first V pillars (thin spikes). none = no pillars. Only entries with pillarSel use this; Solitaire keeps vPillars(). (Claw / arch / tulip styles of 6113a24 are recoverable from that commit.)
-const PL_STYLES = [['v1', 'V thick'], ['v2', 'V tall'], ['v3', 'V curved'], ['v4', '3 Vs'], ['v5', '4 Vs slim'], ['v0', 'Old V'], ['none', 'None']];
+const PL_STYLES = [['v1', 'V thick'], ['v2', 'V tall'], ['v3', 'V curved'], ['v4', '3 Vs'], ['v5', '4 Vs slim'], ['i1', 'Ivy leaves'], ['i2', 'Ivy twist'], ['i3', 'Ivy curl'], ['v0', 'Old V'], ['none', 'None']];
 let plSel = PL_STYLES.some(a => a[0] === QP.get('pl')) ? QP.get('pl') : 'v1';
 const plC = {};
 function plTube(pts, rb, rt, ball, mat, g) {
@@ -205,6 +205,35 @@ function plTube(pts, rb, rt, ball, mat, g) {
   for (let i = 0; i <= TS; i++) { const u = i / TS, ctr = c.getPointAt(u), r = rt + (rb - rt) * Math.pow(1 - u, 0.8); for (let j = 0; j <= RS; j++) { const k = i * (RS + 1) + j; pa.setXYZ(k, ctr.x + (pa.getX(k) - ctr.x) * r, ctr.y + (pa.getY(k) - ctr.y) * r, ctr.z + (pa.getZ(k) - ctr.z) * r); } }
   geo.computeVertexNormals(); const m = new THREE.Mesh(geo, mat); m.userData.shared = true; g.push(m);
   if (ball) { const e = c.getPoint(1), t = new THREE.Mesh(new THREE.SphereGeometry(ball, 16, 12), mat); t.position.copy(e); t.userData.shared = true; g.push(t); }
+}
+// Ivy V pillars (i1 leaves, i2 twist, i3 curl): 2 Vs on the hub whose arms are wavy vines carrying pointed 5-lobe ivy leaves; i2 = each arm is two strands twisted round each other, i3 = arms end in a curled tendril.
+let leafG = null;
+function ivyLeaf(P, X, size, mat, g, hint) {
+  if (!leafG) { const q = [[0, 0], [0.1, 0.15], [0.24, 0.3], [0.36, 0.15], [0.5, 0.2], [0.65, 0.12], [1, 0]], sh = new THREE.Shape(); const pts = q.concat(q.slice(1, -1).reverse().map(a => [a[0], -a[1]])).map(a => [a[0], a[1] * 1.7]); sh.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) sh.lineTo(pts[i][0], pts[i][1]); sh.closePath(); leafG = new THREE.ExtrudeGeometry(sh, { depth: 0.06, bevelEnabled: false }); leafG.translate(0, 0, -0.03); const pa = leafG.attributes.position; for (let i = 0; i < pa.count; i++) pa.setZ(i, pa.getZ(i) + 0.3 * pa.getX(i) * pa.getX(i)); leafG.computeVertexNormals(); }
+  const up = hint.clone(), x = X.clone().normalize(), z = up.clone().addScaledVector(x, -up.dot(x)); if (z.length() < 0.2) z.set(1, 0, 0).addScaledVector(x, -x.x); z.normalize(); const y = new THREE.Vector3().crossVectors(z, x);
+  const m = new THREE.Mesh(leafG, mat); m.position.copy(P); m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z)); m.scale.set(size, size, size); m.userData.shared = true; g.push(m);
+}
+function ivyArms(id, mat, g) {
+  const Y0 = RIM_Y - 0.034, H = 0.17, ER = 0.14, UP = new THREE.Vector3(0, 1, 0);
+  for (let v = 0; v < 2; v++) for (const sg of [1, -1]) {
+    const a = v * Math.PI / 2, e = new THREE.Vector3(Math.cos(a) * sg, 0, Math.sin(a) * sg), sd = new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)).multiplyScalar(sg);
+    const amp = id === 'i2' ? 0.006 : 0.012, wv = id === 'i3' ? 1 : 1.5, N = 16;
+    const at = u => { const f = u, h = 1 - Math.pow(1 - u, 1.4), w = amp * Math.sin(2 * Math.PI * wv * u) * Math.min(1, u * 3); return new THREE.Vector3(0, Y0 + H * h, 0).addScaledVector(e, ER * f).addScaledVector(sd, w); };
+    const pts = []; for (let i = 0; i <= N; i++) pts.push(at(i / N));
+    const c = new THREE.CatmullRomCurve3(pts), tg = u => c.getTangentAt(u);
+    if (id === 'i2') {
+      for (const ph of [0, Math.PI]) { const sp = []; for (let i = 0; i <= 40; i++) { const u = i / 40, T = tg(u), n2 = new THREE.Vector3().crossVectors(T, sd).normalize(), r = 0.011 * Math.min(1, u * 4) * (1 - 0.35 * u), an = 2 * Math.PI * 2.5 * u + ph; sp.push(c.getPointAt(u).addScaledVector(sd, Math.cos(an) * r).addScaledVector(n2, Math.sin(an) * r)); } plTube(sp, 0.0085, 0.0055, 0, mat, g); }
+      ivyLeaf(c.getPointAt(0.55), tg(0.55).multiplyScalar(0.5).addScaledVector(sd, 0.9).addScaledVector(UP, 0.2), 0.075, mat, g, sd.clone().addScaledVector(UP, 0.5));
+      ivyLeaf(c.getPoint(1), tg(1).multiplyScalar(0.9).addScaledVector(UP, 0.15), 0.09, mat, g, sd.clone().addScaledVector(UP, 0.5));
+    } else {
+      let all = pts, T1 = tg(1);
+      if (id === 'i3') { let th = Math.atan2(T1.y, T1.dot(e)), P = pts[N].clone(); const cp = []; for (let i = 1; i <= 26; i++) { const sN = i / 26; th += (0.0035 * (12 + 200 * sN)); P = P.clone().addScaledVector(e, Math.cos(th) * 0.0042).addScaledVector(UP, Math.sin(th) * 0.0042); cp.push(P); } all = pts.concat(cp); }
+      plTube(all, id === 'i3' ? 0.012 : 0.013, id === 'i3' ? 0.0035 : 0.006, 0, mat, g);
+      const lf = id === 'i3' ? [[0.4, 1], [0.7, -1]] : [[0.38, 1], [0.58, -1], [0.78, 1]];
+      for (const [u, sd2] of lf) ivyLeaf(c.getPointAt(u), tg(u).multiplyScalar(0.5).addScaledVector(sd, 0.9 * sd2).addScaledVector(UP, 0.25), 0.075, mat, g, sd.clone().multiplyScalar(sd2).addScaledVector(UP, 0.5));
+      if (id === 'i1') ivyLeaf(pts[N], T1.clone().multiplyScalar(0.9).addScaledVector(UP, 0.15), 0.09, mat, g, sd.clone().addScaledVector(UP, 0.5));
+    }
+  }
 }
 function pillarsFor(id) {
   if (id === 'none') return []; if (id === 'v0') return vPillars(); if (plC[id]) return plC[id];
@@ -216,6 +245,7 @@ function pillarsFor(id) {
   else if (id === 'v3') vs(2, 0, 0.19, 0.15, 0.022, 0.011, 0.013, [[0, 0], [0.45, 0.18], [0.88, 0.55], [1, 1]]);
   else if (id === 'v4') vs(3, 0, 0.15, 0.14, 0.019, 0.01, 0.012, [[0, 0], [0.5, 0.5], [1, 1]]);
   else if (id === 'v5') vs(4, 0, 0.17, 0.12, 0.016, 0.008, 0.01, [[0, 0], [0.45, 0.5], [1, 1]]);
+  else if (id[0] === 'i') ivyArms(id, mat, g);
   return plC[id] = g;
 }
 function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.newRim && NEWRIM) mesh.add(rimMesh(S.lowBand, S.rimArc)); if (COL) mesh.add(colMesh()); if (S.claws && QP.get('base') !== '0') for (const p of baseParts()) mesh.add(p.clone()); if (S.claws && QP.get('vp') !== '0') for (const p of (S.pillarSel ? pillarsFor(plSel) : vPillars())) mesh.add(p.clone()); if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
