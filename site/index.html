@@ -220,9 +220,9 @@ function ivyArms(id, mat, g) {
     plTube(pts.concat(cp), 0.012, 0.0035, 0, mat, g);
   }
 }
-// Diamond for both pillar styles (?dia=0 hides). i3 Ivy curl: Rg .12, culet y .9188 = measured (cone clears the vines, gap >= .0005; girdle y 1.026 = vine tip height 1.028, so the claws hold the girdle). r3 Ivy rim:: round brilliant from diamond.js, culet on the hub top, girdle just inside the 4 vines (measured: vine centre r .1446 - tube .0079 at the girdle height, so Rg .137). Tune with ?dr (girdle radius), ?dy (culet y).
+// Diamond for both pillar styles (?dia=0 hides). i3 Ivy curl: Rg .14, culet y .9188 = measured (cone clears the vines, gap >= .0005; girdle y 1.044, just above the vine tips 1.028). r3 Ivy rim:: round brilliant from diamond.js, culet on the hub top, girdle just inside the 4 vines (measured: vine centre r .1446 - tube .0079 at the girdle height, so Rg .137). Tune with ?dr (girdle radius), ?dy (culet y).
 function diamondMesh(id) {
-  const i3 = id !== 'r3', m = new THREE.Mesh(diamondGeo({ Rg: +(QP.get('dr') ?? (i3 ? 0.12 : 0.137)), culetY: +(QP.get('dy') ?? (i3 ? 0.9188 : 0.8818)) }), new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.6, roughness: 0.05, envMapIntensity: 3.2, emissive: 0x3c4352, clearcoat: 1, clearcoatRoughness: 0, side: THREE.DoubleSide }));
+  const i3 = id !== 'r3', m = new THREE.Mesh(diamondGeo({ Rg: +(QP.get('dr') ?? (i3 ? 0.14 : 0.137)), culetY: +(QP.get('dy') ?? (i3 ? 0.9188 : 0.8818)) }), new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.6, roughness: 0.05, envMapIntensity: 3.2, emissive: 0x3c4352, clearcoat: 1, clearcoatRoughness: 0, side: THREE.DoubleSide }));
   m.userData.shared = true; return m;
 }
 function pillarsFor(id) {
