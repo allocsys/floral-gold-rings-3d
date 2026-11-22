@@ -220,9 +220,9 @@ function ivyArms(id, mat, g) {
     plTube(pts.concat(cp), 0.012, 0.0035, 0, mat, g);
   }
 }
-// Diamond for both pillar styles (?dia=0 hides). i3 Ivy curl: Rg .14, culet y .9188 = measured (cone clears the vines, gap >= .0005; girdle y 1.044, just above the vine tips 1.028). r3 Ivy rim:: round brilliant from diamond.js, culet on the hub top, girdle just inside the 4 vines (measured: vine centre r .1446 - tube .0079 at the girdle height, so Rg .137). Tune with ?dr (girdle radius), ?dy (culet y).
+// Diamond for both pillar styles and the Solitaire V pillars ('v': Rg .14, culet y .867 = measured vine clearance >= .0005, girdle y .992 just above the tips .978) (?dia=0 hides). i3 Ivy curl: Rg .14, culet y .9188 = measured (cone clears the vines, gap >= .0005; girdle y 1.044, just above the vine tips 1.028). r3 Ivy rim:: round brilliant from diamond.js, culet on the hub top, girdle just inside the 4 vines (measured: vine centre r .1446 - tube .0079 at the girdle height, so Rg .137). Tune with ?dr (girdle radius), ?dy (culet y).
 function diamondMesh(id) {
-  const i3 = id !== 'r3', m = new THREE.Mesh(diamondGeo({ Rg: +(QP.get('dr') ?? (i3 ? 0.14 : 0.137)), culetY: +(QP.get('dy') ?? (i3 ? 0.9188 : 0.8818)) }), new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.6, roughness: 0.05, envMapIntensity: 3.2, emissive: 0x3c4352, clearcoat: 1, clearcoatRoughness: 0, side: THREE.DoubleSide }));
+  const dp = { r3: [0.137, 0.8818], i3: [0.14, 0.9188], v: [0.14, 0.867] }[id], m = new THREE.Mesh(diamondGeo({ Rg: +(QP.get('dr') ?? dp[0]), culetY: +(QP.get('dy') ?? dp[1]) }), new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.6, roughness: 0.05, envMapIntensity: 3.2, emissive: 0x3c4352, clearcoat: 1, clearcoatRoughness: 0, side: THREE.DoubleSide }));
   m.userData.shared = true; return m;
 }
 function pillarsFor(id) {
@@ -232,7 +232,7 @@ function pillarsFor(id) {
   if (QP.get('dia') !== '0') g.push(diamondMesh(id));
   return plC[id] = g;
 }
-function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.newRim && NEWRIM) mesh.add(rimMesh(S.lowBand, S.rimArc)); if (COL) mesh.add(colMesh()); if (S.claws && QP.get('base') !== '0') for (const p of baseParts()) mesh.add(p.clone()); if (S.claws && QP.get('vp') !== '0') for (const p of (S.pillarSel ? pillarsFor(plSel) : vPillars())) mesh.add(p.clone()); if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
+function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; if (S.newRim && NEWRIM) mesh.add(rimMesh(S.lowBand, S.rimArc)); if (COL) mesh.add(colMesh()); if (S.claws && QP.get('base') !== '0') for (const p of baseParts()) mesh.add(p.clone()); if (S.claws && QP.get('vp') !== '0') for (const p of (S.pillarSel ? pillarsFor(plSel) : vPillars())) mesh.add(p.clone()); if (S.claws && !S.pillarSel && QP.get('dia') !== '0') mesh.add(diamondMesh('v')); if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
 
 let kind = 'solitaire3';
 const state = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { ...v }]));
