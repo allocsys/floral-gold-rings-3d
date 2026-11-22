@@ -209,7 +209,7 @@ function plTube(pts, rb, rt, ball, mat, g) {
 }
 function ivyArms(id, mat, g) {
   const rim = id === 'r3', UP = new THREE.Vector3(0, 1, 0);
-  const Y0 = rim ? RIM_Y - 0.02 : RIM_Y - 0.034, H = rim ? 0.19 : 0.17, RB = rim ? RIM_R - 0.004 : 0, SPAN = rim ? -0.055 : 0.165, N = 16;
+  const Y0 = rim ? RIM_Y - 0.02 : RIM_Y - 0.034, H = rim ? 0.19 : 0.17, RB = rim ? RIM_R - 0.004 : 0, SPAN = rim ? -0.055 : 0.175, N = 16;
   for (let v = 0; v < 2; v++) for (const sg of [1, -1]) {
     const a = v * Math.PI / 2, e = new THREE.Vector3(Math.cos(a) * sg, 0, Math.sin(a) * sg), sd = new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)).multiplyScalar(sg), d = e.clone().multiplyScalar(Math.sign(SPAN));
     const at = u => { const h = 1 - Math.pow(1 - u, 1.4), w = 0.012 * Math.sin(2 * Math.PI * u) * Math.min(1, u * 3); return new THREE.Vector3(0, Y0 + H * h, 0).addScaledVector(e, RB + SPAN * u).addScaledVector(sd, w); };
@@ -222,7 +222,7 @@ function ivyArms(id, mat, g) {
 }
 // Diamond for both pillar styles and the Solitaire V pillars ('v': Rg .14, culet y .867 = measured vine clearance >= .0005, girdle y .992 just above the tips .978) (?dia=0 hides). i3 Ivy curl: Rg .14, culet y .9188 = measured (cone clears the vines, gap >= .0005; girdle y 1.044, just above the vine tips 1.028). r3 Ivy rim:: round brilliant from diamond.js, culet on the hub top, girdle just inside the 4 vines (measured: vine centre r .1446 - tube .0079 at the girdle height, so Rg .137). Tune with ?dr (girdle radius), ?dy (culet y).
 function diamondMesh(id) {
-  const dp = { r3: [0.137, 0.8818], i3: [0.15, 0.903], v: [0.14, 0.867] }[id], m = new THREE.Mesh(diamondGeo({ Rg: +(QP.get('dr') ?? dp[0]), culetY: +(QP.get('dy') ?? dp[1]) }), new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.6, roughness: 0.05, envMapIntensity: 3.2, emissive: 0x3c4352, clearcoat: 1, clearcoatRoughness: 0, side: THREE.DoubleSide }));
+  const dp = { r3: [0.137, 0.8818], i3: [0.16, 0.898], v: [0.14, 0.867] }[id], m = new THREE.Mesh(diamondGeo({ Rg: +(QP.get('dr') ?? dp[0]), culetY: +(QP.get('dy') ?? dp[1]) }), new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.6, roughness: 0.05, envMapIntensity: 3.2, emissive: 0x3c4352, clearcoat: 1, clearcoatRoughness: 0, side: THREE.DoubleSide }));
   m.userData.shared = true; return m;
 }
 function pillarsFor(id) {
