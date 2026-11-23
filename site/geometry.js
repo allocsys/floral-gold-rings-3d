@@ -5,8 +5,9 @@ export const DEFAULTS = {
   band2:      { ID: 17 },
   solitaire3: { ID: 17 },
   solitaire2: { ID: 17 },
+  solitaire4: { ID: 17 },
 };
-export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire3: 'Solitaire', solitaire2: 'Solitaire 2' };
+export const LABELS = { band1: 'Wide band', band2: 'Band', solitaire3: 'Solitaire', solitaire2: 'Solitaire 2', solitaire4: 'Solitaire 3' };
 export const CONTROLS = [
   ['ID', 'Inner diameter', 14, 24, 0.1],
   ['w', 'Width', 1.5, 8, 0.1, ['band1', 'band2']],
