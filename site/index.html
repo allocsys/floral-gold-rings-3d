@@ -211,7 +211,7 @@ function plTube(pts, rb, rt, ball, mat, g) {
 }
 function ivyArms(id, mat, g) {
   const rim = id === 'r3', UP = new THREE.Vector3(0, 1, 0);
-  const Y0 = rim ? RIM_Y - 0.02 : RIM_Y - 0.034, H = rim ? 0.19 : 0.17, RB = rim ? RIM_R - 0.004 : 0, SPAN = rim ? -0.055 : 0.195, N = 16;
+  const Y0 = rim ? RIM_Y - 0.02 : RIM_Y - 0.034, H = rim ? 0.19 : 0.17, RB = rim ? RIM_R - 0.004 : 0, SPAN = rim ? -0.055 : +(QP.get('sp') ?? 0.187), N = 16;
   for (let v = 0; v < 2; v++) for (const sg of [1, -1]) {
     const a = v * Math.PI / 2, e = new THREE.Vector3(Math.cos(a) * sg, 0, Math.sin(a) * sg), sd = new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)).multiplyScalar(sg), d = e.clone().multiplyScalar(Math.sign(SPAN));
     const at = u => { const h = 1 - Math.pow(1 - u, 1.4), w = 0.012 * Math.sin(2 * Math.PI * u) * Math.min(1, u * 3); return new THREE.Vector3(0, Y0 + H * h, 0).addScaledVector(e, RB + SPAN * u).addScaledVector(sd, w); };
