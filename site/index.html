@@ -44,7 +44,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULTS, LABELS, CONTROLS } from './geometry.js?v=clean8';
+import { DEFAULTS, LABELS, CONTROLS } from './geometry.js?v=clean9';
 import { diamondGeo } from './diamond.js?v=d1';
 
 const canvas = document.getElementById('c');
@@ -121,6 +121,8 @@ const SOLS = { solitaire3: { file: GLBQ ?? 'nodiamond10.glb', cx: -0.0004, cy: -
 SOLS.solitaire2 = { ...SOLS.solitaire3, label: 'Solitaire 2', knobs: SOLS.solitaire3.knobs.map(k => k.slice()), rimArc: true, pillarSel: true };
 // Solitaire 3 = Solitaire 2 + trim:true. Side view (ring axis z = screen horizontal): the head top (rim wire outer .194, gallery wall corners |z| up to .19) was as wide as the shoulders (.18), so the corners stuck out. With trim the rim is squashed in z only (?tz, default .92 -> outer z .179; was .85 = collar skirt cut through by the wall top, dented look) and the gallery wall above y WY0 is narrowed in z (?wz = new max |z| at the top, default .165, smoothly from y ?wy0 .845 to ?wy1 .875). x extents, claws, hub, vines and stone are untouched.
 SOLS.solitaire4 = { ...SOLS.solitaire2, label: 'Solitaire 3', knobs: SOLS.solitaire3.knobs.map(k => k.slice()), trim: false, rimK: +(new URLSearchParams(location.search).get('rk') ?? 0.94), rimHide: new URLSearchParams(location.search).get('rh') !== '0' };
+// Solitaire 4 = frozen copy of Solitaire 2 with the Ivy curl pillars (i3) fixed (pillarFix: no pillar selector, ignores ?pl and the Solitaire 2 selection), so later edits to Solitaire 2 never change it. Same GLB, own geometry clone, same code path.
+SOLS.solitaire5 = { ...SOLS.solitaire2, label: 'Solitaire 4', knobs: SOLS.solitaire3.knobs.map(k => k.slice()), pillarFix: 'i3' };
 const TQ = new URLSearchParams(location.search), TZ = +(TQ.get('tz') ?? 0.92), WZ = +(TQ.get('wz') ?? 0.165), WY0 = +(TQ.get('wy0') ?? 0.845), WY1 = +(TQ.get('wy1') ?? 0.875), WZ0 = 0.19, WZ1 = +(TQ.get('wz1') ?? 0.15);
 // Solitaire 2 = the same GLB as it looked before the knob work (commit 975d945): no squeeze, no cup cut, no skirt trim, claws ON by default (?stand=0 off). Each entry gets its own copy of the geometry, so the Solitaire edits do not leak into it.
 // Knobs: the 4 spheres (r 0.0545, fitted) at the claw bases are the joints of rim wire / cross bar / shank, so they are squeezed, not cut: vertices inside R2 = 0.075 of a centre are pulled towards it, bulb radius 0.0545 -> 0.0545*KK (default 0.28 = 0.015, about the wire). ?knob=0 = original bulbs, ?kk=F factor.
@@ -238,7 +240,7 @@ function pillarsFor(id, trim) {
   if (QP.get('dia') !== '0') g.push(diamondMesh(id));
   return plC[ck] = g;
 }
-function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; const hd = new THREE.Group(); hd.scale.setScalar(DS); hd.position.y = DS_Y * (1 - DS); hd.userData.shared = true; mesh.add(hd); if (S.newRim && NEWRIM) { const rm = rimMesh(S.lowBand, S.rimArc); if (S.trim) rm.scale.z = TZ; if (S.rimK) { rm.scale.x *= S.rimK; rm.scale.z *= S.rimK; } if (S.rimHide) rm.visible = false; mesh.add(rm); } if (COL) mesh.add(colMesh()); if (S.claws && QP.get('base') !== '0') for (const [bi, p] of baseParts().entries()) { const q = p.clone(); if (bi === 0 && S.rimK) q.scale.y *= S.rimK; (bi === 0 ? mesh : hd).add(q); } if (S.claws && QP.get('vp') !== '0') for (const p of (S.pillarSel ? pillarsFor(plSel, S.trim) : vPillars())) hd.add(p.clone()); if (S.claws && !S.pillarSel && QP.get('dia') !== '0') hd.add(diamondMesh('v')); if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
+function buildSol(key, ID) { const S = SOLS[key], k = (ID / 2) / S.r, mesh = new THREE.Mesh(S.src.geo, S.src.mat); mesh.scale.setScalar(k); mesh.position.set(-S.cx * k, -S.cy * k, 0); mesh.userData.shared = true; const hd = new THREE.Group(); hd.scale.setScalar(DS); hd.position.y = DS_Y * (1 - DS); hd.userData.shared = true; mesh.add(hd); if (S.newRim && NEWRIM) { const rm = rimMesh(S.lowBand, S.rimArc); if (S.trim) rm.scale.z = TZ; if (S.rimK) { rm.scale.x *= S.rimK; rm.scale.z *= S.rimK; } if (S.rimHide) rm.visible = false; mesh.add(rm); } if (COL) mesh.add(colMesh()); if (S.claws && QP.get('base') !== '0') for (const [bi, p] of baseParts().entries()) { const q = p.clone(); if (bi === 0 && S.rimK) q.scale.y *= S.rimK; (bi === 0 ? mesh : hd).add(q); } if (S.claws && QP.get('vp') !== '0') for (const p of (S.pillarSel ? pillarsFor(S.pillarFix ?? plSel, S.trim) : vPillars())) hd.add(p.clone()); if (S.claws && !S.pillarSel && QP.get('dia') !== '0') hd.add(diamondMesh('v')); if (S.stand && (S.standDefault ? QP.get('stand') !== '0' : STAND_ON)) for (const p of standParts()) mesh.add(p.clone()); return mesh; }
 
 let kind = 'solitaire3';
 const state = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { ...v }]));
@@ -284,9 +286,9 @@ function renderUI() {
     inp.oninput = () => { state[kind][key] = +inp.value; if (mw) mu[kind] = +inp.value; out.textContent = inp.value; queue('draft'); clearTimeout(fineTimer); fineTimer = setTimeout(() => queue('fine'), 350); };
     sliders.appendChild(row);
   }
-  if (SOLS[kind]?.pillarSel) { const pl = document.createElement('div'); pl.className = 'pl'; for (const [id, lb] of PL_STYLES) { const b = document.createElement('button'); b.textContent = lb; b.className = id === plSel ? 'on' : ''; b.onclick = () => { plSel = id; for (const x of pl.children) x.className = x === b ? 'on' : ''; queue('fine'); }; pl.appendChild(b); } sliders.appendChild(pl); }
+  if (SOLS[kind]?.pillarSel && !SOLS[kind].pillarFix) { const pl = document.createElement('div'); pl.className = 'pl'; for (const [id, lb] of PL_STYLES) { const b = document.createElement('button'); b.textContent = lb; b.className = id === plSel ? 'on' : ''; b.onclick = () => { plSel = id; for (const x of pl.children) x.className = x === b ? 'on' : ''; queue('fine'); }; pl.appendChild(b); } sliders.appendChild(pl); }
 }
-document.getElementById('reset').onclick = () => { state[kind] = { ...DEFAULTS[kind] }; if (SOLS[kind]?.pillarSel) plSel = 'i3'; if (kind in meshyW) { meshyW[kind] = null; meshyT[kind] = null; } renderUI(); queue('fine'); };
+document.getElementById('reset').onclick = () => { state[kind] = { ...DEFAULTS[kind] }; if (SOLS[kind]?.pillarSel && !SOLS[kind].pillarFix) plSel = 'i3'; if (kind in meshyW) { meshyW[kind] = null; meshyT[kind] = null; } renderUI(); queue('fine'); };
 const spin = document.getElementById('spin');
 spin.onclick = () => { spinOn = !spinOn; spin.textContent = 'Spin: ' + (spinOn ? 'on' : 'off'); };
 const ui = document.getElementById('ui'), tog = document.getElementById('tog');
