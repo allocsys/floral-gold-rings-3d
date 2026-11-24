@@ -8,6 +8,8 @@ Pipeline, run from a directory holding these scripts. All units mm, ring axis = 
 4. `repair3.py stage1.npz stage2.npz` - zips the two remaining rim loops (flange edges at z = +-half width, r = inner radius) into a clean bore strip, then checks open / non-manifold / directed-duplicate edges, signed volume, Euler characteristic. `repair3.py` reads `repair.py` for its helper functions, so keep them in the same directory.
 5. `val2.py stage2.npz` - manifold3d validity (status, genus, volume) plus an independent z-slice volume integral.
 
+6. `union8.py stage2.npz out.npz` - flips the zero-area sliver triangles away (edge flip into the neighbour; deleting them would open holes), rebuilds through manifold3d and checks watertight / 1 body / volume / vertex displacement. Needs trimesh, manifold3d, scipy.
+
 Results (2026-11-24): both rings are one watertight genus-1 solid, 0 open / 0 non-manifold edges.
 
 | ring | tris | volume | inner / outer diameter | width |
@@ -15,4 +17,4 @@ Results (2026-11-24): both rings are one watertight genus-1 solid, 0 open / 0 no
 | Wide band | 857,136 | 324.86 mm3 | 19.000 / 22.019 mm | 4.634 mm |
 | Band | 857,156 | 232.69 mm3 | 17.000 / 19.701 mm | 4.147 mm |
 
-Known leftovers: 6 (Wide band) / 8 (Band) zero-area sliver triangles from the seam zipper; relief self-intersections not yet checked.
+After union8.py: 0 zero-area triangles, 1 body each. Relief self-intersections not yet checked.
