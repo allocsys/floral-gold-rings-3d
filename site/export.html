@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jeweler export viewer</title>
+<style>
+html,body{margin:0;height:100%;background:#15171c;color:#e8e8ea;font:14px system-ui,sans-serif;overflow:hidden}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+#bar{position:fixed;left:0;right:0;bottom:0;padding:10px 10px calc(10px + env(safe-area-inset-bottom,0px));display:flex;gap:8px;flex-wrap:wrap;justify-content:center;background:rgba(21,23,28,.85)}
+button{background:#2a2e37;color:#e8e8ea;border:1px solid #444a57;border-radius:8px;padding:8px 14px;font:inherit}
+button.on{background:#c9a24a;color:#1a1a1a;border-color:#c9a24a}
+#info{position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;padding:8px 12px;font-size:12px;opacity:.85;text-align:center;pointer-events:none}
+#msg{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+</style></head><body>
+<canvas id="c"></canvas><div id="info">Solitaire 2 ivy curl, ring only (no stone), as sent to the jeweler</div><div id="msg">Loading…</div>
+<div id="bar"><button id="bGLB" class="on">GLB</button><button id="bSTL">STL</button><button id="bWire">Wireframe</button><button id="bFlat">Flat shading</button><button id="bView">Reset view</button></div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+const $ = id => document.getElementById(id), canvas = $('c'), msg = $('msg'), info = $('info');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x15171c);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+const camera = new THREE.PerspectiveCamera(35, 1, 1, 400), controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.target.set(0, 1, 0);
+const L = new THREE.DirectionalLight(0xffffff, 1.2); L.position.set(30, 40, 30); scene.add(L);
+const mat = new THREE.MeshStandardMaterial({ color: 0xfad271, metalness: 1, roughness: 0.19 });
+function resetView() { camera.position.set(34, 26, 46); controls.target.set(0, 1, 0); controls.update(); }
+function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize(); resetView();
+let model = null, kind = 'GLB'; const cache = {};
+function show(obj, label) {
+  if (model) scene.remove(model); model = obj; scene.add(obj);
+  let tris = 0; obj.traverse(o => { if (o.isMesh) { o.material = mat; const g = o.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
+  const bb = new THREE.Box3().setFromObject(obj), s = bb.getSize(new THREE.Vector3());
+  info.textContent = `${label}: ${tris.toLocaleString()} tris, ${s.x.toFixed(1)} x ${s.y.toFixed(1)} x ${s.z.toFixed(1)} mm`;
+  msg.textContent = '';
+}
+async function load(k) {
+  kind = k; $('bGLB').classList.toggle('on', k === 'GLB'); $('bSTL').classList.toggle('on', k === 'STL');
+  if (cache[k]) return show(cache[k], k);
+  msg.textContent = k === 'STL' ? 'Loading STL (24 MB)…' : 'Loading GLB (9 MB)…';
+  try {
+    if (k === 'GLB') { const g = await new GLTFLoader().loadAsync('export/solitaire2_ivy_curl_ring_nostone.glb'); cache[k] = g.scene; }
+    else { let geo = await new STLLoader().loadAsync('export/solitaire2_ivy_curl_ring_nostone.stl'); geo.deleteAttribute('normal'); geo = mergeVertices(geo, 1e-4); geo.computeVertexNormals(); cache[k] = new THREE.Mesh(geo, mat); }
+    if (kind === k) show(cache[k], k);
+  } catch (e) { msg.textContent = 'Load failed: ' + e.message; }
+}
+$('bGLB').onclick = () => load('GLB'); $('bSTL').onclick = () => load('STL'); $('bView').onclick = resetView;
+$('bWire').onclick = e => { mat.wireframe = !mat.wireframe; e.target.classList.toggle('on', mat.wireframe); };
+$('bFlat').onclick = e => { mat.flatShading = !mat.flatShading; mat.needsUpdate = true; e.target.classList.toggle('on', mat.flatShading); };
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+load('GLB');
+</script></body></html>
