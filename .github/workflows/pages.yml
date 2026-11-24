@@ -17,14 +17,18 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - run: node site/test.mjs
-  deploy:
+  build:
     needs: test
     runs-on: ubuntu-latest
-    environment: { name: github-pages, url: '${{ steps.d.outputs.page_url }}' }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with: { path: site }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: '${{ steps.d.outputs.page_url }}' }
+    steps:
       - id: d
         uses: actions/deploy-pages@v4
