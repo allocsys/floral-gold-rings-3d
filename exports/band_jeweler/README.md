@@ -11,4 +11,7 @@
 | Open / non-manifold edges | 0 / 0 |
 | Weight, 18k (15.5 g/cm3) / 24k (19.3 g/cm3) | 3.61 g / 4.49 g |
 
-Made by `tools/ring_export/` (exp_band.py -> repair.py -> repair3.py -> union8.py). Thickness scan, GLB and OBJ still to come.
+Made by `tools/ring_export/` (exp_band.py -> repair.py -> repair3.py -> union8.py). 
+Files: `band_ring_nostone.stl` / `.obj` / `.glb` (same mesh, 857k tris).
+
+Thickness scan (inward ray, 60k samples, report only, nothing changed): Band: min 0.001, p1 0.27, p5 0.48, median 1.07 mm; 3.0% of surface < 0.4 mm. Thin spots are mid-wall relief features repeating about every 60 deg (per tile), not the bore or outer skin. Jeweler minimum not yet known (0.4 mm used as a placeholder). Viewer: `site/export.html?ring=band`.
