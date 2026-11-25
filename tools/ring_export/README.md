@@ -18,3 +18,5 @@ Results (2026-11-24): both rings are one watertight genus-1 solid, 0 open / 0 no
 | Band | 857,156 | 232.69 mm3 | 17.000 / 19.701 mm | 4.147 mm |
 
 After union8.py: 0 zero-area triangles, 1 body each. Relief self-intersections not yet checked.
+
+7. `rebore.py in.stl Ri outprefix` (then `rebore_export.py wide|band Ri 744`) - rebuilds the bore strip as a clean quad strip with matched rim stations (stations inserted on the existing flange rim edges), collapses the 18 micro rim edges, and makes a GLB variant with split rim vertices (hard edge). Result 2026-11-25: Wide band 857,832 tris / 324.949 mm3, Band 857,848 tris / 232.756 mm3, both 1 body, genus 1, 0 open / 0 non-manifold, manifold3d NoError. Needs trimesh, manifold3d. `jag_report/rim_structure_before_after.png` is a painter's-algorithm structure plot (not a three.js render).
