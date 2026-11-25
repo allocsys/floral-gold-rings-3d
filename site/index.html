@@ -78,9 +78,12 @@ const MR_ON = new URLSearchParams(location.search).get('mr') !== '0';
 let meshySrc = null, meshyFail = false;
 const isMeshy = () => !meshyFail && (kind === 'band1' || kind === 'band2');
 let bandStarted = false; // lazy: each GLB is fetched only when its tab is first opened (startup was ~82 MB for all three)
-const loadBand = () => { if (bandStarted) return; bandStarted = true; new GLTFLoader().load('band_meshy_tile.glb', g => {
+const STITCH = new URLSearchParams(location.search).get('stitch') !== '0'; // ?stitch=0 = old unstitched tiles (own boundary normals, open seams)
+const loadBand = () => { if (bandStarted) return; bandStarted = true; const seamP = STITCH ? fetch('band_seam.json').then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null); // tools/ring_export/tile_seam.py: zipper triangles + one shared normal per seam vertex
+  new GLTFLoader().load('band_meshy_tile.glb', g => { seamP.then(seam => {
   let m = null; g.scene.traverse(o => { if (o.isMesh && !m) m = o; });
   if (!m.geometry.attributes.normal) m.geometry.computeVertexNormals();
+  if (seam) { const na = m.geometry.attributes.normal.array; for (let k = 0; k < seam.nIdx.length; k++) { const i = seam.nIdx[k] * 3; na[i] = seam.nrm[k * 3]; na[i + 1] = seam.nrm[k * 3 + 1]; na[i + 2] = seam.nrm[k * 3 + 2]; } } // seam vertices: the stored normals are one-sided (19 deg median apart across a tile join = the visible step); both sides now share one smoothed normal
   m.geometry.computeBoundingBox();
   const mrm = m.material.metalnessMap; // original Meshy metal/roughness map (G = roughness, B = metal); ?mr=0 = flat metalness .85 / roughness .4 as before
   const mat = new THREE.MeshStandardMaterial({ map: m.material.map, normalMap: m.material.normalMap, color: 0xffffff, ...(MR_ON && mrm ? { metalnessMap: mrm, roughnessMap: mrm, metalness: 1, roughness: 1 } : { metalness: 0.85, roughness: 0.4 }) });
@@ -91,15 +94,33 @@ const loadBand = () => { if (bandStarted) return; bandStarted = true; new GLTFLo
   const geo = m.geometry, idx = geo.index.array, nz = geo.attributes.normal.array, A = [], B = [];
   for (let i = 0; i < idx.length; i += 3) { const flat = k => nz[idx[i + k] * 3 + 2] < -0.97 || Math.abs(nz[idx[i + k] * 3 + 1]) > 0.97; const isB = BORE_ON && flat(0) && flat(1) && flat(2); (isB ? B : A).push(idx[i], idx[i + 1], idx[i + 2]); }
   geo.setIndex([...A, ...B]); geo.clearGroups(); geo.addGroup(0, A.length, 0); if (B.length) geo.addGroup(A.length, B.length, 1);
-  meshySrc = { geo, mat, mats: [mat, bore], b: geo.boundingBox };
+  meshySrc = { geo, mat, mats: [mat, bore], b: geo.boundingBox, A: Uint32Array.from(A), B: Uint32Array.from(B), seam };
   if (isMeshy()) queue('fine');
-}, undefined, e => { console.error('meshy glb failed', e); meshyFail = true; queue('fine'); }); };
+  }); }, undefined, e => { console.error('meshy glb failed', e); meshyFail = true; queue('fine'); }); };
 const meshyW = { band1: null, band2: null }, meshyLastW = { band1: 4.6, band2: 4.6 }, meshyT = { band1: null, band2: null }, meshyLastT = { band1: 1.5, band2: 1.5 }; // user-chosen width / thickness in mm per band tab; null = auto (natural value of the best-fit repeat count, as before the sliders existed)
 function buildMeshy(ID, wt, tt) { // wrap the slab: x -> angle (N tiles round the ring), y -> ring axis, z -> radius; scale k (x, z) so the N tiles close exactly round the ring; wt = target width in mm (null = auto): N = repeat count whose natural width k*W is nearest wt, then only the ring-axis scale is stretched to hit wt exactly; tt = target thickness in mm (null = auto = natural k*dz): only the radial (relief-depth) scale changes
   const { geo, b } = meshySrc, L = b.max.x - b.min.x, W = b.max.y - b.min.y, dz = b.max.z - b.min.z, Ri = ID / 2, c = 0.7, T = Math.PI * 2;
   const kN = n => tt ? (T / n) * (Ri + c * tt) / L : (T * Ri / n) / (L - T * c * dz / n), tgt = wt || 4.5; // tile length k*L = arc at radius Ri + c*(relief height): with a fixed thickness tt that height is tt, otherwise k*dz
   let N = 2; for (let n = 3; n <= 12; n++) if (Math.abs(Math.log(kN(n) * W / tgt)) < Math.abs(Math.log(kN(N) * W / tgt))) N = n;
   const k = kN(N), ky = wt ? wt / W : k, kz = tt ? tt / dz : k, P = geo.attributes.position, Nr = geo.attributes.normal, meshes = [];
+  if (meshySrc.seam) { // stitched ring: ONE geometry; the 885 zipper triangles per seam join tile t's end boundary to tile t+1's start boundary (raw vertex indices, so any N / width / thickness works)
+    const Pn = P.count, pos = new Float32Array(N * Pn * 3), nor = new Float32Array(N * Pn * 3), uv = new Float32Array(N * Pn * 2), pa0 = P.array, na0 = Nr.array, { A, B, seam } = meshySrc, Z = seam.tris, xe = b.max.x - 1e-6;
+    for (let t = 0; t < N; t++) {
+      const o = t * Pn * 3; uv.set(geo.attributes.uv.array, t * Pn * 2);
+      for (let i = 0; i < Pn; i++) {
+        const th = (((P.getX(i) - b.min.x) / L) + t) / N * T, r = Ri + (P.getZ(i) - b.min.z) * kz, ct = Math.cos(th), st = Math.sin(th);
+        pos[o + i * 3] = r * ct; pos[o + i * 3 + 1] = r * st; pos[o + i * 3 + 2] = (P.getY(i) - (b.min.y + b.max.y) / 2) * ky;
+        const nx = Nr.getX(i), nz = Nr.getZ(i) * (k / kz), ny = Nr.getY(i) * (k / ky), l = Math.hypot(nx, ny, nz) || 1;
+        nor[o + i * 3] = (nz * ct - nx * st) / l; nor[o + i * 3 + 1] = (nz * st + nx * ct) / l; nor[o + i * 3 + 2] = ny / l;
+      }
+    }
+    const nA = N * (A.length + Z.length), idx = new Uint32Array(nA + N * B.length); let q = 0;
+    for (let t = 0; t < N; t++) { const bs = t * Pn, bn = ((t + 1) % N) * Pn; for (let i = 0; i < A.length; i++) idx[q++] = A[i] + bs; for (let i = 0; i < Z.length; i++) idx[q++] = Z[i] + (P.getX(Z[i]) > xe ? bs : bn); }
+    for (let t = 0; t < N; t++) for (let i = 0; i < B.length; i++) idx[q++] = B[i] + t * Pn;
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(new THREE.BufferAttribute(idx, 1));
+    g.addGroup(0, nA, 0); if (B.length) g.addGroup(nA, N * B.length, 1); g.computeBoundingSphere();
+    return { meshes: [new THREE.Mesh(g, meshySrc.mats)], N, w: ky * W, t: kz * dz, stretch: ky / k };
+  }
   for (let t = 0; t < N; t++) {
     const g = geo.clone(), pa = g.attributes.position.array, na = g.attributes.normal.array;
     for (let i = 0; i < P.count; i++) {
